@@ -1,0 +1,10 @@
+# Ignore artifacts and generated files
+node_modules
+.expo
+dist
+build
+ios
+android
+package-lock.json
+bun.lockb
+yarn.lock
