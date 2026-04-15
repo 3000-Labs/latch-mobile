@@ -18,22 +18,24 @@ const Input: React.FC<Props> = ({ showPasswordToggle, secureTextEntry, ...props 
   const renderIcon = (iconProps: any) => (
     <TouchableOpacity onPress={toggleVisibility} style={{ paddingHorizontal: 8 }}>
       <Ionicons
-        name={isPasswordVisible ? 'eye-outline' : 'eye-off-outline'}
+        name={isPasswordVisible ? 'lock-open-outline' : 'lock-closed-outline'}
         size={20}
         color={theme.colors.gray500}
       />
     </TouchableOpacity>
   );
 
+  const errorBorderColor = props.status === 'danger' ? '#EA471E' : undefined;
+
   return (
     <UKInput
-      size='large'
+      size="large"
       {...props}
       secureTextEntry={secureTextEntry && !isPasswordVisible}
-      accessoryRight={secureTextEntry && showPasswordToggle ? renderIcon : props.accessoryRight}
-      style={[{ borderRadius: 14 }, props.style]}
+      accessoryRight={secureTextEntry ? renderIcon : props.accessoryRight}
+      style={[{ borderRadius: 14, borderColor: errorBorderColor }, props.style]}
       textStyle={{
-        color: theme.colors.white
+        color: theme.colors.white,
       }}
     />
   );

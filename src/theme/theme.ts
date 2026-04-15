@@ -1,7 +1,6 @@
 import { createTheme } from '@shopify/restyle';
 
 const palette = {
-
   black: '#000000',
   white: '#FFFFFF',
 
@@ -161,7 +160,8 @@ const palette = {
 
   green100: '#F0FDF4',
   transparent: 'transparent',
-  onboardingbg: "#151311",
+  onboardingbg: '#151311',
+  inputError: '#EA471E',
 };
 
 const theme = createTheme({
@@ -169,19 +169,16 @@ const theme = createTheme({
     mainBackground: palette.onboardingbg,
     secondaryBackground: palette.white,
 
-
     primary: palette.primary700,
     primaryLight: palette.primary100,
     primaryDark: palette.primary800,
     secondary: palette.primary600,
 
-
     // secondary: palette.secondary,
 
-    btnHover: "#6D3E04",
-    btnDisabled: "#383838",
+    btnHover: '#6D3E04',
+    btnDisabled: '#383838',
     onboardingbg: palette.onboardingbg,
-
 
     textPrimary: palette.white,
     black: palette.black,
@@ -189,6 +186,7 @@ const theme = createTheme({
     textTertiary: palette.gray500,
     textWhite: palette.white,
     white: palette.white,
+    inputError: palette.inputError,
 
     gray100: palette.gray100,
     gray200: palette.gray200,
@@ -349,7 +347,7 @@ const theme = createTheme({
     xxl: 40,
     none: 0,
     10: 10,
-    100: 100
+    100: 100,
   },
   breakpoints: {
     phone: 0,
@@ -394,7 +392,12 @@ const theme = createTheme({
     body: { fontSize: 16, lineHeight: 22, letterSpacing: -0.32, fontFamily: 'SFproRegular' },
     caption: { fontSize: 13, lineHeight: 18, letterSpacing: -0.26, fontFamily: 'SFproMedium' },
     captionBold: { fontSize: 12, lineHeight: 16, letterSpacing: -0.24, fontFamily: 'SFproBold' },
-    captionSemibold: { fontSize: 12, lineHeight: 16, letterSpacing: -0.24, fontFamily: 'SFproSemibold' },
+    captionSemibold: {
+      fontSize: 12,
+      lineHeight: 16,
+      letterSpacing: -0.24,
+      fontFamily: 'SFproSemibold',
+    },
     emoji: { fontFamily: undefined },
   },
   cardVariants: {
@@ -443,7 +446,7 @@ const theme = createTheme({
       borderRadius: 20,
       borderWidth: 1,
       borderColor: 'primaryLight',
-    }
+    },
   },
   buttonVariants: {
     defaults: {
@@ -491,7 +494,7 @@ const theme = createTheme({
     },
     disabled: {
       backgroundColor: 'bg200',
-    }
+    },
   },
   zIndices: {},
   borderVariants: {},

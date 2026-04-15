@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFormik } from 'formik';
 import React from 'react';
-import { Dimensions, Image, KeyboardAvoidingView, Platform, ScrollView, TouchableOpacity } from 'react-native';
+import { Image, KeyboardAvoidingView, Platform, ScrollView, TouchableOpacity } from 'react-native';
 import * as Yup from 'yup';
 
 import Box from '@/src/components/shared/Box';
@@ -13,11 +13,11 @@ import Input from '@/src/components/shared/Input';
 import Text from '@/src/components/shared/Text';
 import { Theme } from '@/src/theme/theme';
 
-const { width } = Dimensions.get('window');
-
 const loginSchema = Yup.object().shape({
   email: Yup.string().email('Invalid email address').required('Email is required'),
-  password: Yup.string().min(6, 'Password must be at least 6 characters').required('Password is required'),
+  password: Yup.string()
+    .min(6, 'Password must be at least 6 characters')
+    .required('Password is required'),
 });
 
 const Login = () => {
@@ -91,7 +91,9 @@ const Login = () => {
                 keyboardType="email-address"
                 placeholderTextColor={theme.colors.gray600}
                 status={formik.errors.email && formik.touched.email ? 'danger' : 'basic'}
-                caption={formik.errors.email && formik.touched.email ? formik.errors.email : undefined}
+                caption={
+                  formik.errors.email && formik.touched.email ? formik.errors.email : undefined
+                }
                 style={{
                   backgroundColor: '#111',
                   borderColor: theme.colors.gray800,
@@ -126,7 +128,7 @@ const Login = () => {
                   borderColor: theme.colors.gray800,
                 }}
               />
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={{ alignSelf: 'flex-end', marginTop: 12 }}
                 onPress={() => router.push('/(auth)/forgot-password')}
               >
@@ -187,7 +189,6 @@ const Login = () => {
               style={{ height: 60, borderRadius: 16 }}
             />
           </Box>
-
         </ScrollView>
         {/* Footer */}
         <Box
@@ -198,7 +199,7 @@ const Login = () => {
           backgroundColor="mainBackground"
         >
           <Text variant="body" color="textSecondary">
-            Don't have an account?{' '}
+            Don&apos;t have an account?{' '}
           </Text>
           <TouchableOpacity onPress={() => router.push('/(auth)/register')}>
             <Text variant="body" color="primary600" fontWeight="bold">

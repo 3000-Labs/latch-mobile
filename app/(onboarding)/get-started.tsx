@@ -1,0 +1,127 @@
+import { useTheme } from '@shopify/restyle';
+import { useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import React, { useState } from 'react';
+import { Image, ScrollView, TouchableOpacity } from 'react-native';
+
+import Box from '@/src/components/shared/Box';
+import Button from '@/src/components/shared/Button';
+import Text from '@/src/components/shared/Text';
+import { Theme } from '@/src/theme/theme';
+
+type OptionType = 'new-account' | 'seed-phrase' | 'existing-wallet';
+
+const GetStarted = () => {
+  const theme = useTheme<Theme>();
+  const router = useRouter();
+  const [selectedOption, setSelectedOption] = useState<OptionType>('new-account');
+
+  const options = [
+    {
+      id: 'new-account' as OptionType,
+      title: 'Generate New Smart Account',
+      description: 'Create a new smart account with a secure recovery phrase',
+    },
+    {
+      id: 'seed-phrase' as OptionType,
+      title: 'Import With Seed Phrase',
+      description: 'Restore your account using your 12-word recovery phrase',
+    },
+    {
+      id: 'existing-wallet' as OptionType,
+      title: 'Connect Existing Stellar Wallet',
+      description: 'Link your existing stellar wallet to this smart account',
+    },
+  ];
+
+  const handleContinue = () => {
+    // Navigate based on selected option
+    switch (selectedOption) {
+      case 'new-account':
+        router.push('/(onboarding)/recovery-phrase');
+        break;
+      case 'seed-phrase':
+        router.push('/(auth)/login');
+        break;
+      case 'existing-wallet':
+        router.push('/(onboarding)/connect-wallet');
+        break;
+      default:
+        router.push('/(auth)/login');
+    }
+  };
+
+  return (
+    <Box flex={1} backgroundColor="mainBackground">
+      <StatusBar style="light" />
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{
+          paddingHorizontal: theme.spacing.m,
+          paddingBottom: 40,
+          paddingTop: 60,
+        }}
+      >
+        {/* Header Section */}
+        <Box alignItems="center" mb="xxl">
+          <Image
+            source={require('@/src/assets/images/logosym.png')}
+            style={{ width: 35, height: 35, marginBottom: theme.spacing.l }}
+            resizeMode="contain"
+          />
+          <Text variant="h7" mt="m" fontSize={32} textAlign="center">
+            Get Started
+          </Text>
+          <Text variant="p5" color="textSecondary" mt="xs" textAlign="center" width={'85%'}>
+            Create a new stellar wallet or import the wallet you already have.
+          </Text>
+        </Box>
+
+        {/* Options Section */}
+        <Box gap="m">
+          {options.map((option) => (
+            <TouchableOpacity
+              key={option.id}
+              onPress={() => setSelectedOption(option.id)}
+              activeOpacity={0.7}
+            >
+              <Box
+                flexDirection="row"
+                alignItems="flex-start"
+                gap="m"
+                padding="m"
+                height={90}
+                borderRadius={16}
+                borderWidth={2}
+                borderColor={selectedOption === option.id ? 'primary700' : 'gray800'}
+                backgroundColor="mainBackground"
+              >
+                <Box flex={1} mt="s">
+                  <Text variant="h10" color="textPrimary" fontWeight="bold">
+                    {option.title}
+                  </Text>
+                  <Text variant="p7" color="textSecondary">
+                    {option.description}
+                  </Text>
+                </Box>
+              </Box>
+            </TouchableOpacity>
+          ))}
+        </Box>
+      </ScrollView>
+
+      {/* Continue Button at Bottom */}
+      <Box padding="m" mb={'l'} backgroundColor="mainBackground">
+        <Button
+          label="Continue"
+          variant="primary"
+          onPress={handleContinue}
+          bg="primary700"
+          labelColor="black"
+        />
+      </Box>
+    </Box>
+  );
+};
+
+export default GetStarted;
