@@ -75,7 +75,6 @@ const ImportPhrase = () => {
         });
       } catch (_) {
         // ignore measurement errors
-        
       }
     }, 300);
   };
