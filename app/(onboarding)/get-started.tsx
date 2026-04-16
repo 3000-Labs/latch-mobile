@@ -41,7 +41,7 @@ const GetStarted = () => {
         router.push('/(onboarding)/recovery-phrase');
         break;
       case 'seed-phrase':
-        router.push('/(auth)/login');
+        router.push('/(onboarding)/import-phrase');
         break;
       case 'existing-wallet':
         router.push('/(onboarding)/connect-wallet');
