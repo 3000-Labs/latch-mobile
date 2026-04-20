@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import { useFormik } from 'formik';
 import React from 'react';
 import { Image, KeyboardAvoidingView, Platform, ScrollView, TouchableOpacity } from 'react-native';
@@ -24,6 +25,7 @@ const resetPasswordSchema = Yup.object().shape({
 
 const ResetPassword = () => {
   const theme = useTheme<Theme>();
+  const statusBarStyle = useStatusBarStyle();
   const router = useRouter();
 
   const formik = useFormik({
@@ -52,7 +54,7 @@ const ResetPassword = () => {
 
   return (
     <Box flex={1} backgroundColor="mainBackground">
-      <StatusBar style="light" />
+      <StatusBar style={statusBarStyle} />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}

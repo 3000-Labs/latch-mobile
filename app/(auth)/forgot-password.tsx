@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import { useFormik } from 'formik';
 import React, { useState } from 'react';
 import {
@@ -29,6 +30,7 @@ const width = Dimensions.get('window').width;
 
 const ForgotPassword = () => {
   const theme = useTheme<Theme>();
+  const statusBarStyle = useStatusBarStyle();
   const router = useRouter();
   const [resetRequested, setResetRequested] = useState(false);
   const [submittedEmail, setSubmittedEmail] = useState('');
@@ -53,7 +55,7 @@ const ForgotPassword = () => {
   if (resetRequested) {
     return (
       <Box flex={1} backgroundColor="mainBackground">
-        <StatusBar style="light" />
+        <StatusBar style={statusBarStyle} />
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={{ flex: 1 }}

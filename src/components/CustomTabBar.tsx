@@ -3,8 +3,8 @@ import { useTheme } from '@shopify/restyle';
 import { BlurView } from 'expo-blur';
 import React from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useAppTheme } from '../theme/ThemeContext';
 import { Theme } from '../theme/theme';
-// import { useNotificationStore } from '../store/useNotificationStore';
 
 const TAB_ITEMS = [
   { name: 'home', icon: 'home', label: 'Home' },
@@ -13,17 +13,20 @@ const TAB_ITEMS = [
   { name: 'profile', icon: 'person', label: 'Profile' },
 ];
 
-export function CustomTabBar({ state, descriptors, navigation }: any) {
+export function CustomTabBar({ state, navigation }: any) {
   const theme = useTheme<Theme>();
-  // const unreadCount = useNotificationStore((s: any) => s.unreadCount);
+  const { isDark } = useAppTheme();
 
   return (
-    <View style={styles.container}>
-      <BlurView intensity={Platform.OS === 'ios' ? 80 : 100} style={StyleSheet.absoluteFill} tint="light" />
-      <View style={styles.border} />
+    <View style={[styles.container, { backgroundColor: isDark ? 'rgba(21,19,17,0.85)' : 'rgba(255,255,255,0.85)' }]}>
+      <BlurView
+        intensity={Platform.OS === 'ios' ? 80 : 100}
+        style={StyleSheet.absoluteFill}
+        tint={isDark ? 'dark' : 'light'}
+      />
+      <View style={[styles.border, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]} />
       <View style={styles.tabBarInner}>
         {state.routes.map((route: any, index: number) => {
-          const { options } = descriptors[route.key];
           const isFocused = state.index === index;
 
           const onPress = () => {
@@ -56,11 +59,6 @@ export function CustomTabBar({ state, descriptors, navigation }: any) {
                   color={color}
                   style={isFocused ? styles.focusedIcon : null}
                 />
-                {/* {item.name === 'profile' && unreadCount > 0 && (
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeText}>{unreadCount}</Text>
-                  </View>
-                )} */}
               </View>
               <Text style={[styles.label, { color }]}>{item.label}</Text>
             </TouchableOpacity>
@@ -78,11 +76,9 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 90,
-    backgroundColor: 'rgba(255,255,255,0.7)',
   },
   border: {
     height: 1,
-    backgroundColor: 'rgba(0,0,0,0.05)',
   },
   tabBarInner: {
     flexDirection: 'row',

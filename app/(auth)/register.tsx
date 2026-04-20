@@ -1,3 +1,4 @@
+import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
 import * as Linking from 'expo-linking';
@@ -6,19 +7,20 @@ import { StatusBar } from 'expo-status-bar';
 import { useFormik } from 'formik';
 import React, { useState } from 'react';
 import {
-    Dimensions,
-    Image,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    ScrollView,
-    TouchableOpacity,
+  Dimensions,
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  TouchableOpacity,
 } from 'react-native';
 import * as Yup from 'yup';
 
 import Box from '@/src/components/shared/Box';
 import Button from '@/src/components/shared/Button';
 import Input from '@/src/components/shared/Input';
+import LoadingBlur from '@/src/components/shared/LoadingBlur';
 import Text from '@/src/components/shared/Text';
 import { Theme } from '@/src/theme/theme';
 
@@ -33,6 +35,7 @@ const registerSchema = Yup.object().shape({
 
 const Register = () => {
   const theme = useTheme<Theme>();
+  const statusBarStyle = useStatusBarStyle();
   const router = useRouter();
 
   const [isSuccessModalVisible, setSuccessModalVisible] = useState(false);
@@ -61,7 +64,7 @@ const Register = () => {
 
   return (
     <Box flex={1} backgroundColor="mainBackground">
-      <StatusBar style="light" />
+      <StatusBar style={statusBarStyle} />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
@@ -116,8 +119,8 @@ const Register = () => {
                   formik.errors.email && formik.touched.email ? formik.errors.email : undefined
                 }
                 style={{
-                  backgroundColor: '#111',
-                  borderColor: theme.colors.gray800,
+                  backgroundColor: statusBarStyle !== 'dark' ? '#111' : '#fff',
+                  borderColor: statusBarStyle === 'dark' ? '#E9E9E9' : theme.colors.gray800,
                 }}
               />
             </Box>
@@ -145,8 +148,8 @@ const Register = () => {
                   </Box>
                 )}
                 style={{
-                  backgroundColor: '#111',
-                  borderColor: theme.colors.gray800,
+                  backgroundColor:statusBarStyle !== 'dark' ? '#111' : '#fff',
+                  borderColor: statusBarStyle === 'dark' ? '#E9E9E9' : theme.colors.gray800,
                 }}
               />
             </Box>
@@ -181,7 +184,7 @@ const Register = () => {
               onPress={() => router.push("/(auth)/thank-you")}
               leftIcon={<Ionicons name="logo-apple" size={18} color={theme.colors.textPrimary} />}
               labelColor="textPrimary"
-              borderColor="gray800"
+              borderColor={statusBarStyle === 'dark' ? 'textDark800':"gray800"}
               bg="transparent"
               style={{ height: 60, borderRadius: 16 }}
             />
@@ -197,7 +200,7 @@ const Register = () => {
                 />
               }
               labelColor="textPrimary"
-              borderColor="gray800"
+              borderColor={statusBarStyle === 'dark' ? 'textDark800':"gray800"}
               bg="transparent"
               style={{ height: 60, borderRadius: 16 }}
             />
@@ -222,6 +225,7 @@ const Register = () => {
           </TouchableOpacity>
         </Box>
       </KeyboardAvoidingView>
+      <LoadingBlur visible={false} text="Loading..." />
 
       {/* Account Created Modal */}
       <Modal visible={isSuccessModalVisible} transparent animationType="fade">

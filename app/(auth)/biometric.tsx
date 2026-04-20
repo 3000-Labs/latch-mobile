@@ -1,3 +1,4 @@
+import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useState } from 'react';
@@ -12,6 +13,7 @@ const { width } = Dimensions.get('window');
 
 const Biometrics = () => {
   const router = useRouter();
+  const statusBarStyle = useStatusBarStyle();
   const [biometricEnabled, setBiometricEnabled] = useState(false);
 
   return (
@@ -22,7 +24,7 @@ const Biometrics = () => {
       paddingTop="xl"
       paddingBottom="none"
     >
-      <StatusBar style="light" />
+      <StatusBar style={statusBarStyle} />
 
       <Box flex={1} justifyContent="center" alignItems="center" paddingBottom="l">
         <Image
@@ -46,7 +48,7 @@ const Biometrics = () => {
           </Text>
         </Box>
         <Box
-          backgroundColor="bg800"
+          backgroundColor={statusBarStyle !== 'dark' ? 'bg800' : 'text500'}
           borderRadius={16}
           padding="m"
           mt={'xxl'}
@@ -59,11 +61,16 @@ const Biometrics = () => {
             <Box marginRight="m">
               <Image
                 source={require('@/src/assets/images/face_id.png')}
-                style={{ width: 24, height: 24, objectFit: 'contain' }}
+                style={{
+                  width: 24,
+                  height: 24,
+                  tintColor: statusBarStyle !== 'dark' ? 'white' : 'black',
+                }}
+                resizeMode="contain"
               />
             </Box>
             <Box flex={1}>
-              <Text variant="h10" color="text50">
+              <Text variant="h10" color={statusBarStyle !== 'dark' ? 'text50' : 'black'}>
                 Biometric Authentication
               </Text>
               <Text variant="p7" color="textSecondary" mt="xs">

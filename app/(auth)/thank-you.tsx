@@ -1,3 +1,4 @@
+import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
 import * as Clipboard from 'expo-clipboard';
@@ -17,6 +18,7 @@ const { width } = Dimensions.get('window');
 const ThankYou = () => {
   const router = useRouter();
   const theme = useTheme<Theme>();
+  const statusBarStyle = useStatusBarStyle();
   const [copied, setCopied] = useState(false);
 
   const params = useLocalSearchParams<{
@@ -69,7 +71,7 @@ const ThankYou = () => {
       px="m"
       style={{ paddingTop: 60, paddingBottom: 40 }}
     >
-      <StatusBar style="light" />
+      <StatusBar style={statusBarStyle} />
 
       {/* Header */}
       <Box flexDirection="row" justifyContent="space-between" alignItems="center">
@@ -117,7 +119,7 @@ const ThankYou = () => {
           <Box
             width="100%"
             mt="xl"
-            backgroundColor="gray900"
+            backgroundColor={statusBarStyle !== 'dark' ? 'bg800' : 'text500'}
             borderRadius={16}
             p="m"
             flexDirection="row"

@@ -3,6 +3,7 @@ import { BlurView } from 'expo-blur';
 import React from 'react';
 import { Image, StyleSheet, TouchableWithoutFeedback, View } from 'react-native';
 
+import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import { Theme } from '@/src/theme/theme';
 import Box from './Box';
 import Text from './Text';
@@ -23,6 +24,7 @@ const LoadingBlur: React.FC<Props> = ({
   onPress,
 }) => {
   const theme = useTheme<Theme>();
+  const statusBarStyle = useStatusBarStyle();
 
   if (!visible) return null;
 
@@ -33,13 +35,14 @@ const LoadingBlur: React.FC<Props> = ({
       </TouchableWithoutFeedback>
 
       <View style={styles.center}>
-        <Box alignItems="center" justifyContent="center" gap="m">
+        <Box alignItems="center" justifyContent="center" gap="xs">
           <Image
-            source={require('@/src/assets/images/logoLoading.png')}
+            // source={require('@/src/assets/images/logoLoading.png')}
+            source={require('@/src/assets/images/logosym.png')}
             style={{ width: 72, height: 72, tintColor: theme.colors.primary700 }}
             resizeMode="contain"
           />
-          <Text variant="h10" color="textWhite">
+          <Text variant="h10" color={'textWhite'}>
             {text}
           </Text>
         </Box>

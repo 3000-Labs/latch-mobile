@@ -1,3 +1,4 @@
+import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
 import { BlurView } from 'expo-blur';
@@ -17,6 +18,7 @@ const { width } = Dimensions.get('window');
 
 const RecoveryPhrase = () => {
   const theme = useTheme<Theme>();
+  const statusBarStyle = useStatusBarStyle();
   const router = useRouter();
   const [isRevealed, setIsRevealed] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -48,7 +50,7 @@ const RecoveryPhrase = () => {
 
   return (
     <Box flex={1} backgroundColor="mainBackground">
-      <StatusBar style="light" />
+      <StatusBar style={statusBarStyle} />
       <View style={{ flex: 1 }}>
         <ScrollView
           bounces={false}
@@ -97,7 +99,7 @@ const RecoveryPhrase = () => {
                     width={itemWidth}
                     paddingHorizontal="m"
                     height={52}
-                    backgroundColor="gray900"
+                    backgroundColor={statusBarStyle !== "light"? "text50": "gray900"}
                     borderRadius={12}
                     borderWidth={1}
                     borderColor="gray800"

@@ -1,14 +1,15 @@
+import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import {
-    Dimensions,
-    Image,
-    ScrollView,
-    TouchableOpacity,
-    View
+  Dimensions,
+  Image,
+  ScrollView,
+  TouchableOpacity,
+  View
 } from 'react-native';
 
 import Box from '@/src/components/shared/Box';
@@ -35,6 +36,7 @@ const recoveryPhrase = [
 
 const VerifyPhrase = () => {
   const theme = useTheme<Theme>();
+  const statusBarStyle = useStatusBarStyle();
   const router = useRouter();
 
   const [missingIndices, setMissingIndices] = useState<number[]>([]);
@@ -92,7 +94,7 @@ const VerifyPhrase = () => {
 
   return (
     <Box flex={1} backgroundColor="mainBackground">
-      <StatusBar style="light" />
+      <StatusBar style={statusBarStyle} />
       <View style={{ flex: 1 }}>
         <ScrollView
           bounces={false}
@@ -146,7 +148,9 @@ const VerifyPhrase = () => {
                 <Box
                   height={56}
                   paddingHorizontal="l"
-                  backgroundColor="gray900"
+                  backgroundColor={statusBarStyle !== "dark"?"gray900": "text50"}
+                  borderColor={statusBarStyle === "dark"?"gray900": "text50"}
+                  borderWidth={1}
                   borderRadius={12}
                   flexDirection="row"
                   alignItems="center"
@@ -190,7 +194,9 @@ const VerifyPhrase = () => {
                     height={52}
                     justifyContent="center"
                     alignItems="center"
-                    backgroundColor="gray900"
+                    backgroundColor={statusBarStyle === "dark"? "text50":"gray900"}
+                    borderColor={statusBarStyle !== "dark"? "text50":"gray900"}
+                    borderWidth={1}
                     borderRadius={12}
                     opacity={isSelected ? 0.4 : 1}
                   >

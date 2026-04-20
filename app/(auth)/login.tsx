@@ -1,3 +1,4 @@
+import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
 import { useRouter } from 'expo-router';
@@ -22,6 +23,7 @@ const loginSchema = Yup.object().shape({
 
 const Login = () => {
   const theme = useTheme<Theme>();
+  const statusBarStyle = useStatusBarStyle();
   const router = useRouter();
 
   const formik = useFormik({
@@ -40,7 +42,7 @@ const Login = () => {
 
   return (
     <Box flex={1} backgroundColor="mainBackground">
-      <StatusBar style="light" />
+      <StatusBar style={statusBarStyle} />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
@@ -95,8 +97,8 @@ const Login = () => {
                   formik.errors.email && formik.touched.email ? formik.errors.email : undefined
                 }
                 style={{
-                  backgroundColor: '#111',
-                  borderColor: theme.colors.gray800,
+                  backgroundColor: statusBarStyle !== 'dark' ? '#111' : '#fff',
+                  borderColor: statusBarStyle === 'dark' ? '#E9E9E9' : theme.colors.gray800,
                 }}
               />
             </Box>
@@ -124,8 +126,8 @@ const Login = () => {
                   </Box>
                 )}
                 style={{
-                  backgroundColor: '#111',
-                  borderColor: theme.colors.gray800,
+                  backgroundColor: statusBarStyle !== 'dark' ? '#111' : '#fff',
+                  borderColor: statusBarStyle === 'dark' ? '#E9E9E9' : theme.colors.gray800,
                 }}
               />
               <TouchableOpacity
@@ -168,7 +170,7 @@ const Login = () => {
               onPress={() => {}}
               leftIcon={<Ionicons name="logo-apple" size={18} color={theme.colors.textPrimary} />}
               labelColor="textPrimary"
-              borderColor="gray800"
+              borderColor={statusBarStyle === 'dark' ? 'textDark800' :"gray800"}
               bg="transparent"
               style={{ height: 60, borderRadius: 16 }}
             />
@@ -184,7 +186,7 @@ const Login = () => {
                 />
               }
               labelColor="textPrimary"
-              borderColor="gray800"
+              borderColor={statusBarStyle === 'dark' ? 'textDark800':"gray800"}
               bg="transparent"
               style={{ height: 60, borderRadius: 16 }}
             />

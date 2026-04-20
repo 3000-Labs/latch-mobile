@@ -1,3 +1,4 @@
+import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
 import { useRouter } from 'expo-router';
@@ -30,6 +31,8 @@ const KEYPAD_ROWS = [
 
 const SetPin = () => {
   const theme = useTheme<Theme>();
+  const statusBarStyle = useStatusBarStyle();
+  console.log(statusBarStyle)
   const router = useRouter();
 
   const [phase, setPhase] = useState<'set' | 'confirm'>('set');
@@ -106,7 +109,7 @@ const SetPin = () => {
 
   return (
     <Box flex={1} backgroundColor="mainBackground">
-      <StatusBar style="light" />
+      <StatusBar style={statusBarStyle} />
       <View style={{ flex: 1 }}>
         <ScrollView
           bounces={false}
@@ -217,7 +220,7 @@ const SetPin = () => {
                     >
                       <Box
                         flex={1}
-                        backgroundColor="gray900"
+                        backgroundColor={statusBarStyle !=="light"?"text50":"gray900"}
                         borderRadius={16}
                         justifyContent="center"
                         alignItems="center"
@@ -229,7 +232,7 @@ const SetPin = () => {
                             color={theme.colors.textPrimary}
                           />
                         ) : (
-                          <Text variant="h8" fontSize={24} fontWeight="600" color="textPrimary">
+                          <Text variant="h8" fontSize={24} fontWeight="600" color={statusBarStyle ==="light"?"textPrimary":"gray900"}>
                             {key}
                           </Text>
                         )}

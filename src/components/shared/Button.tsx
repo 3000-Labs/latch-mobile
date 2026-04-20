@@ -19,7 +19,7 @@ const buttonVariant = createVariant<Theme, 'buttonVariants'>({
 const ButtonContainer = createRestyleComponent<
   VariantProps<Theme, 'buttonVariants'> & BoxProps,
   Theme
-// @ts-ignore
+  // @ts-ignore
 >([buttonVariant, ...boxRestyleFunctions], TouchableOpacity);
 
 type ButtonVariant = Exclude<keyof Theme['buttonVariants'], 'defaults'>;
@@ -62,38 +62,23 @@ const Button: React.FC<Props> = ({
       disabled={disabled || loading}
       activeOpacity={0.8}
       flexDirection="row"
-      backgroundColor={loading ? "btnHover" : bg}
+      backgroundColor={loading ? 'btnHover' : bg}
       {...rest}
     >
-
-      {leftIcon && !loading && (
-        <Box marginRight="s">
-          {leftIcon}
-        </Box>
-      )}
+      {leftIcon && !loading && <Box marginRight="s">{leftIcon}</Box>}
       {loading && (
         <Box marginRight="s">
           <ActivityIndicator color={theme.colors.primary700} />
         </Box>
       )}
-      <Text
-        variant="body"
-        fontWeight="bold"
-        color={finalLabelColor}
-        style={styles.label}
-      >
+      <Text variant="body" fontWeight="bold" color={finalLabelColor} style={styles.label}>
         {label}
       </Text>
       {rightIcon && (
         <Box marginLeft="s">
-          <Ionicons
-            name={rightIcon}
-            size={22}
-            color={theme.colors[finalLabelColor]}
-          />
+          <Ionicons name={rightIcon} size={22} color={theme.colors[finalLabelColor]} />
         </Box>
       )}
-
     </ButtonContainer>
   );
 };

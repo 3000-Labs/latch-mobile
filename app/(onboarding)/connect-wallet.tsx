@@ -1,3 +1,4 @@
+import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
 import * as Linking from 'expo-linking';
@@ -40,6 +41,7 @@ const wallets = [
 
 const ConnectWallet = () => {
   const theme = useTheme<Theme>();
+  const statusBarStyle = useStatusBarStyle();
   const router = useRouter();
 
   const [visible, setVisible] = React.useState(false);
@@ -50,7 +52,7 @@ const ConnectWallet = () => {
 
   return (
     <Box flex={1} backgroundColor="mainBackground">
-      <StatusBar style="light" />
+      <StatusBar style={statusBarStyle} />
       <ScrollView
         showsVerticalScrollIndicator={false}
         bounces={false}
@@ -89,7 +91,7 @@ const ConnectWallet = () => {
               <Box
                 padding="m"
                 borderRadius={12}
-                backgroundColor="gray900"
+                backgroundColor={statusBarStyle !== 'dark' ? 'bg900' : 'text500'}
                 borderWidth={1}
                 borderColor="gray800"
                 flexDirection="row"

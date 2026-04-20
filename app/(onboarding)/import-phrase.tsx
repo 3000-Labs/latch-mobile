@@ -1,19 +1,20 @@
+import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useRef, useState } from 'react';
 import {
-    Dimensions,
-    Image,
-    Keyboard,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Dimensions,
+  Image,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 import Box from '@/src/components/shared/Box';
@@ -26,6 +27,7 @@ const { width } = Dimensions.get('window');
 
 const ImportPhrase = () => {
   const theme = useTheme<Theme>();
+  const statusBarStyle = useStatusBarStyle();
   const router = useRouter();
   const [words, setWords] = useState<string[]>(Array(12).fill(''));
 
@@ -90,7 +92,7 @@ const ImportPhrase = () => {
 
   return (
     <Box flex={1} backgroundColor="mainBackground">
-      <StatusBar style="light" />
+      <StatusBar style={statusBarStyle} />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 100}
@@ -143,13 +145,15 @@ const ImportPhrase = () => {
                     styles.item,
                     {
                       width: itemWidth,
-                      backgroundColor: '#111',
+                      // backgroundColor: '#111',
+                      backgroundColor: statusBarStyle !== 'light' ? 'text50' : 'gray900',
                       borderRadius: 12,
                       borderColor: theme.colors.gray800,
                     },
                   ]}
+
                 >
-                  <Text variant="caption" color="textSecondary" style={{ marginRight: 8 }}>
+                  <Text variant="caption" fontFamily={"SFproSemibold"} color="textSecondary" style={{ marginRight: 8 }}>
                     {index + 1}
                   </Text>
                   <TextInput

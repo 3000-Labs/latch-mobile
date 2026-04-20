@@ -1,3 +1,4 @@
+import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import { useTheme } from '@shopify/restyle';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -13,6 +14,7 @@ type OptionType = 'new-account' | 'seed-phrase' | 'existing-wallet';
 
 const GetStarted = () => {
   const theme = useTheme<Theme>();
+  const statusBarStyle = useStatusBarStyle();
   const router = useRouter();
   const [selectedOption, setSelectedOption] = useState<OptionType>('new-account');
 
@@ -53,7 +55,7 @@ const GetStarted = () => {
 
   return (
     <Box flex={1} backgroundColor="mainBackground">
-      <StatusBar style="light" />
+      <StatusBar style={statusBarStyle} />
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
@@ -93,7 +95,13 @@ const GetStarted = () => {
                 height={90}
                 borderRadius={16}
                 borderWidth={2}
-                borderColor={selectedOption === option.id ? 'primary700' : 'gray800'}
+                borderColor={
+                  selectedOption === option.id
+                    ? 'primary700'
+                    : statusBarStyle !== 'dark'
+                      ? 'gray800'
+                      : 'gray200'
+                }
                 backgroundColor="mainBackground"
               >
                 <Box flex={1} mt="s">
