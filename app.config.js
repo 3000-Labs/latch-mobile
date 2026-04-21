@@ -1,21 +1,34 @@
+import env from './env';
+import packageJson from './package.json';
+
+const epochTimeInSeconds = Math.round(Date.now() / 1000);
+const versionCode = epochTimeInSeconds;
+const buildNumber = String(epochTimeInSeconds);
+const buildVersion = packageJson.version;
+const appName = env.APP_NAME;
+
 export default {
   expo: {
     name: 'latch-mobile',
     slug: 'latch-mobile',
-    version: '1.0.0',
+    version: buildVersion,
     orientation: 'portrait',
-    icon: './assets/images/icon.png',
-    scheme: 'latchmobile',
+    icon: appName === 'Latch' ? './assets/images/icon.png' : './assets/images/iconStaging.png',
+    scheme: 'latch',
     userInterfaceStyle: 'automatic',
+    splash: {
+      image: './assets/images/icon.png',
+      resizeMode: 'contain',
+      backgroundColor: '#000000',
+    },
     ios: {
       supportsTablet: true,
-      bundleIdentifier: 'com.latch.mobile',
-      icon: {
-        any: './assets/images/iconBlack.png',
-        dark: './assets/images/icon.png',
-      },
+      bundleIdentifier: appName === 'Latch' ? 'co.getlatch.latchapp' : 'qa.getlatch.app',
+      buildNumber,
     },
     android: {
+      versionCode,
+      package: appName === 'Latch' ? 'app.getlatch.app' : 'qa.getlatch.app',
       adaptiveIcon: {
         backgroundColor: '#000',
         foregroundImage: './assets/images/android-icon-foreground.png',
@@ -33,11 +46,12 @@ export default {
       [
         'expo-splash-screen',
         {
-          image: './assets/images/icon.png',
-          imageWidth: 200,
+          image: './assets/images/splash-icon-dark.png',
+          imageWidth: 159.5,
           resizeMode: 'contain',
           backgroundColor: '#ffffff',
           dark: {
+            image: './assets/images/splash-icon-light.png',
             backgroundColor: '#000000',
           },
         },
@@ -52,6 +66,12 @@ export default {
             './assets/fonts/SFPRO-Bold.ttf',
             './assets/fonts/SFPRO-Semibolditalic.otf',
           ],
+        },
+      ],
+      [
+        '@hot-updater/react-native',
+        {
+          channel: env.EXPO_PUBLIC_APP_ENV,
         },
       ],
     ],

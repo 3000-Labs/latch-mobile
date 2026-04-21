@@ -104,7 +104,7 @@ const Onboarding = () => {
               resizeMode="contain"
             />
 
-            <Box paddingHorizontal="xl" marginTop="xl" alignItems="center">
+            <Box paddingHorizontal="l" marginTop="xl" alignItems="center">
               <Text variant="h7" textAlign="center" marginBottom="s">
                 {item.title}
               </Text>

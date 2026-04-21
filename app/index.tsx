@@ -51,7 +51,7 @@ const SplashAnimation = () => {
 
     // 2. Trigger the JS navigation after the total duration (2.7s)
     const timer = setTimeout(() => {
-      // checkUserStatusAndNavigate();
+      checkUserStatusAndNavigate();
     }, 2700);
 
     return () => clearTimeout(timer);
@@ -70,11 +70,11 @@ const SplashAnimation = () => {
 
   return (
     <Box flex={1} backgroundColor="mainBackground" justifyContent="center" alignItems="center">
-      <Box flexDirection="column" justifyContent={'center'} alignItems="center">
+      <Box flexDirection="column" justifyContent={'center'} alignItems="center" gap={'m'}>
         <Animated.View style={logoStyle}>
           <Image
             source={require('@/src/assets/images/logoLoading.png')}
-            style={{ width: 60, height: 60 }}
+            style={{ width: 115, height: 65 }}
             resizeMode="contain"
           />
         </Animated.View>

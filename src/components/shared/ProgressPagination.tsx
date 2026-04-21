@@ -1,13 +1,7 @@
+import { useTheme } from '@shopify/restyle';
 import React, { useEffect } from 'react';
 import { StyleSheet } from 'react-native';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-  interpolate,
-  Extrapolate,
-} from 'react-native-reanimated';
-import { useTheme } from '@shopify/restyle';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { Theme } from '../../theme/theme';
 import Box from './Box';
 
@@ -26,12 +20,7 @@ const ProgressPagination: React.FC<Props> = ({ total, activeIndex }) => {
   return (
     <Box flexDirection="row" alignItems="center">
       {Array.from({ length: total }).map((_, index) => (
-        <PaginationDot
-          key={index}
-          index={index}
-          activeIndex={activeIndex}
-          theme={theme}
-        />
+        <PaginationDot key={index} index={index} activeIndex={activeIndex} theme={theme} />
       ))}
     </Box>
   );
@@ -69,7 +58,7 @@ const PaginationDot: React.FC<DotProps> = ({ index, activeIndex, theme }) => {
         {
           height: DOT_SIZE,
           borderRadius: DOT_SIZE / 2,
-          marginHorizontal: SPACING / 2,
+          marginHorizontal: SPACING / 3,
         },
       ]}
     />
