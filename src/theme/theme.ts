@@ -379,6 +379,12 @@ const darkTheme = createTheme({
     p8: { fontSize: 12, lineHeight: 16, letterSpacing: -0.24, fontFamily: 'SFproRegular' },
 
     display: { fontSize: 48, lineHeight: 61, letterSpacing: -1.44, fontFamily: 'SFproBold' },
+    displayItalic: {
+      fontSize: 48,
+      lineHeight: 61,
+      letterSpacing: -1.44,
+      fontFamily: 'SFproSemiboldItalic',
+    },
     title: { fontSize: 24, lineHeight: 32, letterSpacing: -0.72, fontFamily: 'SFproBold' },
     largeTitle: { fontSize: 34, lineHeight: 42, letterSpacing: -1, fontFamily: 'SFproBold' },
     headline: { fontSize: 18, lineHeight: 24, letterSpacing: -0.36, fontFamily: 'SFproSemibold' },

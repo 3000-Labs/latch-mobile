@@ -1,0 +1,63 @@
+export default {
+  expo: {
+    name: 'latch-mobile',
+    slug: 'latch-mobile',
+    version: '1.0.0',
+    orientation: 'portrait',
+    icon: './assets/images/icon.png',
+    scheme: 'latchmobile',
+    userInterfaceStyle: 'automatic',
+    ios: {
+      supportsTablet: true,
+      bundleIdentifier: 'com.latch.mobile',
+      icon: {
+        any: './assets/images/iconBlack.png',
+        dark: './assets/images/icon.png',
+      },
+    },
+    android: {
+      adaptiveIcon: {
+        backgroundColor: '#000',
+        foregroundImage: './assets/images/android-icon-foreground.png',
+        backgroundImage: './assets/images/android-icon-background.png',
+        monochromeImage: './assets/images/android-icon-monochrome.png',
+      },
+      predictiveBackGestureEnabled: false,
+    },
+    web: {
+      output: 'static',
+      favicon: './assets/images/favicon.png',
+    },
+    plugins: [
+      'expo-router',
+      [
+        'expo-splash-screen',
+        {
+          image: './assets/images/icon.png',
+          imageWidth: 200,
+          resizeMode: 'contain',
+          backgroundColor: '#ffffff',
+          dark: {
+            backgroundColor: '#000000',
+          },
+        },
+      ],
+      [
+        'expo-font',
+        {
+          fonts: [
+            './assets/fonts/SFPRO-Thin.ttf',
+            './assets/fonts/SFPRO-Regular.ttf',
+            './assets/fonts/SFPRO-Medium.ttf',
+            './assets/fonts/SFPRO-Bold.ttf',
+            './assets/fonts/SFPRO-Semibolditalic.otf',
+          ],
+        },
+      ],
+    ],
+    experiments: {
+      typedRoutes: true,
+      reactCompiler: true,
+    },
+  },
+};

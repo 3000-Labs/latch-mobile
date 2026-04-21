@@ -11,7 +11,7 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withDelay,
-  withTiming
+  withTiming,
 } from 'react-native-reanimated';
 
 const ONBOARDING_KEY = '@latch_onboarding_complete';
@@ -51,26 +51,26 @@ const SplashAnimation = () => {
 
     // 2. Trigger the JS navigation after the total duration (2.7s)
     const timer = setTimeout(() => {
-      checkUserStatusAndNavigate();
+      // checkUserStatusAndNavigate();
     }, 2700);
 
     return () => clearTimeout(timer);
   }, []);
 
-
   const logoStyle = useAnimatedStyle(() => ({
     opacity: logoOpacity.value,
-    transform: [{ scale: interpolate(logoOpacity.value, [0, 1], [0.8, 1], Extrapolate.CLAMP) }]
+    transform: [{ scale: interpolate(logoOpacity.value, [0, 1], [0.8, 1], Extrapolate.CLAMP) }],
   }));
 
-  const getLetterStyle = (opacity: SharedValue<number>) => useAnimatedStyle(() => ({
-    opacity: opacity.value,
-    transform: [{ translateY: interpolate(opacity.value, [0, 1], [15, 0], Extrapolate.CLAMP) }]
-  }));
+  const getLetterStyle = (opacity: SharedValue<number>) =>
+    useAnimatedStyle(() => ({
+      opacity: opacity.value,
+      transform: [{ translateY: interpolate(opacity.value, [0, 1], [15, 0], Extrapolate.CLAMP) }],
+    }));
 
   return (
     <Box flex={1} backgroundColor="mainBackground" justifyContent="center" alignItems="center">
-      <Box flexDirection="row" alignItems="center">
+      <Box flexDirection="column" justifyContent={'center'} alignItems="center">
         <Animated.View style={logoStyle}>
           <Image
             source={require('@/src/assets/images/logoLoading.png')}
@@ -81,19 +81,19 @@ const SplashAnimation = () => {
 
         <Box flexDirection="row" marginLeft="m">
           <Animated.View style={getLetterStyle(lOpacity)}>
-            <Text variant="display">L</Text>
+            <Text variant="displayItalic">L</Text>
           </Animated.View>
           <Animated.View style={getLetterStyle(aOpacity)}>
-            <Text variant="display">a</Text>
+            <Text variant="displayItalic">a</Text>
           </Animated.View>
           <Animated.View style={getLetterStyle(tOpacity)}>
-            <Text variant="display">t</Text>
+            <Text variant="displayItalic">t</Text>
           </Animated.View>
           <Animated.View style={getLetterStyle(cOpacity)}>
-            <Text variant="display">c</Text>
+            <Text variant="displayItalic">c</Text>
           </Animated.View>
           <Animated.View style={getLetterStyle(hOpacity)}>
-            <Text variant="display">h</Text>
+            <Text variant="displayItalic">h</Text>
           </Animated.View>
         </Box>
       </Box>
