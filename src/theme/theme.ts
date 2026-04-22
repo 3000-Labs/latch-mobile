@@ -22,7 +22,7 @@ const palette = {
   primary400: '#FFC26B',
   primary500: '#FFB349',
   primary600: '#FFA128',
-  primary700: '#F68B07',
+  primary700: '#FFAD00',
   primary800: '#C16C04',
   primary900: '#754101',
 
@@ -73,6 +73,7 @@ const palette = {
   bg700: '#505050',
   bg800: '#3F3F3F',
   bg900: '#1D1D1D',
+  bg11: '#161615',
 
   // Bg Dark Mode Scale (Light to Dark)
   bgDark50: '#CCCCCC',
@@ -158,6 +159,8 @@ const palette = {
   successDark800: '#124620',
   successDark900: '#0C2412',
 
+  blue: '#0091FF',
+
   green100: '#F0FDF4',
   transparent: 'transparent',
   onboardingbg: '#151311',
@@ -241,6 +244,7 @@ const sharedColors = {
   bg700: palette.bg700,
   bg800: palette.bg800,
   bg900: palette.bg900,
+  bg11: palette.bg11,
 
   bgDark50: palette.bgDark50,
   bgDark100: palette.bgDark100,
@@ -319,13 +323,15 @@ const sharedColors = {
   successDark800: palette.successDark800,
   successDark900: palette.successDark900,
 
+  blue: palette.blue,
+
   transparent: palette.transparent,
 };
 
 const darkTheme = createTheme({
   colors: {
     ...sharedColors,
-    mainBackground: palette.onboardingbg,
+    mainBackground: palette.black,
     secondaryBackground: '#1D1D1D',
     cardBackground: '#242424',
     onboardingbg: palette.onboardingbg,

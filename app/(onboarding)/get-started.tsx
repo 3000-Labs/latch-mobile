@@ -19,11 +19,11 @@ const GetStarted = () => {
   const [selectedOption, setSelectedOption] = useState<OptionType>('new-account');
 
   const options = [
-    {
-      id: 'new-account' as OptionType,
-      title: 'Generate New Smart Account',
-      description: 'Create a new smart account with a secure recovery phrase',
-    },
+    // {
+    //   id: 'new-account' as OptionType,
+    //   title: 'Generate New Smart Account',
+    //   description: 'Create a new smart account with a secure recovery phrase',
+    // },
     {
       id: 'seed-phrase' as OptionType,
       title: 'Import With Seed Phrase',
@@ -39,9 +39,9 @@ const GetStarted = () => {
   const handleContinue = () => {
     // Navigate based on selected option
     switch (selectedOption) {
-      case 'new-account':
-        router.push('/(onboarding)/recovery-phrase');
-        break;
+      // case 'new-account':
+      //   router.push('/(onboarding)/recovery-phrase');
+      //   break;
       case 'seed-phrase':
         router.push('/(onboarding)/import-phrase');
         break;
@@ -49,7 +49,7 @@ const GetStarted = () => {
         router.push('/(onboarding)/connect-wallet');
         break;
       default:
-        router.push('/(auth)/login');
+        router.push('/onboarding');
     }
   };
 
@@ -68,14 +68,14 @@ const GetStarted = () => {
         <Box alignItems="center" mb="xxl">
           <Image
             source={require('@/src/assets/images/logosym.png')}
-            style={{ width: 35, height: 35, marginBottom: theme.spacing.l }}
+            style={{ width: 35, height: 35, marginBottom: theme.spacing.xs }}
             resizeMode="contain"
           />
           <Text variant="h7" mt="m" fontSize={32} textAlign="center">
-            Get Started
+            I Have A Wallet
           </Text>
-          <Text variant="p5" color="textSecondary" mt="xs" textAlign="center" width={'85%'}>
-            Create a new stellar wallet or import the wallet you already have.
+          <Text variant="p4" color="textSecondary" mt="xs" textAlign="center" width={'85%'}>
+            Import the wallet you already have or connect an existing stellar wallet.
           </Text>
         </Box>
 

@@ -4,16 +4,11 @@ import { useTheme } from '@shopify/restyle';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
-import {
-  Dimensions,
-  Image,
-  ScrollView,
-  TouchableOpacity,
-  View
-} from 'react-native';
+import { Dimensions, Image, ScrollView, TouchableOpacity, View } from 'react-native';
 
 import Box from '@/src/components/shared/Box';
 import Button from '@/src/components/shared/Button';
+import LoadingBlur from '@/src/components/shared/LoadingBlur';
 import Text from '@/src/components/shared/Text';
 import { Theme } from '@/src/theme/theme';
 
@@ -42,6 +37,7 @@ const VerifyPhrase = () => {
   const [missingIndices, setMissingIndices] = useState<number[]>([]);
   const [shuffledBank, setShuffledBank] = useState<string[]>([]);
   const [selectedWords, setSelectedWords] = useState<(string | null)[]>([null, null, null]);
+  const [isError, setIsError] = useState(false);
 
   useEffect(() => {
     // Select 3 random unique indices from 0 to 11
@@ -59,7 +55,7 @@ const VerifyPhrase = () => {
   }, []);
 
   const handleSelectWord = (word: string) => {
-    const emptyIndex = selectedWords.findIndex(w => w === null);
+    const emptyIndex = selectedWords.findIndex((w) => w === null);
     if (emptyIndex !== -1) {
       const newSelected = [...selectedWords];
       newSelected[emptyIndex] = word;
@@ -77,13 +73,13 @@ const VerifyPhrase = () => {
 
   const handleVerify = () => {
     const isCorrect = missingIndices.every(
-      (mIndex, i) => recoveryPhrase[mIndex] === selectedWords[i]
+      (mIndex, i) => recoveryPhrase[mIndex] === selectedWords[i],
     );
 
     if (isCorrect) {
       // Navigate forward if valid
       // Following standard routing for now, adjust the final destination if necessary
-      router.push('/(onboarding)/set-pin'); 
+      router.push('/(onboarding)/set-pin');
     } else {
       // Just clear selection if validation fails, or allow retrying
       setSelectedWords([null, null, null]);
@@ -108,7 +104,11 @@ const VerifyPhrase = () => {
         >
           {/* Header Section */}
           <Box flexDirection="row" justifyContent="space-between" alignItems="center" mb="xl">
-            <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} hitSlop={{ top: 10, left: 10, right: 10, bottom: 10 }}>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              activeOpacity={0.7}
+              hitSlop={{ top: 10, left: 10, right: 10, bottom: 10 }}
+            >
               <Ionicons name="chevron-back" size={24} color={theme.colors.textPrimary} />
             </TouchableOpacity>
 
@@ -122,15 +122,16 @@ const VerifyPhrase = () => {
 
           {/* Title Section */}
           <Box alignItems="center" mb="xl">
-            <Text variant="h8" fontSize={28} fontWeight="700" textAlign="center" color="textPrimary">
+            <Text
+              variant="h8"
+              fontSize={28}
+              fontWeight="700"
+              textAlign="center"
+              color="textPrimary"
+            >
               Confirm Your Phrase
             </Text>
-            <Text
-              variant="body"
-              color="textSecondary"
-              mt="s"
-              textAlign="center"
-            >
+            <Text variant="body" color="textSecondary" mt="s" textAlign="center">
               Select the correct words in order.
             </Text>
           </Box>
@@ -148,8 +149,8 @@ const VerifyPhrase = () => {
                 <Box
                   height={56}
                   paddingHorizontal="l"
-                  backgroundColor={statusBarStyle !== "dark"?"gray900": "text50"}
-                  borderColor={statusBarStyle === "dark"?"gray900": "text50"}
+                  backgroundColor={statusBarStyle !== 'dark' ? 'gray900' : 'text500'}
+                  borderColor={statusBarStyle !== 'dark' ? 'gray900' : 'text500'}
                   borderWidth={1}
                   borderRadius={12}
                   flexDirection="row"
@@ -157,14 +158,18 @@ const VerifyPhrase = () => {
                 >
                   <Text
                     variant="body"
-                    color="textPrimary"
+                    color={statusBarStyle !== 'dark' ? 'textWhite' : 'black'}
                     fontWeight="700"
                     width={28}
                   >
                     {trueIndex + 1}
                   </Text>
                   {selectedWords[slotIndex] && (
-                    <Text variant="body" color="textSecondary" ml="s">
+                    <Text
+                      variant="body"
+                      color={statusBarStyle !== 'dark' ? 'textWhite' : 'textSecondary'}
+                      ml="s"
+                    >
                       {selectedWords[slotIndex]}
                     </Text>
                   )}
@@ -194,8 +199,8 @@ const VerifyPhrase = () => {
                     height={52}
                     justifyContent="center"
                     alignItems="center"
-                    backgroundColor={statusBarStyle === "dark"? "text50":"gray900"}
-                    borderColor={statusBarStyle !== "dark"? "text50":"gray900"}
+                    backgroundColor={statusBarStyle === 'dark' ? 'text500' : 'gray900'}
+                    borderColor={statusBarStyle === 'dark' ? 'text500' : 'gray900'}
                     borderWidth={1}
                     borderRadius={12}
                     opacity={isSelected ? 0.4 : 1}
@@ -232,13 +237,28 @@ const VerifyPhrase = () => {
             label="Verify"
             variant={isAllFilled ? 'primary' : 'disabled'}
             // onPress={isAllFilled ? handleVerify : ()=>{}}
-            onPress={()=>  router.push('/(onboarding)/set-pin')}
+            onPress={() => {
+              router.navigate({
+                pathname: '/(auth)/thank-you',
+                params: {
+                  title: isError ? 'Creating Wallet Setup Failed' : 'Your Smart Account is Ready',
+                  subtext: isError
+                    ? 'There was an error, try starting again.'
+                    : 'Start using your secure Stellar wallet today',
+                  buttonLabel: isError ? 'Try Again' : 'Go to Dashboard',
+                  buttonFunction: isError ? '' : '/(onboarding)/get-started',
+                  imageSource: isError ? 'error' : 'success',
+                  accountAddress: 'CC3X7H9K...A9KF', // Usually populated dynamically
+                },
+              });
+            }}
             bg={isAllFilled ? 'primary700' : 'btnDisabled'}
             labelColor={isAllFilled ? 'black' : 'gray600'}
             // disabled={!isAllFilled}
           />
         </Box>
       </View>
+      <LoadingBlur visible={false} text="Getting your wallet ready..." />
     </Box>
   );
 };

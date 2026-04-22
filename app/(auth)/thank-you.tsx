@@ -58,6 +58,8 @@ const ThankYou = () => {
         return require('@/src/assets/images/success.png');
       case 'mailbox':
         return require('@/src/assets/images/mailbox.png');
+      case 'error':
+        return require('@/src/assets/images/error.png');
       default:
         // Use exactly the image check3d.png if it becomes available, otherwise default to success
         return require('@/src/assets/images/success.png');
@@ -75,14 +77,17 @@ const ThankYou = () => {
 
       {/* Header */}
       <Box flexDirection="row" justifyContent="space-between" alignItems="center">
-        <TouchableOpacity
-          onPress={() => router.back()}
-          activeOpacity={0.7}
-          hitSlop={{ top: 10, left: 10, right: 10, bottom: 10 }}
-        >
-          <Ionicons name="chevron-back" size={24} color={theme.colors.textPrimary} />
-        </TouchableOpacity>
-
+        {imageSource === 'error' ? (
+          <TouchableOpacity
+            onPress={() => router.back()}
+            activeOpacity={0.7}
+            hitSlop={{ top: 10, left: 10, right: 10, bottom: 10 }}
+          >
+            <Ionicons name="chevron-back" size={24} color={theme.colors.textPrimary} />
+          </TouchableOpacity>
+        ) : (
+          <Box />
+        )}
         <Image
           source={require('@/src/assets/images/logosym.png')}
           style={{ width: 35, height: 35 }}
@@ -96,7 +101,7 @@ const ThankYou = () => {
       <Box flex={1} justifyContent="center" alignItems="center">
         <Image
           source={getImageSource()}
-          style={{ width: width * 0.55, height: width * 0.55 }}
+          style={{ width: width, height: width * 0.55 }}
           resizeMode="contain"
         />
 
@@ -115,7 +120,7 @@ const ThankYou = () => {
           </Text>
         </Box>
 
-        {params.accountAddress && (
+        {imageSource !== 'error' && params.accountAddress && (
           <Box
             width="100%"
             mt="xl"

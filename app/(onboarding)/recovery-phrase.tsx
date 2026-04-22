@@ -99,7 +99,7 @@ const RecoveryPhrase = () => {
                     width={itemWidth}
                     paddingHorizontal="m"
                     height={52}
-                    backgroundColor={statusBarStyle !== "light"? "text50": "gray900"}
+                    backgroundColor={statusBarStyle !== 'light' ? 'text50' : 'gray900'}
                     borderRadius={12}
                     borderWidth={1}
                     borderColor="gray800"
@@ -151,13 +151,13 @@ const RecoveryPhrase = () => {
                     },
                   ]}
                 >
-                  <BlurView intensity={25} tint="dark" style={StyleSheet.absoluteFill} />
-                  <Box justifyContent="center" alignItems="center" gap="s">
-                    <Image
+                  <BlurView intensity={30} tint={'dark'} style={StyleSheet.absoluteFill} />
+                  <Box justifyContent="center" alignItems="center">
+                    {/* <Image
                       source={require('@/src/assets/images/shieldLoader.png')}
                       style={{ width: 100, height: 100 }}
                       resizeMode="contain"
-                    />
+                    /> */}
                     <Text variant="p5" color="textPrimary" fontWeight="600" textAlign="center">
                       Tap to reveal
                     </Text>

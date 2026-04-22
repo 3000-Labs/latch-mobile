@@ -122,14 +122,14 @@ const Onboarding = () => {
 
         <Box width="100%" gap="s">
           <Button
-            label="Create Account"
+            label="Create a New Wallet"
             variant="primary"
-            onPress={() => router.navigate('/(auth)/register')}
+            onPress={() => router.navigate('/(auth)/biometric')}
           />
           <Button
-            label="Log In"
+            label="I Have a Wallet"
             variant="outline"
-            onPress={() => router.navigate('/(auth)/login')}
+            onPress={() => router.navigate('/(onboarding)/get-started')}
             labelColor={statusBarStyle === 'light' ? 'textWhite' : 'black'}
           />
         </Box>

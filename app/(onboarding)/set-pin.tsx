@@ -1,7 +1,7 @@
 import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useCallback, useState } from 'react';
 import {
@@ -32,7 +32,7 @@ const KEYPAD_ROWS = [
 const SetPin = () => {
   const theme = useTheme<Theme>();
   const statusBarStyle = useStatusBarStyle();
-  console.log(statusBarStyle)
+  const { from, accountAddress } = useLocalSearchParams();
   const router = useRouter();
 
   const [phase, setPhase] = useState<'set' | 'confirm'>('set');
@@ -73,16 +73,32 @@ const SetPin = () => {
           setTimeout(() => {
             if (next === pin) {
               // Success — navigate forward
-              router.push({
-                pathname: '/(auth)/thank-you',
-                params: {
-                  title: 'Your Smart Account is Ready',
-                  subtext: 'Start using your secure Stellar wallet today',
-                  buttonLabel: 'Go to Dashboard',
-                  buttonFunction: '/(onboarding)/get-started',
-                  accountAddress: 'CC3X7H9K...A9KF', // Usually populated dynamically
-                },
-              });
+              // router.push({
+              //   pathname: '/(auth)/thank-you',
+              //   params: {
+              //     title: 'Your Smart Account is Ready',
+              //     subtext: 'Start using your secure Stellar wallet today',
+              //     buttonLabel: 'Go to Dashboard',
+              //     buttonFunction: '/(onboarding)/get-started',
+              //     accountAddress: 'CC3X7H9K...A9KF', // Usually populated dynamically
+              //   },
+              // });
+              if (from === 'import-phrase') {
+                router.push({
+                  pathname: '/(auth)/thank-you',
+                  params: {
+                    title: 'Your Smart Account is Ready',
+                    subtext: 'Start using your secure Stellar wallet today',
+                    buttonLabel: 'Go to Dashboard',
+                    buttonFunction: '/(onboarding)/get-started',
+                    accountAddress: accountAddress,
+                  },
+                });
+              } else {
+                router.push({
+                  pathname: '/(onboarding)/recovery-phrase',
+                });
+              }
             } else {
               Vibration.vibrate(400);
               setError(true);
@@ -220,7 +236,7 @@ const SetPin = () => {
                     >
                       <Box
                         flex={1}
-                        backgroundColor={statusBarStyle !=="light"?"text50":"gray900"}
+                        backgroundColor={statusBarStyle !== 'light' ? 'text50' : 'gray900'}
                         borderRadius={16}
                         justifyContent="center"
                         alignItems="center"
@@ -232,7 +248,12 @@ const SetPin = () => {
                             color={theme.colors.textPrimary}
                           />
                         ) : (
-                          <Text variant="h8" fontSize={24} fontWeight="600" color={statusBarStyle ==="light"?"textPrimary":"gray900"}>
+                          <Text
+                            variant="h8"
+                            fontSize={24}
+                            fontWeight="600"
+                            color={statusBarStyle === 'light' ? 'textPrimary' : 'gray900'}
+                          >
                             {key}
                           </Text>
                         )}

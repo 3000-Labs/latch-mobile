@@ -151,9 +151,13 @@ const ImportPhrase = () => {
                       borderColor: theme.colors.gray800,
                     },
                   ]}
-
                 >
-                  <Text variant="caption" fontFamily={"SFproSemibold"} color="textSecondary" style={{ marginRight: 8 }}>
+                  <Text
+                    variant="caption"
+                    fontFamily={'SFproSemibold'}
+                    color="textSecondary"
+                    style={{ marginRight: 8 }}
+                  >
                     {index + 1}
                   </Text>
                   <TextInput
@@ -190,7 +194,12 @@ const ImportPhrase = () => {
           label="Import Wallet"
           variant={allFilled ? 'primary' : 'disabled'}
           //   onPress={handleImport}
-          onPress={() => router.push('/(onboarding)/set-pin')}
+          onPress={() =>
+            router.push({
+              pathname: '/(onboarding)/set-pin',
+              params: { from: 'import-phrase', accountAddress: 'CC3X7H9K...A9KF' },
+            })
+          }
           bg={allFilled ? 'primary700' : 'btnDisabled'}
           labelColor={allFilled ? 'black' : 'gray600'}
           //   disabled={!allFilled}

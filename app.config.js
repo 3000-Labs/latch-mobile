@@ -25,6 +25,9 @@ export default {
       supportsTablet: true,
       bundleIdentifier: appName === 'Latch' ? 'co.getlatch.latchapp' : 'qa.getlatch.app',
       buildNumber,
+      infoPlist: {
+        NSFaceIDUsageDescription: 'Allow $(PRODUCT_NAME) to use FaceID for secure access.',
+      },
     },
     android: {
       versionCode,
@@ -46,12 +49,12 @@ export default {
       [
         'expo-splash-screen',
         {
-          image: './assets/images/splash-icon-dark.png',
+          image: './assets/images/splash-icon-light.png',
           imageWidth: 159.5,
           resizeMode: 'contain',
           backgroundColor: '#ffffff',
           dark: {
-            image: './assets/images/splash-icon-light.png',
+            image: './assets/images/splash-icon-dark.png',
             backgroundColor: '#000000',
           },
         },
