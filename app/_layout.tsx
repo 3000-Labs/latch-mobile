@@ -8,11 +8,15 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { LogBox } from 'react-native';
+import 'react-native-get-random-values';
 import 'react-native-reanimated';
 import Toast from 'react-native-toast-message';
-
+import '../shim';
+// Now you can import libraries that need crypto
+import { Buffer } from 'buffer';
 import { queryClient } from '../src/api/client';
 import { AppThemeProvider, useAppTheme } from '../src/theme/ThemeContext';
+global.Buffer = Buffer;
 
 SplashScreen.preventAutoHideAsync();
 

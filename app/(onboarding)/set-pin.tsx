@@ -2,6 +2,7 @@ import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
 import { StatusBar } from 'expo-status-bar';
 import React, { useCallback, useState } from 'react';
 import {
@@ -21,6 +22,7 @@ import { Theme } from '@/src/theme/theme';
 const { width } = Dimensions.get('window');
 
 const PIN_LENGTH = 4;
+const PIN_KEY = 'latch_pin';
 
 const KEYPAD_ROWS = [
   ['1', '2', '3'],
@@ -61,28 +63,15 @@ const SetPin = () => {
       if (phase === 'set') {
         setPin(next);
         if (next.length === PIN_LENGTH) {
-          // Auto-advance to confirm phase
-          setTimeout(() => {
-            setPhase('confirm');
-          }, 150);
+          setTimeout(() => setPhase('confirm'), 150);
         }
       } else {
         setConfirmPin(next);
         if (next.length === PIN_LENGTH) {
-          // Validate
-          setTimeout(() => {
+          setTimeout(async () => {
             if (next === pin) {
-              // Success — navigate forward
-              // router.push({
-              //   pathname: '/(auth)/thank-you',
-              //   params: {
-              //     title: 'Your Smart Account is Ready',
-              //     subtext: 'Start using your secure Stellar wallet today',
-              //     buttonLabel: 'Go to Dashboard',
-              //     buttonFunction: '/(onboarding)/get-started',
-              //     accountAddress: 'CC3X7H9K...A9KF', // Usually populated dynamically
-              //   },
-              // });
+              await SecureStore.setItemAsync(PIN_KEY, pin);
+
               if (from === 'import-phrase') {
                 router.push({
                   pathname: '/(auth)/thank-you',
@@ -90,14 +79,12 @@ const SetPin = () => {
                     title: 'Your Smart Account is Ready',
                     subtext: 'Start using your secure Stellar wallet today',
                     buttonLabel: 'Go to Dashboard',
-                    buttonFunction: '/(onboarding)/get-started',
+                    imageSource: 'success',
                     accountAddress: accountAddress,
                   },
                 });
               } else {
-                router.push({
-                  pathname: '/(onboarding)/recovery-phrase',
-                });
+                router.push('/(onboarding)/recovery-phrase');
               }
             } else {
               Vibration.vibrate(400);
@@ -108,7 +95,7 @@ const SetPin = () => {
         }
       }
     },
-    [currentPin, phase, pin, router],
+    [currentPin, phase, pin, router, from, accountAddress],
   );
 
   const handleBack = () => {
@@ -207,7 +194,6 @@ const SetPin = () => {
                               : theme.colors.primary700,
                           }
                         : {
-                            // Using a dark transparent color or gray900 to match the design's dim empty state
                             backgroundColor: theme.colors.gray900,
                             opacity: 0.8,
                           },

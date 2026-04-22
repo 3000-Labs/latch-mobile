@@ -1,10 +1,13 @@
 import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
+import { PENDING_MNEMONIC_KEY } from '@/app/(onboarding)/recovery-phrase';
+import { useWalletStore } from '@/src/store/wallet';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
 import { useRouter } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
-import { Dimensions, Image, ScrollView, TouchableOpacity, View } from 'react-native';
+import { Dimensions, Image, ScrollView, TouchableOpacity, Vibration, View } from 'react-native';
 
 import Box from '@/src/components/shared/Box';
 import Button from '@/src/components/shared/Button';
@@ -13,46 +16,35 @@ import Text from '@/src/components/shared/Text';
 import { Theme } from '@/src/theme/theme';
 
 const { width } = Dimensions.get('window');
-
-const recoveryPhrase = [
-  'abandon',
-  'ability',
-  'able',
-  'about',
-  'above',
-  'absent',
-  'absorb',
-  'abstract',
-  'absurd',
-  'abuse',
-  'access',
-  'accident',
-];
+const MNEMONIC_KEY = 'latch_mnemonic';
 
 const VerifyPhrase = () => {
   const theme = useTheme<Theme>();
   const statusBarStyle = useStatusBarStyle();
   const router = useRouter();
 
+  const { pendingWallet, clearPendingWallet } = useWalletStore();
+  const recoveryPhrase = pendingWallet?.mnemonic.split(' ') ?? [];
+
   const [missingIndices, setMissingIndices] = useState<number[]>([]);
   const [shuffledBank, setShuffledBank] = useState<string[]>([]);
   const [selectedWords, setSelectedWords] = useState<(string | null)[]>([null, null, null]);
-  const [isError, setIsError] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    // Select 3 random unique indices from 0 to 11
+    if (recoveryPhrase.length === 0) return;
+
     const indices: number[] = [];
     while (indices.length < 3) {
-      const r = Math.floor(Math.random() * 12);
+      const r = Math.floor(Math.random() * recoveryPhrase.length);
       if (!indices.includes(r)) indices.push(r);
     }
     indices.sort((a, b) => a - b);
     setMissingIndices(indices);
 
-    // Shuffle the 12 words for the bottom word bank
     const shuffled = [...recoveryPhrase].sort(() => 0.5 - Math.random());
     setShuffledBank(shuffled);
-  }, []);
+  }, [pendingWallet]);
 
   const handleSelectWord = (word: string) => {
     const emptyIndex = selectedWords.findIndex((w) => w === null);
@@ -71,17 +63,34 @@ const VerifyPhrase = () => {
 
   const isAllFilled = !selectedWords.includes(null);
 
-  const handleVerify = () => {
+  const handleVerify = async () => {
+    if (!isAllFilled || !pendingWallet) return;
+
     const isCorrect = missingIndices.every(
       (mIndex, i) => recoveryPhrase[mIndex] === selectedWords[i],
     );
 
     if (isCorrect) {
-      // Navigate forward if valid
-      // Following standard routing for now, adjust the final destination if necessary
-      router.push('/(onboarding)/set-pin');
+      setIsSaving(true);
+      try {
+        await SecureStore.setItemAsync(MNEMONIC_KEY, pendingWallet.mnemonic);
+        await SecureStore.deleteItemAsync(PENDING_MNEMONIC_KEY);
+        clearPendingWallet();
+        router.navigate({
+          pathname: '/(auth)/thank-you',
+          params: {
+            title: 'Your Smart Account is Ready',
+            subtext: 'Start using your secure Stellar wallet today',
+            buttonLabel: 'Go to Dashboard',
+            imageSource: 'success',
+            accountAddress: pendingWallet.gAddress,
+          },
+        });
+      } catch {
+        setIsSaving(false);
+      }
     } else {
-      // Just clear selection if validation fails, or allow retrying
+      Vibration.vibrate(400);
       setSelectedWords([null, null, null]);
     }
   };
@@ -236,29 +245,14 @@ const VerifyPhrase = () => {
           <Button
             label="Verify"
             variant={isAllFilled ? 'primary' : 'disabled'}
-            // onPress={isAllFilled ? handleVerify : ()=>{}}
-            onPress={() => {
-              router.navigate({
-                pathname: '/(auth)/thank-you',
-                params: {
-                  title: isError ? 'Creating Wallet Setup Failed' : 'Your Smart Account is Ready',
-                  subtext: isError
-                    ? 'There was an error, try starting again.'
-                    : 'Start using your secure Stellar wallet today',
-                  buttonLabel: isError ? 'Try Again' : 'Go to Dashboard',
-                  buttonFunction: isError ? '' : '/(onboarding)/get-started',
-                  imageSource: isError ? 'error' : 'success',
-                  accountAddress: 'CC3X7H9K...A9KF', // Usually populated dynamically
-                },
-              });
-            }}
+            onPress={handleVerify}
             bg={isAllFilled ? 'primary700' : 'btnDisabled'}
             labelColor={isAllFilled ? 'black' : 'gray600'}
-            // disabled={!isAllFilled}
+            disabled={!isAllFilled}
           />
         </Box>
       </View>
-      <LoadingBlur visible={false} text="Getting your wallet ready..." />
+      <LoadingBlur visible={isSaving} text="Getting your wallet ready…" />
     </Box>
   );
 };

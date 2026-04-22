@@ -1,18 +1,23 @@
 import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
+import { generateStellarWallet, restoreStellarWallet } from '@/src/lib/seed-wallet';
+import { useWalletStore } from '@/src/store/wallet';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
 import { BlurView } from 'expo-blur';
 import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
 import { StatusBar } from 'expo-status-bar';
-import React, { useState } from 'react';
-
+import React, { useEffect, useState } from 'react';
 import { Dimensions, Image, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 
 import Box from '@/src/components/shared/Box';
 import Button from '@/src/components/shared/Button';
+import LoadingBlur from '@/src/components/shared/LoadingBlur';
 import Text from '@/src/components/shared/Text';
 import { Theme } from '@/src/theme/theme';
+
+export const PENDING_MNEMONIC_KEY = 'latch_pending_mnemonic';
 
 const { width } = Dimensions.get('window');
 
@@ -22,26 +27,43 @@ const RecoveryPhrase = () => {
   const router = useRouter();
   const [isRevealed, setIsRevealed] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(true);
 
-  // Mock recovery phrase - replace with actual data
-  const recoveryPhrase = [
-    'abandon',
-    'ability',
-    'able',
-    'about',
-    'above',
-    'absent',
-    'absorb',
-    'abstract',
-    'absurd',
-    'abuse',
-    'access',
-    'accident',
-  ];
+  const { pendingWallet, setPendingWallet } = useWalletStore();
+
+  useEffect(() => {
+    const init = async () => {
+      // Reuse in-memory wallet if already generated this session
+      if (pendingWallet) {
+        setIsGenerating(false);
+        return;
+      }
+
+      // Restore from a previous incomplete session
+      const savedMnemonic = await SecureStore.getItemAsync(PENDING_MNEMONIC_KEY);
+      if (savedMnemonic) {
+        setPendingWallet(restoreStellarWallet(savedMnemonic));
+        setIsGenerating(false);
+        return;
+      }
+
+      // Allow the loading UI to render before the synchronous crypto work blocks the JS thread
+      await new Promise<void>((resolve) => setTimeout(resolve, 50));
+
+      const wallet = generateStellarWallet();
+      await SecureStore.setItemAsync(PENDING_MNEMONIC_KEY, wallet.mnemonic);
+      setPendingWallet(wallet);
+      setIsGenerating(false);
+    };
+
+    init();
+  }, []);
+
+  const recoveryPhrase = pendingWallet?.mnemonic.split(' ') ?? [];
 
   const handleCopyAll = async () => {
-    const phraseText = recoveryPhrase.join(' ');
-    await Clipboard.setStringAsync(phraseText);
+    if (!pendingWallet) return;
+    await Clipboard.setStringAsync(pendingWallet.mnemonic);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -88,10 +110,8 @@ const RecoveryPhrase = () => {
 
           {/* Recovery Phrase Display */}
           <Box mb="xxl">
-            {/* Spacer or Copy Button at Top Right */}
-
             <View style={{ position: 'relative', borderRadius: 16 }}>
-              {/* Recovery Words Grid - 2 columns */}
+              {/* Recovery Words Grid - 3 columns */}
               <Box flexDirection="row" flexWrap="wrap" gap="m">
                 {recoveryPhrase.map((word, index) => (
                   <Box
@@ -138,7 +158,7 @@ const RecoveryPhrase = () => {
               )}
 
               {/* Blur Overlay */}
-              {!isRevealed && (
+              {!isRevealed && !isGenerating && (
                 <TouchableOpacity
                   activeOpacity={0.9}
                   onPress={() => setIsRevealed(true)}
@@ -148,16 +168,18 @@ const RecoveryPhrase = () => {
                       justifyContent: 'center',
                       alignItems: 'center',
                       zIndex: 10,
+                      borderRadius: 12,
+                      overflow: 'hidden',
                     },
                   ]}
                 >
                   <BlurView intensity={30} tint={'dark'} style={StyleSheet.absoluteFill} />
                   <Box justifyContent="center" alignItems="center">
-                    {/* <Image
+                    <Image
                       source={require('@/src/assets/images/shieldLoader.png')}
                       style={{ width: 100, height: 100 }}
                       resizeMode="contain"
-                    /> */}
+                    />
                     <Text variant="p5" color="textPrimary" fontWeight="600" textAlign="center">
                       Tap to reveal
                     </Text>
@@ -172,14 +194,16 @@ const RecoveryPhrase = () => {
         <Box padding="m" mb={'l'} backgroundColor="mainBackground">
           <Button
             label="Continue"
-            variant={isRevealed ? 'primary' : 'disabled'}
-            onPress={() => isRevealed && router.push('/(onboarding)/verify-phrase')}
-            bg={isRevealed ? 'primary700' : 'btnDisabled'}
-            labelColor={isRevealed ? 'black' : 'gray600'}
-            disabled={!isRevealed}
+            variant={isRevealed && !isGenerating ? 'primary' : 'disabled'}
+            onPress={() => isRevealed && !isGenerating && router.push('/(onboarding)/verify-phrase')}
+            bg={isRevealed && !isGenerating ? 'primary700' : 'btnDisabled'}
+            labelColor={isRevealed && !isGenerating ? 'black' : 'gray600'}
+            disabled={!isRevealed || isGenerating}
           />
         </Box>
       </View>
+
+      <LoadingBlur visible={isGenerating} text="Generating your wallet…" />
     </Box>
   );
 };
