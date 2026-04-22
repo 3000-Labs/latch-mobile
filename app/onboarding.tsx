@@ -4,7 +4,6 @@ import Button from '@/src/components/shared/Button';
 import ProgressPagination from '@/src/components/shared/ProgressPagination';
 import Text from '@/src/components/shared/Text';
 import { Theme } from '@/src/theme/theme';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '@shopify/restyle';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -12,7 +11,7 @@ import React, { useRef, useState } from 'react';
 import { Dimensions, FlatList, Image, StyleSheet } from 'react-native';
 
 const { width } = Dimensions.get('window');
-const ONBOARDING_KEY = '@latch_onboarding_complete';
+// const ONBOARDING_KEY = 'latch_onboarding_complete';
 
 const ONBOARDING_DATA = [
   {
@@ -45,14 +44,14 @@ const Onboarding = () => {
   const router = useRouter();
   const theme = useTheme<Theme>();
 
-  const completeOnboarding = async () => {
-    try {
-      await AsyncStorage.setItem(ONBOARDING_KEY, 'true');
-      router.replace('/(tabs)/home');
-    } catch (e) {
-      router.replace('/(tabs)/home');
-    }
-  };
+  // const completeOnboarding = async () => {
+  //   try {
+  //     await AsyncStorage.setItem(ONBOARDING_KEY, 'true');
+  //     router.replace('/(tabs)/home');
+  //   } catch (e) {
+  //     router.replace('/(tabs)/home');
+  //   }
+  // };
 
   const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
     if (viewableItems.length > 0) {

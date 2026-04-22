@@ -1,5 +1,9 @@
 import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
+import { restoreStellarWallet } from '@/src/lib/seed-wallet';
+import { useWalletStore } from '@/src/store/wallet';
 import { Ionicons } from '@expo/vector-icons';
+import { validateMnemonic } from '@scure/bip39';
+import { wordlist } from '@scure/bip39/wordlists/english';
 import { useTheme } from '@shopify/restyle';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -29,65 +33,83 @@ const ImportPhrase = () => {
   const theme = useTheme<Theme>();
   const statusBarStyle = useStatusBarStyle();
   const router = useRouter();
+  const { setPendingWallet } = useWalletStore();
+
   const [words, setWords] = useState<string[]>(Array(12).fill(''));
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const inputsRef = useRef<(TextInput | null)[]>([]);
   const scrollRef = useRef<ScrollView | null>(null);
 
-  const itemWidth = (width - theme.spacing.m * 2 - theme.spacing.m) / 2; // two columns with gap = m
+  const itemWidth = (width - theme.spacing.m * 2 - theme.spacing.m) / 2;
 
   const handleChange = (text: string, idx: number) => {
-    // If user pasted multiple words into one field, split and distribute
+    setError(null);
+
     const trimmed = text.trim();
     if (trimmed.includes(' ')) {
-      const parts = trimmed.split(/\s+/);
+      const parts = trimmed.split(/\s+/).filter(Boolean);
       const next = [...words];
       let i = idx;
       for (const p of parts) {
         if (i >= next.length) break;
-        next[i] = p;
+        next[i] = p.toLowerCase();
         i += 1;
       }
       setWords(next);
-      // focus the next empty input after the pasted words
       const focusIdx = i < next.length ? i : next.length - 1;
       setTimeout(() => inputsRef.current[focusIdx]?.focus(), 50);
       return;
     }
 
-    // Otherwise just update the current field. Do not auto-advance on single character.
     const next = [...words];
-    next[idx] = text;
+    next[idx] = text.toLowerCase();
     setWords(next);
   };
 
   const handleFocus = (idx: number) => {
-    // measure the input position and scroll so it's visible above the keyboard
     setTimeout(() => {
       const input = inputsRef.current[idx];
       if (!input || !scrollRef.current) return;
-
       try {
-        // @ts-ignore - measure exists on TextInput refs
-        input.measure((fx: number, fy: number, w: number, h: number, px: number, py: number) => {
-          // py is the Y coordinate in screen pixels; scroll to slightly above it
-          const offset = 140; // pixels above keyboard
-          const target = Math.max(0, py - offset);
-          scrollRef.current?.scrollTo({ y: target, animated: true });
+        // @ts-ignore
+        input.measure((_fx: number, _fy: number, _w: number, _h: number, _px: number, py: number) => {
+          scrollRef.current?.scrollTo({ y: Math.max(0, py - 140), animated: true });
         });
-      } catch (_) {
-        // ignore measurement errors
-      }
+      } catch (_) {}
     }, 300);
   };
 
   const allFilled = words.every((w) => w.trim().length > 0);
 
-  const handleImport = () => {
+  const handleImport = async () => {
     if (!allFilled) return;
     Keyboard.dismiss();
-    // Proceed - keep simple for now
-    router.push('/(onboarding)/set-pin');
+
+    const mnemonic = words.map((w) => w.trim().toLowerCase()).join(' ');
+
+    if (!validateMnemonic(mnemonic, wordlist)) {
+      setError('Invalid recovery phrase. Please check each word and try again.');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      // Small delay so the loading overlay renders before the sync crypto work
+      await new Promise<void>((resolve) => setTimeout(resolve, 50));
+      const wallet = restoreStellarWallet(mnemonic);
+      setPendingWallet(wallet);
+
+      router.push({
+        pathname: '/(onboarding)/set-pin',
+        params: { from: 'import-phrase', accountAddress: wallet.gAddress },
+      });
+    } catch {
+      setError('Failed to restore wallet. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -102,9 +124,7 @@ const ImportPhrase = () => {
           bounces={false}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-          ref={(r) => {
-            scrollRef.current = r;
-          }}
+          ref={(r) => { scrollRef.current = r; }}
           contentContainerStyle={{
             paddingHorizontal: theme.spacing.m,
             paddingBottom: 40,
@@ -145,10 +165,14 @@ const ImportPhrase = () => {
                     styles.item,
                     {
                       width: itemWidth,
-                      // backgroundColor: '#111',
-                      backgroundColor: statusBarStyle !== 'light' ? 'text50' : 'gray900',
+                      backgroundColor:
+                        statusBarStyle !== 'light'
+                          ? theme.colors.text50
+                          : theme.colors.gray900,
                       borderRadius: 12,
-                      borderColor: theme.colors.gray800,
+                      borderColor: error
+                        ? theme.colors.danger900
+                        : theme.colors.gray800,
                     },
                   ]}
                 >
@@ -161,29 +185,33 @@ const ImportPhrase = () => {
                     {index + 1}
                   </Text>
                   <TextInput
-                    ref={(el) => {
-                      inputsRef.current[index] = el;
-                    }}
+                    ref={(el) => { inputsRef.current[index] = el; }}
                     value={word}
                     onChangeText={(t) => handleChange(t, index)}
                     onFocus={() => handleFocus(index)}
                     placeholder={`word ${index + 1}`}
                     placeholderTextColor={theme.colors.gray600}
-                    style={{
-                      color: theme.colors.textPrimary,
-                      flex: 1,
-                      padding: 0,
-                    }}
+                    style={{ color: theme.colors.textPrimary, flex: 1, padding: 0 }}
                     autoCapitalize="none"
                     autoCorrect={false}
                     returnKeyType={index === words.length - 1 ? 'done' : 'next'}
                     onSubmitEditing={() => {
-                      if (inputsRef.current[index + 1]) inputsRef.current[index + 1]?.focus();
+                      if (index === words.length - 1) {
+                        handleImport();
+                      } else {
+                        inputsRef.current[index + 1]?.focus();
+                      }
                     }}
                   />
                 </View>
               ))}
             </View>
+
+            {error && (
+              <Text variant="body" color="danger900" mt="s" textAlign="center">
+                {error}
+              </Text>
+            )}
           </Box>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -193,19 +221,14 @@ const ImportPhrase = () => {
         <Button
           label="Import Wallet"
           variant={allFilled ? 'primary' : 'disabled'}
-          //   onPress={handleImport}
-          onPress={() =>
-            router.push({
-              pathname: '/(onboarding)/set-pin',
-              params: { from: 'import-phrase', accountAddress: 'CC3X7H9K...A9KF' },
-            })
-          }
+          onPress={handleImport}
           bg={allFilled ? 'primary700' : 'btnDisabled'}
           labelColor={allFilled ? 'black' : 'gray600'}
-          //   disabled={!allFilled}
+          disabled={!allFilled}
         />
       </Box>
-      <LoadingBlur visible={false} text="Verifying..." />
+
+      <LoadingBlur visible={isLoading} text="Verifying your phrase…" />
     </Box>
   );
 };

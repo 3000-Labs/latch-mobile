@@ -1,4 +1,5 @@
 import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
+import { useWalletStore } from '@/src/store/wallet';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -36,6 +37,7 @@ const SetPin = () => {
   const statusBarStyle = useStatusBarStyle();
   const { from, accountAddress } = useLocalSearchParams();
   const router = useRouter();
+  const { pendingWallet, clearPendingWallet } = useWalletStore();
 
   const [phase, setPhase] = useState<'set' | 'confirm'>('set');
   const [pin, setPin] = useState('');
@@ -73,6 +75,10 @@ const SetPin = () => {
               await SecureStore.setItemAsync(PIN_KEY, pin);
 
               if (from === 'import-phrase') {
+                if (pendingWallet) {
+                  await SecureStore.setItemAsync('latch_mnemonic', pendingWallet.mnemonic);
+                  clearPendingWallet();
+                }
                 router.push({
                   pathname: '/(auth)/thank-you',
                   params: {
@@ -95,7 +101,7 @@ const SetPin = () => {
         }
       }
     },
-    [currentPin, phase, pin, router, from, accountAddress],
+    [currentPin, phase, pin, router, from, accountAddress, pendingWallet, clearPendingWallet],
   );
 
   const handleBack = () => {
