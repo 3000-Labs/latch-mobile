@@ -1,0 +1,69 @@
+name: Feature request
+description: Propose a feature, improvement, or product change
+title: '[Feature]: '
+labels: ['feature']
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user or business problem are we solving?
+      placeholder: Users can create a wallet, but they cannot yet send assets.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the change you want.
+      placeholder: Add a send flow with amount entry, destination validation, memo support, and confirmation.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: List the concrete outcomes that define done.
+      placeholder: |
+        - User can enter a Stellar address
+        - User can review before confirming
+        - Invalid destination is blocked
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - P0
+        - P1
+        - P2
+        - P3
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Product
+        - Mobile
+        - Backend/API
+        - Blockchain/Stellar
+        - Security
+        - DevEx/CI
+        - Design
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies or blockers
+      description: Link related issues, backend work, design work, or security requirements.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I linked or described related work where possible
+          required: true
