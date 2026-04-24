@@ -1,4 +1,3 @@
-import React from 'react';
 import { createVariant, createRestyleComponent, VariantProps } from '@shopify/restyle';
 import { Theme } from '../../theme/theme';
 import Box, { BoxProps } from './Box';

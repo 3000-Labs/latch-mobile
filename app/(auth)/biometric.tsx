@@ -98,7 +98,7 @@ const Biometrics = () => {
     };
 
     init();
-  }, [isUnlockMode]);
+  }, [isUnlockMode, triggerBiometrics]);
 
   const handlePinKey = useCallback(
     async (key: string) => {
@@ -411,7 +411,7 @@ const Biometrics = () => {
               resizeMode="contain"
             />
             <Text variant="h8" fontSize={24} mt="l">
-              Do you want to allow "Latch" to use Face ID?
+              Do you want to allow &quot;Latch&quot; to use Face ID?
             </Text>
             <Text variant="p5" color="text200" mt="m">
               Allow Latch to access your Face ID biometric data.

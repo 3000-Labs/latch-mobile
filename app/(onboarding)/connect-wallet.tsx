@@ -8,7 +8,6 @@ import React from 'react';
 import { Image, ScrollView, TouchableOpacity } from 'react-native';
 
 import Box from '@/src/components/shared/Box';
-import LoadingBlur from '@/src/components/shared/LoadingBlur';
 import Text from '@/src/components/shared/Text';
 import { Theme } from '@/src/theme/theme';
 
@@ -43,8 +42,6 @@ const ConnectWallet = () => {
   const theme = useTheme<Theme>();
   const statusBarStyle = useStatusBarStyle();
   const router = useRouter();
-
-  const [visible, setVisible] = React.useState(false);
 
   const openExternal = (url: string) => {
     Linking.openURL(url);
@@ -123,7 +120,6 @@ const ConnectWallet = () => {
           </Text>
         </TouchableOpacity>
       </Box>
-      <LoadingBlur visible={visible} />
     </Box>
   );
 };

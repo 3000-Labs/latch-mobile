@@ -57,7 +57,7 @@ const RecoveryPhrase = () => {
     };
 
     init();
-  }, []);
+  }, [pendingWallet, setPendingWallet]);
 
   const recoveryPhrase = pendingWallet?.mnemonic.split(' ') ?? [];
 

@@ -3,12 +3,10 @@ import Box from '@/src/components/shared/Box';
 import Button from '@/src/components/shared/Button';
 import ProgressPagination from '@/src/components/shared/ProgressPagination';
 import Text from '@/src/components/shared/Text';
-import { Theme } from '@/src/theme/theme';
-import { useTheme } from '@shopify/restyle';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useRef, useState } from 'react';
-import { Dimensions, FlatList, Image, StyleSheet } from 'react-native';
+import { Dimensions, FlatList, Image } from 'react-native';
 
 const { width } = Dimensions.get('window');
 // const ONBOARDING_KEY = 'latch_onboarding_complete';
@@ -42,7 +40,6 @@ const Onboarding = () => {
   const [activeIndex, setActiveIndex] = useState(0);
   const flatListRef = useRef<FlatList>(null);
   const router = useRouter();
-  const theme = useTheme<Theme>();
 
   // const completeOnboarding = async () => {
   //   try {
@@ -138,5 +135,3 @@ const Onboarding = () => {
 };
 
 export default Onboarding;
-
-const styles = StyleSheet.create({});

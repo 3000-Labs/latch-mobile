@@ -31,7 +31,7 @@ const DottedSpinner: React.FC<Props> = ({ size = 40, color = 'primary' }) => {
       -1,
       false
     );
-  }, []);
+  }, [activeIndex]);
 
   return (
     <View style={{ width: size, height: size, justifyContent: 'center', alignItems: 'center' }}>

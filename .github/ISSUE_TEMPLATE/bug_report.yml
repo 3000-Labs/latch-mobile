@@ -1,0 +1,74 @@
+name: Bug report
+description: Report a defect, regression, or unexpected behavior
+title: '[Bug]: '
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting this. Please include enough detail for someone else on the team to reproduce it.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened, and what did you expect instead?
+      placeholder: The app crashes after entering a valid recovery phrase...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Onboarding
+        - Authentication
+        - Wallet
+        - Transactions
+        - UI/UX
+        - API
+        - CI/CD
+        - Security
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Device, OS, app version, and branch/commit if known
+      placeholder: iPhone 15 / iOS 18.1 / app 1.0.0 / master
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. Open the app
+        2. Tap "I Have a Wallet"
+        3. Enter a valid 12-word phrase
+        4. Tap "Import Wallet"
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: User impact
+      description: Who is affected and how severe is it?
+      placeholder: Blocks all wallet imports on iOS.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs, screenshots, or recordings
+      description: Paste any relevant evidence here.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I confirmed this issue does not include secrets, recovery phrases, private keys, or credentials
+          required: true
+        - label: I searched for an existing issue first
+          required: true

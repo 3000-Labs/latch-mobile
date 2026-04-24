@@ -3,8 +3,8 @@ import Text from '@/src/components/shared/Text';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
-import React, { useEffect } from 'react';
-import { Image, StyleSheet } from 'react-native';
+import React, { useCallback, useEffect } from 'react';
+import { Image } from 'react-native';
 import Animated, {
   Extrapolate,
   interpolate,
@@ -17,6 +17,25 @@ import Animated, {
 
 const ONBOARDING_KEY = 'latch_onboarding_complete';
 
+const AnimatedLetter = ({
+  opacity,
+  children,
+}: {
+  opacity: SharedValue<number>;
+  children: React.ReactNode;
+}) => {
+  const letterStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ translateY: interpolate(opacity.value, [0, 1], [15, 0], Extrapolate.CLAMP) }],
+  }));
+
+  return (
+    <Animated.View style={letterStyle}>
+      <Text variant="displayItalic">{children}</Text>
+    </Animated.View>
+  );
+};
+
 const SplashAnimation = () => {
   const router = useRouter();
 
@@ -28,7 +47,7 @@ const SplashAnimation = () => {
   const cOpacity = useSharedValue(0);
   const hOpacity = useSharedValue(0);
 
-  const checkUserStatusAndNavigate = async () => {
+  const checkUserStatusAndNavigate = useCallback(async () => {
     try {
       const storedMnemonic = await SecureStore.getItemAsync('latch_mnemonic');
       if (storedMnemonic) {
@@ -42,10 +61,10 @@ const SplashAnimation = () => {
       } else {
         router.replace('/onboarding');
       }
-    } catch (e) {
+    } catch {
       router.replace('/onboarding');
     }
-  };
+  }, [router]);
 
   useEffect(() => {
     // 1. Kick off the visual animations (UI thread)
@@ -62,18 +81,20 @@ const SplashAnimation = () => {
     }, 2700);
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [
+    aOpacity,
+    cOpacity,
+    checkUserStatusAndNavigate,
+    hOpacity,
+    lOpacity,
+    logoOpacity,
+    tOpacity,
+  ]);
 
   const logoStyle = useAnimatedStyle(() => ({
     opacity: logoOpacity.value,
     transform: [{ scale: interpolate(logoOpacity.value, [0, 1], [0.8, 1], Extrapolate.CLAMP) }],
   }));
-
-  const getLetterStyle = (opacity: SharedValue<number>) =>
-    useAnimatedStyle(() => ({
-      opacity: opacity.value,
-      transform: [{ translateY: interpolate(opacity.value, [0, 1], [15, 0], Extrapolate.CLAMP) }],
-    }));
 
   return (
     <Box flex={1} backgroundColor="mainBackground" justifyContent="center" alignItems="center">
@@ -87,21 +108,11 @@ const SplashAnimation = () => {
         </Animated.View>
 
         <Box flexDirection="row" marginLeft="m">
-          <Animated.View style={getLetterStyle(lOpacity)}>
-            <Text variant="displayItalic">L</Text>
-          </Animated.View>
-          <Animated.View style={getLetterStyle(aOpacity)}>
-            <Text variant="displayItalic">a</Text>
-          </Animated.View>
-          <Animated.View style={getLetterStyle(tOpacity)}>
-            <Text variant="displayItalic">t</Text>
-          </Animated.View>
-          <Animated.View style={getLetterStyle(cOpacity)}>
-            <Text variant="displayItalic">c</Text>
-          </Animated.View>
-          <Animated.View style={getLetterStyle(hOpacity)}>
-            <Text variant="displayItalic">h</Text>
-          </Animated.View>
+          <AnimatedLetter opacity={lOpacity}>L</AnimatedLetter>
+          <AnimatedLetter opacity={aOpacity}>a</AnimatedLetter>
+          <AnimatedLetter opacity={tOpacity}>t</AnimatedLetter>
+          <AnimatedLetter opacity={cOpacity}>c</AnimatedLetter>
+          <AnimatedLetter opacity={hOpacity}>h</AnimatedLetter>
         </Box>
       </Box>
     </Box>
@@ -109,5 +120,3 @@ const SplashAnimation = () => {
 };
 
 export default SplashAnimation;
-
-const styles = StyleSheet.create({});

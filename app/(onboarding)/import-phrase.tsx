@@ -74,10 +74,11 @@ const ImportPhrase = () => {
       if (!input || !scrollRef.current) return;
       try {
         // @ts-ignore
-        input.measure((_fx: number, _fy: number, _w: number, _h: number, _px: number, py: number) => {
+        input.measure((...args: number[]) => {
+          const py = args[5] ?? 0;
           scrollRef.current?.scrollTo({ y: Math.max(0, py - 140), animated: true });
         });
-      } catch (_) {}
+      } catch {}
     }, 300);
   };
 
