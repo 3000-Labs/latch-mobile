@@ -1,6 +1,7 @@
 import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
+import { useStellarTransactions, StellarPayment } from '@/src/hooks/use-stellar-transactions';
 import { restoreStellarWallet } from '@/src/lib/seed-wallet';
 import { Theme } from '@/src/theme/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,8 +9,10 @@ import { useTheme } from '@shopify/restyle';
 import { Horizon } from '@stellar/stellar-sdk';
 import { useQuery } from '@tanstack/react-query';
 import * as Clipboard from 'expo-clipboard';
+import { router } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { StatusBar } from 'expo-status-bar';
+import { format } from 'date-fns';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -26,6 +29,98 @@ const truncateAddress = (addr: string) => `${addr.slice(0, 6)}...${addr.slice(-6
 
 const formatXLM = (raw: string) =>
   parseFloat(raw).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+function getDirection(payment: StellarPayment, gAddress: string): 'received' | 'sent' | 'created' {
+  if (payment.type === 'create_account' && payment.to === gAddress) return 'created';
+  if (payment.from === gAddress) return 'sent';
+  return 'received';
+}
+
+function TransactionRow({
+  payment,
+  gAddress,
+  surfaceBg,
+}: {
+  payment: StellarPayment;
+  gAddress: string;
+  surfaceBg: string;
+}) {
+  const theme = useTheme<Theme>();
+  const direction = getDirection(payment, gAddress);
+  const isSent = direction === 'sent';
+  const assetLabel = payment.assetType === 'native' ? 'XLM' : (payment.assetCode ?? 'Unknown');
+  const counterparty = isSent ? payment.to : payment.from;
+  const amountColor = isSent ? theme.colors.danger600 : theme.colors.success600;
+  const amountPrefix = isSent ? '-' : '+';
+  const iconName = direction === 'created' ? 'star' : isSent ? 'arrow-up' : 'arrow-down';
+  const iconBg = isSent ? theme.colors.danger800 : theme.colors.success50;
+  const iconColor = isSent ? theme.colors.danger600 : theme.colors.success700;
+
+  const handlePress = () => {
+    router.push({
+      pathname: '/transaction/[id]',
+      params: {
+        id: payment.id,
+        hash: payment.transactionHash,
+        type: payment.type,
+        from: payment.from,
+        to: payment.to,
+        amount: payment.amount,
+        assetType: payment.assetType,
+        assetCode: payment.assetCode ?? '',
+        createdAt: payment.createdAt,
+        direction,
+        gAddress,
+      },
+    });
+  };
+
+  return (
+    <TouchableOpacity onPress={handlePress} activeOpacity={0.7}>
+      <Box
+        flexDirection="row"
+        alignItems="center"
+        paddingVertical="m"
+        paddingHorizontal="m"
+        gap="m"
+        style={{ backgroundColor: surfaceBg, borderRadius: 14, marginBottom: 8 }}
+      >
+        <Box
+          width={42}
+          height={42}
+          borderRadius={21}
+          alignItems="center"
+          justifyContent="center"
+          style={{ backgroundColor: iconBg }}
+        >
+          <Ionicons name={iconName} size={18} color={iconColor} />
+        </Box>
+
+        <Box flex={1}>
+          <Text variant="h11" color="textPrimary" numberOfLines={1}>
+            {direction === 'created' ? 'Account Funded' : isSent ? 'Sent' : 'Received'}{' '}
+            {assetLabel}
+          </Text>
+          <Text variant="p8" color="textSecondary" numberOfLines={1} style={{ marginTop: 2 }}>
+            {truncateAddress(counterparty)}
+          </Text>
+        </Box>
+
+        <Box alignItems="flex-end">
+          <Text variant="h11" style={{ color: amountColor }}>
+            {amountPrefix}
+            {formatXLM(payment.amount)} {assetLabel}
+          </Text>
+          <Text variant="p8" color="textSecondary" style={{ marginTop: 2 }}>
+            {format(new Date(payment.createdAt), 'MMM d')}
+          </Text>
+        </Box>
+
+        <Ionicons name="chevron-forward" size={14} color={theme.colors.gray600} />
+      </Box>
+    </TouchableOpacity>
+  );
+}
 
 const Home = () => {
   const theme = useTheme<Theme>();
@@ -47,8 +142,8 @@ const Home = () => {
     data: account,
     isLoading: balanceLoading,
     isError,
-    refetch,
-    isRefetching,
+    refetch: refetchBalance,
+    isRefetching: isRefetchingBalance,
   } = useQuery({
     queryKey: ['stellar-account', gAddress],
     queryFn: async () => {
@@ -60,6 +155,13 @@ const Home = () => {
     staleTime: 30_000,
   });
 
+  const {
+    data: transactions,
+    isLoading: txLoading,
+    refetch: refetchTx,
+    isRefetching: isRefetchingTx,
+  } = useStellarTransactions(gAddress);
+
   const xlmBalance = account?.balances?.find((b) => b.asset_type === 'native')?.balance ?? null;
 
   const handleCopyAddress = async () => {
@@ -69,8 +171,14 @@ const Home = () => {
     setTimeout(() => setAddressCopied(false), 2000);
   };
 
+  const handleRefresh = () => {
+    refetchBalance();
+    refetchTx();
+  };
+
   const cardBg = theme.colors.primary700;
   const surfaceBg = statusBarStyle !== 'light' ? theme.colors.text50 : theme.colors.gray900;
+  const recentTx = transactions?.slice(0, 5) ?? [];
 
   return (
     <Box flex={1} backgroundColor="mainBackground">
@@ -80,8 +188,8 @@ const Home = () => {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={isRefetching}
-            onRefresh={refetch}
+            refreshing={isRefetchingBalance || isRefetchingTx}
+            onRefresh={handleRefresh}
             tintColor={theme.colors.primary700}
           />
         }
@@ -195,21 +303,53 @@ const Home = () => {
 
         {/* Recent Transactions */}
         <Box mb="m">
-          <Text variant="h10" color="textPrimary" mb="m">
-            Recent Transactions
-          </Text>
-          <Box
-            borderRadius={16}
-            padding="xl"
-            alignItems="center"
-            gap="m"
-            style={{ backgroundColor: surfaceBg }}
-          >
-            <Ionicons name="receipt-outline" size={36} color={theme.colors.gray600} />
-            <Text variant="body" color="textSecondary" textAlign="center">
-              No transactions yet
+          <Box flexDirection="row" justifyContent="space-between" alignItems="center" mb="m">
+            <Text variant="h10" color="textPrimary">
+              Recent Transactions
             </Text>
+            {(transactions?.length ?? 0) > 5 && (
+              <TouchableOpacity activeOpacity={0.7}>
+                <Text variant="caption" color="primary700">
+                  See all
+                </Text>
+              </TouchableOpacity>
+            )}
           </Box>
+
+          {txLoading && gAddress ? (
+            <Box
+              borderRadius={16}
+              padding="xl"
+              alignItems="center"
+              style={{ backgroundColor: surfaceBg }}
+            >
+              <ActivityIndicator color={theme.colors.primary700} />
+            </Box>
+          ) : recentTx.length === 0 ? (
+            <Box
+              borderRadius={16}
+              padding="xl"
+              alignItems="center"
+              gap="m"
+              style={{ backgroundColor: surfaceBg }}
+            >
+              <Ionicons name="receipt-outline" size={36} color={theme.colors.gray600} />
+              <Text variant="body" color="textSecondary" textAlign="center">
+                No transactions yet
+              </Text>
+            </Box>
+          ) : (
+            <Box>
+              {recentTx.map((payment) => (
+                <TransactionRow
+                  key={payment.id}
+                  payment={payment}
+                  gAddress={gAddress!}
+                  surfaceBg={surfaceBg}
+                />
+              ))}
+            </Box>
+          )}
         </Box>
       </ScrollView>
     </Box>

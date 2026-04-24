@@ -17,6 +17,8 @@ const runtimeEnv = z
     // EXPO_PUBLIC_META_CLIENT_TOKEN: z.string(),
     EXPO_PUBLIC_APP_PROFILE: z.string().default('staging'),
     // EXPO_PUBLIC_CLOUDFLARE_WORKER_URL: z.string().url(),
+    EXPO_PUBLIC_HORIZON_TESTNET_URL: z.string(),
+    EXPO_PUBLIC_EXPLORER_URL: z.string(),
   })
   .partial();
 
@@ -56,5 +58,7 @@ const envObject = {
   //   EXPO_PUBLIC_META_CLIENT_TOKEN: process.env.EXPO_PUBLIC_META_CLIENT_TOKEN,
   EXPO_PUBLIC_APP_PROFILE: process.env.EXPO_PUBLIC_APP_PROFILE,
   //   EXPO_PUBLIC_CLOUDFLARE_WORKER_URL: process.env.EXPO_PUBLIC_CLOUDFLARE_WORKER_URL,
+  EXPO_PUBLIC_HORIZON_TESTNET_URL: process.env.EXPO_PUBLIC_HORIZON_TESTNET_URL,
+  EXPO_PUBLIC_EXPLORER_URL: process.env.EXPO_PUBLIC_EXPLORER_URL,
 };
 module.exports = envSchema.parse({ ...process.env, ...envObject });

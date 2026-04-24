@@ -32,6 +32,7 @@ function RootLayoutContent() {
     <>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="transaction/[id]" />
       </Stack>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <Toast />
