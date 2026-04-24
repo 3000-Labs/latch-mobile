@@ -3,7 +3,6 @@ import { BlurView } from 'expo-blur';
 import React from 'react';
 import { Image, StyleSheet, TouchableWithoutFeedback, View } from 'react-native';
 
-import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import { Theme } from '@/src/theme/theme';
 import Box from './Box';
 import Text from './Text';
@@ -24,7 +23,6 @@ const LoadingBlur: React.FC<Props> = ({
   onPress,
 }) => {
   const theme = useTheme<Theme>();
-  const statusBarStyle = useStatusBarStyle();
 
   if (!visible) return null;
 

@@ -9,7 +9,6 @@ import Animated, {
 import { useTheme } from '@shopify/restyle';
 import { Theme } from '../../theme/theme';
 import { Ionicons } from '@expo/vector-icons';
-import Box from './Box';
 
 interface Props {
   checked: boolean;
@@ -28,7 +27,7 @@ const Checkbox: React.FC<Props> = ({ checked, onChange, disabled }) => {
       damping: 15,
       stiffness: 150,
     });
-  }, [checked]);
+  }, [checked, progress]);
 
   const animatedContainerStyle = useAnimatedStyle(() => {
     const backgroundColor = interpolateColor(

@@ -41,7 +41,7 @@ const PaginationDot: React.FC<DotProps> = ({ index, activeIndex, theme }) => {
       damping: 20,
       stiffness: 200,
     });
-  }, [isActive]);
+  }, [isActive, width]);
 
   const animatedStyle = useAnimatedStyle(() => {
     return {

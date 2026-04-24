@@ -44,7 +44,7 @@ const VerifyPhrase = () => {
 
     const shuffled = [...recoveryPhrase].sort(() => 0.5 - Math.random());
     setShuffledBank(shuffled);
-  }, [pendingWallet]);
+  }, [recoveryPhrase]);
 
   const handleSelectWord = (word: string) => {
     const emptyIndex = selectedWords.findIndex((w) => w === null);

@@ -33,7 +33,7 @@ const Switch: React.FC<Props> = ({ value, onValueChange, disabled }) => {
       damping: 12,
       stiffness: 120,
     });
-  }, [value]);
+  }, [translateX, value]);
 
   const trackAnimatedStyle = useAnimatedStyle(() => {
     const backgroundColor = interpolateColor(

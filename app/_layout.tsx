@@ -21,7 +21,7 @@ global.Buffer = Buffer;
 SplashScreen.preventAutoHideAsync();
 
 if (__DEV__) {
-  require('../ReactotronConfig.js');
+  void import('../ReactotronConfig.js');
 }
 LogBox.ignoreAllLogs();
 

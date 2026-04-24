@@ -8,7 +8,6 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useTheme } from '@shopify/restyle';
 import { Theme } from '../../theme/theme';
-import Box from './Box';
 
 interface Props {
   selected: boolean;
@@ -28,7 +27,7 @@ const Radio: React.FC<Props> = ({ selected, onSelect, disabled }) => {
       damping: 15,
       stiffness: 150,
     });
-  }, [selected]);
+  }, [progress, selected]);
 
   const animatedContainerStyle = useAnimatedStyle(() => {
     const backgroundColor = interpolateColor(
