@@ -78,17 +78,18 @@ const SetPin = () => {
                 if (pendingWallet) {
                   await SecureStore.setItemAsync('latch_mnemonic', pendingWallet.mnemonic);
                   clearPendingWallet();
+                  // Navigate to deploy-account to create the smart account on-chain.
+                  // mnemonic is already persisted above, so skipPersist=true.
+                  router.push({
+                    pathname: '/(onboarding)/deploy-account',
+                    params: {
+                      mnemonic: pendingWallet.mnemonic,
+                      publicKeyHex: pendingWallet.publicKeyHex,
+                      gAddress: pendingWallet.gAddress,
+                      skipPersist: 'true',
+                    },
+                  });
                 }
-                router.push({
-                  pathname: '/(auth)/thank-you',
-                  params: {
-                    title: 'Your Smart Account is Ready',
-                    subtext: 'Start using your secure Stellar wallet today',
-                    buttonLabel: 'Go to Dashboard',
-                    imageSource: 'success',
-                    accountAddress: accountAddress,
-                  },
-                });
               } else {
                 router.push('/(onboarding)/recovery-phrase');
               }

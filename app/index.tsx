@@ -50,10 +50,10 @@ const SplashAnimation = () => {
   const checkUserStatusAndNavigate = useCallback(async () => {
     try {
       const storedMnemonic = await SecureStore.getItemAsync('latch_mnemonic');
-      if (storedMnemonic) {
-        router.replace({ pathname: '/(auth)/biometric', params: { mode: 'unlock' } });
-        return;
-      }
+      // if (storedMnemonic) {
+      //   router.replace({ pathname: '/(auth)/biometric', params: { mode: 'unlock' } });
+      //   return;
+      // }
 
       const onboardingComplete = await AsyncStorage.getItem(ONBOARDING_KEY);
       if (onboardingComplete === 'true') {
@@ -81,15 +81,7 @@ const SplashAnimation = () => {
     }, 2700);
 
     return () => clearTimeout(timer);
-  }, [
-    aOpacity,
-    cOpacity,
-    checkUserStatusAndNavigate,
-    hOpacity,
-    lOpacity,
-    logoOpacity,
-    tOpacity,
-  ]);
+  }, [aOpacity, cOpacity, checkUserStatusAndNavigate, hOpacity, lOpacity, logoOpacity, tOpacity]);
 
   const logoStyle = useAnimatedStyle(() => ({
     opacity: logoOpacity.value,

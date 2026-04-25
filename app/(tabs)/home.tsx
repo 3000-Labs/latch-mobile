@@ -2,7 +2,8 @@ import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
 import { useStellarTransactions, StellarPayment } from '@/src/hooks/use-stellar-transactions';
-import { restoreStellarWallet } from '@/src/lib/seed-wallet';
+import { useSmartAccountTransaction } from '@/src/hooks/use-smart-account-transaction';
+import { useWalletStore } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
@@ -10,19 +11,18 @@ import { Horizon } from '@stellar/stellar-sdk';
 import { useQuery } from '@tanstack/react-query';
 import * as Clipboard from 'expo-clipboard';
 import { router } from 'expo-router';
-import * as SecureStore from 'expo-secure-store';
 import { StatusBar } from 'expo-status-bar';
 import { format } from 'date-fns';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Image,
   RefreshControl,
   ScrollView,
   TouchableOpacity,
 } from 'react-native';
 
-const MNEMONIC_KEY = 'latch_mnemonic';
 const HORIZON_URL = 'https://horizon-testnet.stellar.org';
 
 const truncateAddress = (addr: string) => `${addr.slice(0, 6)}...${addr.slice(-6)}`;
@@ -126,17 +126,46 @@ const Home = () => {
   const theme = useTheme<Theme>();
   const statusBarStyle = useStatusBarStyle();
 
-  const [gAddress, setGAddress] = useState<string | null>(null);
-  const [addressCopied, setAddressCopied] = useState(false);
+  // ── Wallet store ──────────────────────────────────────────────────────────
+  const { activeWallet, smartAccountAddress, rehydrateWallet } = useWalletStore();
+
+  // Rehydrate from SecureStore on first mount (idempotent after first call)
+  useEffect(() => { rehydrateWallet(); }, [rehydrateWallet]);
+
+  const gAddress = activeWallet?.gAddress ?? null;
+
+  // ── Smart-account transaction ─────────────────────────────────────────────
+  const { txState, txHash, txError, isBusy, execute, reset } = useSmartAccountTransaction();
+
+  const handleSignTransaction = async () => {
+    if (!smartAccountAddress || !activeWallet) {
+      Alert.alert('Not ready', 'Smart account not found. Complete onboarding first.');
+      return;
+    }
+    try {
+      await execute(
+        smartAccountAddress,
+        activeWallet.publicKeyHex,
+        activeWallet.keypair,
+      );
+    } catch { /* error is set in hook state */ }
+  };
 
   useEffect(() => {
-    SecureStore.getItemAsync(MNEMONIC_KEY).then((mnemonic) => {
-      if (!mnemonic) return;
-      const wallet = restoreStellarWallet(mnemonic);
-      console.log(wallet);
-      setGAddress(wallet.gAddress);
-    });
-  }, []);
+    if (txState === 'success' && txHash) {
+      Alert.alert(
+        'Transaction confirmed ✓',
+        `Hash: ${txHash.slice(0, 16)}…${txHash.slice(-8)}`,
+        [{ text: 'OK', onPress: reset }],
+      );
+    }
+    if (txState === 'error' && txError) {
+      Alert.alert('Transaction failed', txError, [{ text: 'OK', onPress: reset }]);
+    }
+  }, [txState, txHash, txError, reset]);
+
+  const [addressCopied, setAddressCopied] = useState(false);
+  const [smartCopied, setSmartCopied] = useState(false);
 
   const {
     data: account,
@@ -169,6 +198,13 @@ const Home = () => {
     await Clipboard.setStringAsync(gAddress);
     setAddressCopied(true);
     setTimeout(() => setAddressCopied(false), 2000);
+  };
+
+  const handleCopySmartAccount = async () => {
+    if (!smartAccountAddress) return;
+    await Clipboard.setStringAsync(smartAccountAddress);
+    setSmartCopied(true);
+    setTimeout(() => setSmartCopied(false), 2000);
   };
 
   const handleRefresh = () => {
@@ -300,6 +336,88 @@ const Home = () => {
             );
           })}
         </Box>
+
+        {/* Smart Account Card */}
+        {smartAccountAddress && (
+          <Box
+            borderRadius={16}
+            padding="l"
+            mb="xl"
+            gap="m"
+            style={{ backgroundColor: surfaceBg }}
+          >
+            <Box flexDirection="row" justifyContent="space-between" alignItems="center">
+              <Text variant="h11" color="textPrimary" fontWeight="700">
+                Smart Account
+              </Text>
+              <Box
+                paddingHorizontal="s"
+                paddingVertical="xs"
+                borderRadius={8}
+                style={{ backgroundColor: theme.colors.primary700 + '22' }}
+              >
+                <Text variant="caption" color="primary700" fontWeight="700">
+                  Testnet
+                </Text>
+              </Box>
+            </Box>
+
+            {/* C-address */}
+            <TouchableOpacity onPress={handleCopySmartAccount} activeOpacity={0.7}>
+              <Box
+                flexDirection="row"
+                alignItems="center"
+                gap="xs"
+                padding="m"
+                borderRadius={10}
+                style={{ backgroundColor: theme.colors.primary700 + '11' }}
+              >
+                <Text variant="caption" color="primary700" style={{ flex: 1 }} numberOfLines={1}>
+                  {truncateAddress(smartAccountAddress)}
+                </Text>
+                <Ionicons
+                  name={smartCopied ? 'checkmark' : 'copy-outline'}
+                  size={14}
+                  color={theme.colors.primary700}
+                />
+              </Box>
+            </TouchableOpacity>
+
+            {/* Sign Transaction Button */}
+            <TouchableOpacity
+              onPress={handleSignTransaction}
+              disabled={isBusy}
+              activeOpacity={0.8}
+              style={{
+                backgroundColor: isBusy
+                  ? theme.colors.gray900
+                  : theme.colors.primary700,
+                borderRadius: 12,
+                padding: 14,
+                alignItems: 'center',
+                flexDirection: 'row',
+                justifyContent: 'center',
+                gap: 8,
+                opacity: isBusy ? 0.7 : 1,
+              }}
+            >
+              {isBusy ? (
+                <ActivityIndicator size="small" color="#000" />
+              ) : (
+                <Ionicons name="flash" size={16} color="#000" />
+              )}
+              <Text variant="caption" style={{ color: '#000', fontWeight: '700' }}>
+                {txState === 'building'
+                  ? 'Building tx…'
+                  : txState === 'signing'
+                    ? 'Signing…'
+                    : txState === 'submitting'
+                      ? 'Submitting…'
+                      : 'Sign Transaction'}
+              </Text>
+            </TouchableOpacity>
+          </Box>
+        )}
 
         {/* Recent Transactions */}
         <Box mb="m">

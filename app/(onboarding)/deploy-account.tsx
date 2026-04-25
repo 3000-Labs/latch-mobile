@@ -1,0 +1,274 @@
+/**
+ * DeployAccount — onboarding screen shown after phrase verification (new wallet)
+ * or after PIN confirmation (imported wallet).
+ *
+ * It calls the latch backend to deploy the Soroban smart account, persists
+ * the result, and navigates to the thank-you / dashboard screen.
+ *
+ * Route params:
+ *   mnemonic          – plaintext mnemonic to commit (passed only from verify-phrase)
+ *   publicKeyHex      – 64-char hex Ed25519 public key
+ *   gAddress          – Stellar G-address (for display)
+ *   skipPersist       – "true" when mnemonic was already saved (import-phrase path)
+ */
+
+import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
+import { deploySmartAccount } from '@/src/api/smart-account';
+import Box from '@/src/components/shared/Box';
+import Button from '@/src/components/shared/Button';
+import Text from '@/src/components/shared/Text';
+import { restoreStellarWallet } from '@/src/lib/seed-wallet';
+import { SECURE_KEYS, useWalletStore } from '@/src/store/wallet';
+import { Theme } from '@/src/theme/theme';
+import { useTheme } from '@shopify/restyle';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
+import { StatusBar } from 'expo-status-bar';
+import React, { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Animated, Image, StyleSheet } from 'react-native';
+
+type Stage =
+  | 'saving' // persisting mnemonic to SecureStore
+  | 'deploying' // waiting on backend
+  | 'success' // all done
+  | 'error'; // deployment failed
+
+const STAGE_LABELS: Record<Stage, string> = {
+  saving: 'Securing your wallet…',
+  deploying: 'Deploying your smart account…\nThis can take up to 30 seconds.',
+  success: 'Your smart account is ready!',
+  error: 'Something went wrong',
+};
+
+const DeployAccount = () => {
+  const theme = useTheme<Theme>();
+  const statusBarStyle = useStatusBarStyle();
+  const router = useRouter();
+  const { setActiveWallet, setSmartAccountAddress } = useWalletStore();
+
+  const { mnemonic, publicKeyHex, gAddress, skipPersist } = useLocalSearchParams<{
+    mnemonic: string;
+    publicKeyHex: string;
+    gAddress: string;
+    skipPersist: string;
+  }>();
+
+  console.log(publicKeyHex);
+
+  const [stage, setStage] = useState<Stage>('saving');
+  const [errorMsg, setErrorMsg] = useState('');
+  const [smartAccountAddress, setLocalSmartAccount] = useState('');
+
+  // Pulse animation for the spinner container
+  const pulse = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1.08, duration: 900, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: 900, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
+
+  // Run deployment once on mount
+  useEffect(() => {
+    let cancelled = false;
+
+    const run = async () => {
+      try {
+        // ── Step 1: persist mnemonic (skip if import-phrase already saved it) ──
+        if (skipPersist !== 'true' && mnemonic) {
+          setStage('saving');
+          await SecureStore.setItemAsync(SECURE_KEYS.MNEMONIC, mnemonic);
+          // Clean up the temporary pending key written by recovery-phrase.tsx
+          await SecureStore.deleteItemAsync(SECURE_KEYS.PENDING_MNEMONIC);
+        }
+
+        if (cancelled) return;
+
+        // ── Step 2: deploy smart account via latch backend ────────────────────
+        setStage('deploying');
+        console.log({ publicKeyHex });
+        const { smartAccountAddress: deployedAddress } = await deploySmartAccount(publicKeyHex);
+
+        if (cancelled) return;
+
+        console.log({ key: SECURE_KEYS.SMART_ACCOUNT, deployedAddress });
+        // ── Step 3: persist smart account address ─────────────────────────────
+        await SecureStore.setItemAsync(SECURE_KEYS.SMART_ACCOUNT, deployedAddress);
+
+        // ── Step 4: hydrate global store ──────────────────────────────────────
+        const storedMnemonic = await SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC);
+        if (storedMnemonic) {
+          const wallet = restoreStellarWallet(storedMnemonic);
+          setActiveWallet(wallet);
+        }
+        setSmartAccountAddress(deployedAddress);
+        setLocalSmartAccount(deployedAddress);
+
+        if (!cancelled) setStage('success');
+      } catch (err: any) {
+        console.log(err);
+        if (!cancelled) {
+          setErrorMsg(err?.message ?? 'Deployment failed. Please try again.');
+          setStage('error');
+        }
+      }
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const goToDashboard = () => {
+    router.replace({
+      pathname: '/(auth)/thank-you',
+      params: {
+        title: 'Your Smart Account is Ready',
+        subtext: 'Start using your secure Stellar wallet today',
+        buttonLabel: 'Go to Dashboard',
+        imageSource: 'success',
+        accountAddress: smartAccountAddress || gAddress,
+      },
+    });
+  };
+
+  const retry = () => {
+    setStage('saving');
+    setErrorMsg('');
+    // Re-trigger effect by navigating to the same screen (simple approach)
+    router.replace({
+      pathname: '/(onboarding)/deploy-account',
+      params: { mnemonic, publicKeyHex, gAddress, skipPersist },
+    });
+  };
+
+  const isSpinning = stage === 'saving' || stage === 'deploying';
+
+  return (
+    <Box flex={1} backgroundColor="mainBackground" justifyContent="center" alignItems="center">
+      <StatusBar style={statusBarStyle} />
+
+      <Box alignItems="center" paddingHorizontal="xl" gap="xl">
+        {/* Logo */}
+        <Image
+          source={require('@/src/assets/images/logosym.png')}
+          style={{ width: 64, height: 64 }}
+          resizeMode="contain"
+        />
+
+        {/* Animated spinner / success / error indicator */}
+        <Animated.View
+          style={[
+            styles.circle,
+            {
+              backgroundColor:
+                stage === 'error' ? theme.colors.danger900 + '22' : theme.colors.primary700 + '22',
+              borderColor: stage === 'error' ? theme.colors.danger900 : theme.colors.primary700,
+              transform: [{ scale: isSpinning ? pulse : 1 }],
+            },
+          ]}
+        >
+          {isSpinning && <ActivityIndicator size="large" color={theme.colors.primary700} />}
+          {stage === 'success' && (
+            <Text variant="h7" fontSize={40}>
+              ✓
+            </Text>
+          )}
+          {stage === 'error' && (
+            <Text variant="h7" fontSize={40}>
+              ✕
+            </Text>
+          )}
+        </Animated.View>
+
+        {/* Stage label */}
+        <Box alignItems="center" gap="s">
+          <Text variant="h8" fontSize={22} fontWeight="700" textAlign="center" color="textPrimary">
+            {stage === 'success'
+              ? 'All done!'
+              : stage === 'error'
+                ? 'Deployment Failed'
+                : 'Setting up…'}
+          </Text>
+          <Text variant="body" color="textSecondary" textAlign="center" lineHeight={22}>
+            {stage === 'error' ? errorMsg : STAGE_LABELS[stage]}
+          </Text>
+        </Box>
+
+        {/* Progress steps — visible while loading */}
+        {isSpinning && (
+          <Box gap="s" width="100%">
+            {[
+              { label: 'Secure wallet created', done: stage !== 'saving' },
+              { label: 'Deploying on Stellar Testnet', done: stage === 'deploying' || 'success' },
+            ].map(({ label, done }) => (
+              <Box key={label} flexDirection="row" alignItems="center" gap="m">
+                <Box
+                  width={20}
+                  height={20}
+                  borderRadius={10}
+                  backgroundColor={done ? 'primary700' : 'gray900'}
+                  justifyContent="center"
+                  alignItems="center"
+                >
+                  {done && (
+                    <Text variant="body" fontSize={12} color="textWhite">
+                      ✓
+                    </Text>
+                  )}
+                </Box>
+                <Text variant="body" color={done ? 'textPrimary' : 'textSecondary'}>
+                  {label}
+                </Text>
+              </Box>
+            ))}
+          </Box>
+        )}
+
+        {/* Action buttons */}
+        {stage === 'success' && (
+          <Box width="100%" mt="m">
+            <Button
+              label="Go to Dashboard"
+              variant="primary"
+              onPress={goToDashboard}
+              bg="primary700"
+              labelColor="black"
+            />
+          </Box>
+        )}
+
+        {stage === 'error' && (
+          <Box width="100%" gap="m" mt="m">
+            <Button
+              label="Try Again"
+              variant="primary"
+              onPress={retry}
+              bg="primary700"
+              labelColor="black"
+            />
+          </Box>
+        )}
+      </Box>
+    </Box>
+  );
+};
+
+const styles = StyleSheet.create({
+  circle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});
+
+export default DeployAccount;

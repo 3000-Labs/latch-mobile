@@ -4,7 +4,6 @@ import { useWalletStore } from '@/src/store/wallet';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
 import { useRouter } from 'expo-router';
-import * as SecureStore from 'expo-secure-store';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import { Dimensions, Image, ScrollView, TouchableOpacity, Vibration, View } from 'react-native';
@@ -16,7 +15,6 @@ import Text from '@/src/components/shared/Text';
 import { Theme } from '@/src/theme/theme';
 
 const { width } = Dimensions.get('window');
-const MNEMONIC_KEY = 'latch_mnemonic';
 
 const VerifyPhrase = () => {
   const theme = useTheme<Theme>();
@@ -73,17 +71,16 @@ const VerifyPhrase = () => {
     if (isCorrect) {
       setIsSaving(true);
       try {
-        await SecureStore.setItemAsync(MNEMONIC_KEY, pendingWallet.mnemonic);
-        await SecureStore.deleteItemAsync(PENDING_MNEMONIC_KEY);
+        // Clear in-memory pending wallet — deploy-account will persist mnemonic
+        // to SecureStore and handle PENDING_MNEMONIC_KEY cleanup itself.
         clearPendingWallet();
         router.navigate({
-          pathname: '/(auth)/thank-you',
+          pathname: '/(onboarding)/deploy-account',
           params: {
-            title: 'Your Smart Account is Ready',
-            subtext: 'Start using your secure Stellar wallet today',
-            buttonLabel: 'Go to Dashboard',
-            imageSource: 'success',
-            accountAddress: pendingWallet.gAddress,
+            mnemonic: pendingWallet.mnemonic,
+            publicKeyHex: pendingWallet.publicKeyHex,
+            gAddress: pendingWallet.gAddress,
+            skipPersist: 'false',
           },
         });
       } catch {
