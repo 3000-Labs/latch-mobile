@@ -12,11 +12,10 @@ const _layout = () => {
                     headerShown: false,
                 }}
             >
-                <Tabs.Screen name="index" options={{ title: 'Dashboard' }} />
-                <Tabs.Screen name="orders" options={{ title: 'Orders' }} />
-                <Tabs.Screen name="menu" options={{ title: 'Menu' }} />
-                <Tabs.Screen name="wallet" options={{ title: 'Wallet' }} />
-                <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
+                <Tabs.Screen name="index" options={{ title: 'Home' }} />
+                <Tabs.Screen name="swap" options={{ title: 'Swap' }} />
+                <Tabs.Screen name="history" options={{ title: 'History' }} />
+                <Tabs.Screen name="explore" options={{ title: 'Explore' }} />
             </Tabs>
         </View>
     )

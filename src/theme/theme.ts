@@ -25,6 +25,8 @@ const palette = {
   primary700: '#FFAD00',
   primary800: '#C16C04',
   primary900: '#754101',
+  primaryOrange: '#FF8C00',
+  primaryIndigo: '#6366F1',
 
   // Primary Dark Mode Scale (Light to Dark)
   primaryDark50: '#FADAB4',
@@ -200,6 +202,8 @@ const sharedColors = {
   primary700: palette.primary700,
   primary800: palette.primary800,
   primary900: palette.primary900,
+  primaryOrange: palette.primaryOrange,
+  primaryIndigo: palette.primaryIndigo,
 
   primaryDark50: palette.primaryDark50,
   primaryDark100: palette.primaryDark100,

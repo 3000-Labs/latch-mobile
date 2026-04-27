@@ -2,10 +2,11 @@ import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import Box from '@/src/components/shared/Box';
 import Button from '@/src/components/shared/Button';
 import Text from '@/src/components/shared/Text';
+import { SECURE_KEYS } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '@shopify/restyle';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTheme } from '@shopify/restyle';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
@@ -21,6 +22,7 @@ import {
   Vibration,
   View,
 } from 'react-native';
+import QuickCrypto from 'react-native-quick-crypto';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export const BIOMETRIC_ENABLED_KEY = 'latch_biometric_enabled';
@@ -60,7 +62,7 @@ const Biometrics = () => {
   // ─── Unlock helpers ───────────────────────────────────────────────────────
 
   const unlockSuccess = useCallback(() => {
-    router.replace('/(tabs)/home');
+    router.replace('/(tabs)');
   }, [router]);
 
   const triggerBiometrics = useCallback(async () => {
@@ -149,13 +151,31 @@ const Biometrics = () => {
     }
 
     const result = await LocalAuthentication.authenticateAsync({
-      promptMessage: 'Enable Biometric Login',
+      promptMessage: 'Register passkey with biometrics',
       disableDeviceFallback: true,
       cancelLabel: 'Cancel',
     });
 
     if (result.success) {
       await AsyncStorage.setItem(BIOMETRIC_ENABLED_KEY, 'true');
+
+      // Generate a P-256 passkey credential tied to this biometric consent.
+      // Only create if one doesn't already exist (e.g. re-enabling after reinstall).
+      const existingCredId = await SecureStore.getItemAsync(SECURE_KEYS.CREDENTIAL_ID);
+      if (!existingCredId) {
+        const ecdh = QuickCrypto.createECDH('prime256v1');
+        ecdh.generateKeys();
+        const pubKeyHex = (ecdh.getPublicKey() as unknown as Buffer).toString('hex');
+        const credIdHex = (QuickCrypto.randomBytes(16) as unknown as Buffer).toString('hex');
+        const keyDataHex = pubKeyHex + credIdHex;
+
+        await SecureStore.setItemAsync(SECURE_KEYS.CREDENTIAL_ID, credIdHex);
+        await SecureStore.setItemAsync(SECURE_KEYS.KEY_DATA_HEX, keyDataHex);
+        await SecureStore.setItemAsync(
+          SECURE_KEYS.PASSKEY_PRIVATE_KEY,
+          (ecdh.getPrivateKey() as unknown as Buffer).toString('hex'),
+        );
+      }
     }
 
     proceedToPin();
@@ -181,7 +201,13 @@ const Biometrics = () => {
             <>
               {/* PIN title */}
               <Box alignItems="center" mt="xl" paddingHorizontal="m">
-                <Text variant="h8" fontSize={28} fontWeight="700" textAlign="center" color="textPrimary">
+                <Text
+                  variant="h8"
+                  fontSize={28}
+                  fontWeight="700"
+                  textAlign="center"
+                  color="textPrimary"
+                >
                   Welcome Back
                 </Text>
                 <Text variant="body" color="textSecondary" mt="s" textAlign="center">
@@ -197,7 +223,11 @@ const Biometrics = () => {
                     style={[
                       styles.dot,
                       i < pin.length
-                        ? { backgroundColor: pinError ? theme.colors.danger900 : theme.colors.primary700 }
+                        ? {
+                            backgroundColor: pinError
+                              ? theme.colors.danger900
+                              : theme.colors.primary700,
+                          }
                         : { backgroundColor: theme.colors.gray900, opacity: 0.8 },
                     ]}
                   />
@@ -251,7 +281,11 @@ const Biometrics = () => {
                             alignItems="center"
                           >
                             {key === 'del' ? (
-                              <Ionicons name="backspace-outline" size={28} color={theme.colors.textPrimary} />
+                              <Ionicons
+                                name="backspace-outline"
+                                size={28}
+                                color={theme.colors.textPrimary}
+                              />
                             ) : (
                               <Text
                                 variant="h8"
