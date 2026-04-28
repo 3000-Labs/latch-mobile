@@ -9,6 +9,7 @@ const appName = env.APP_NAME;
 
 export default {
   expo: {
+    owner: 'frankiepower',
     name: 'latch-mobile',
     slug: 'latch-mobile',
     version: buildVersion,
@@ -39,6 +40,11 @@ export default {
         monochromeImage: './assets/images/android-icon-monochrome.png',
       },
       predictiveBackGestureEnabled: false,
+      permissions: [
+        'android.permission.USE_BIOMETRIC',
+        'android.permission.USE_FINGERPRINT',
+        'android.permission.CAMERA',
+      ],
     },
     web: {
       output: 'static',
@@ -66,7 +72,7 @@ export default {
             './assets/fonts/SFPRO-Thin.ttf',
             './assets/fonts/SFPRO-Regular.ttf',
             './assets/fonts/SFPRO-Medium.ttf',
-            './assets/fonts/SFPRO-Bold.ttf',
+            './assets/fonts/SFPRO-bold.ttf',
             './assets/fonts/SFPRO-Semibolditalic.otf',
           ],
         },
@@ -77,10 +83,16 @@ export default {
           channel: env.EXPO_PUBLIC_APP_ENV,
         },
       ],
+      // ['react-native-quick-crypto', { sodiumEnabled: true }], // Optional configuration
     ],
     experiments: {
       typedRoutes: true,
       reactCompiler: true,
+    },
+    extra: {
+      eas: {
+        projectId: '8b122713-0d94-4940-a71c-58da86f923ad',
+      },
     },
   },
 };
