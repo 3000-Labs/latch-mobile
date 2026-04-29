@@ -117,8 +117,6 @@ export default {
             gradlePluginVersion: '8.9.1',
             ndk: '27.1.12297006',
             networkInspector: false,
-            usescleartexttraffic: true, // Allow outbound HTTP to local dev servers; testnet RPCs should be HTTPS and won't be affected.
-            networkSecurityConfig: './network_security_config.xml',
           },
         },
       ],
