@@ -3,7 +3,7 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
-    "postinstall": "rn-nodeify --install \"url,events,https,http,util,stream,crypto,buffer,assert,os,path,querystring\" --hack && patch-package",
+    "postinstall": "rn-nodeify --install \"url,events,https,http,util,stream,crypto,buffer,assert,os,path,querystring\" --hack && patch-package ; sed -i.bak 's/jcenter()/mavenCentral()/g' node_modules/react-native-os/android/build.gradle && rm -f node_modules/react-native-os/android/build.gradle.bak",
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo run:android",
