@@ -14,16 +14,20 @@ import Toast from 'react-native-toast-message';
 import '../shim';
 // Now you can import libraries that need crypto
 import { Buffer } from 'buffer';
+import { install } from 'react-native-quick-crypto';
 import { queryClient } from '../src/api/client';
 import { AppThemeProvider, useAppTheme } from '../src/theme/ThemeContext';
+
+install();
 global.Buffer = Buffer;
 
 SplashScreen.preventAutoHideAsync();
 
 if (__DEV__) {
-  void import('../ReactotronConfig.js');
+  // void import('../ReactotronConfig.js');
 }
-LogBox.ignoreAllLogs();
+
+LogBox.ignoreAllLogs(true);
 
 function RootLayoutContent() {
   const { isDark } = useAppTheme();

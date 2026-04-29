@@ -1,19 +1,21 @@
 /**
- * DeployAccount — onboarding screen shown after phrase verification (new wallet)
- * or after PIN confirmation (imported wallet).
+ * DeployAccount — deploys the user's passkey-backed Soroban smart account.
  *
- * It calls the latch backend to deploy the Soroban smart account, persists
- * the result, and navigates to the thank-you / dashboard screen.
+ * Primary path (passkey/biometric): credentials were created on the biometric screen;
+ * this screen just calls the Latch backend to deploy via the factory contract.
  *
- * Route params:
- *   mnemonic          – plaintext mnemonic to commit (passed only from verify-phrase)
- *   publicKeyHex      – 64-char hex Ed25519 public key
- *   gAddress          – Stellar G-address (for display)
- *   skipPersist       – "true" when mnemonic was already saved (import-phrase path)
+ * Legacy path (import-phrase): mnemonic is passed as a route param and saved first.
+ *
+ * Route params (optional, import-phrase path only):
+ *   mnemonic    – plaintext mnemonic to commit
+ *   gAddress    – Stellar G-address (for display)
+ *   skipPersist – "true" when mnemonic was already saved
  */
 
 import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
-import { deploySmartAccount } from '@/src/api/smart-account';
+import { deploySmartAccount } from '@/src/api/passkey';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 import Box from '@/src/components/shared/Box';
 import Button from '@/src/components/shared/Button';
 import Text from '@/src/components/shared/Text';
@@ -21,24 +23,83 @@ import { restoreStellarWallet } from '@/src/lib/seed-wallet';
 import { SECURE_KEYS, useWalletStore } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
 import { useTheme } from '@shopify/restyle';
+import * as LocalAuthentication from 'expo-local-authentication';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Image, StyleSheet } from 'react-native';
+import { createPasskeyCredential, storePasskeyCredential } from '@/src/lib/passkey-webauthn';
 
 type Stage =
   | 'saving' // persisting mnemonic to SecureStore
-  | 'deploying' // waiting on backend
+  | 'auth' // biometric auth + passkey credential generation
+  | 'deploying' // waiting on Soroban RPC
   | 'success' // all done
   | 'error'; // deployment failed
 
 const STAGE_LABELS: Record<Stage, string> = {
   saving: 'Securing your wallet…',
+  auth: 'Authenticating with biometrics…',
   deploying: 'Deploying your smart account…\nThis can take up to 30 seconds.',
   success: 'Your smart account is ready!',
   error: 'Something went wrong',
 };
+
+/**
+ * Require successful biometric authentication.
+ * Throws if the device has no enrolled biometrics or if the user cancels / fails auth.
+ */
+async function requireBiometricAuth(promptMessage: string): Promise<void> {
+  const hasHardware = await LocalAuthentication.hasHardwareAsync();
+  const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+
+  if (!hasHardware || !isEnrolled) {
+    throw new Error(
+      'Biometric authentication is required to deploy your smart account. ' +
+        'Please set up Face ID or Touch ID on your device and try again.',
+    );
+  }
+
+  const result = await LocalAuthentication.authenticateAsync({
+    promptMessage,
+    disableDeviceFallback: false,
+    cancelLabel: 'Cancel',
+  });
+
+  if (!result.success) {
+    throw new Error('Biometric authentication is required to deploy your smart account.');
+  }
+}
+
+/**
+ * Return passkey credentials from SecureStore.
+ * Credentials are created (and biometrics verified) on the biometric setup screen,
+ * so by the time we reach this screen they should always exist.
+ * If for some reason they are missing (e.g. direct deep-link), we create them here
+ * behind a fresh biometric prompt.
+ * keyDataHex = uncompressed P-256 pubkey (65 bytes, 130 hex) + credentialId (16 bytes, 32 hex)
+ */
+async function getOrCreatePasskeyCredentials(): Promise<{
+  credentialId: string;
+  keyDataHex: string;
+}> {
+  const existingCredId = await SecureStore.getItemAsync(SECURE_KEYS.CREDENTIAL_ID);
+  const existingKeyData = await SecureStore.getItemAsync(SECURE_KEYS.KEY_DATA_HEX);
+
+  if (existingCredId && existingKeyData) {
+    // Biometric auth already happened on the previous screen — use the credentials directly.
+    return { credentialId: existingCredId, keyDataHex: existingKeyData };
+  }
+
+  // Fallback: credentials missing, gate creation behind biometric auth.
+  await requireBiometricAuth('Authenticate to create your secure passkey');
+
+  const credential = createPasskeyCredential();
+  await storePasskeyCredential(credential); // private key stored with biometric protection
+
+  return { credentialId: credential.credentialId, keyDataHex: credential.keyDataHex };
+}
 
 const DeployAccount = () => {
   const theme = useTheme<Theme>();
@@ -46,14 +107,11 @@ const DeployAccount = () => {
   const router = useRouter();
   const { setActiveWallet, setSmartAccountAddress } = useWalletStore();
 
-  const { mnemonic, publicKeyHex, gAddress, skipPersist } = useLocalSearchParams<{
+  const { mnemonic, gAddress, skipPersist } = useLocalSearchParams<{
     mnemonic: string;
-    publicKeyHex: string;
     gAddress: string;
     skipPersist: string;
   }>();
-
-  console.log(publicKeyHex);
 
   const [stage, setStage] = useState<Stage>('saving');
   const [errorMsg, setErrorMsg] = useState('');
@@ -78,28 +136,38 @@ const DeployAccount = () => {
 
     const run = async () => {
       try {
-        // ── Step 1: persist mnemonic (skip if import-phrase already saved it) ──
+        // ── Step 1: persist mnemonic (legacy import-phrase path only) ─────────
         if (skipPersist !== 'true' && mnemonic) {
           setStage('saving');
           await SecureStore.setItemAsync(SECURE_KEYS.MNEMONIC, mnemonic);
-          // Clean up the temporary pending key written by recovery-phrase.tsx
           await SecureStore.deleteItemAsync(SECURE_KEYS.PENDING_MNEMONIC);
         }
 
         if (cancelled) return;
 
-        // ── Step 2: deploy smart account via latch backend ────────────────────
-        setStage('deploying');
-        console.log({ publicKeyHex });
-        const { smartAccountAddress: deployedAddress } = await deploySmartAccount(publicKeyHex);
+        // ── Step 2: retrieve passkey credentials (created on biometric screen) ─
+        setStage('auth');
+        const { credentialId, keyDataHex } = await getOrCreatePasskeyCredentials();
 
         if (cancelled) return;
 
-        console.log({ key: SECURE_KEYS.SMART_ACCOUNT, deployedAddress });
-        // ── Step 3: persist smart account address ─────────────────────────────
+        // ── Step 3: deploy smart account with passkey signer ──────────────────
+        setStage('deploying');
+        const result = await deploySmartAccount(credentialId, keyDataHex);
+
+        if (result.error) {
+          throw new Error(result.error);
+        }
+
+        const deployedAddress = result.smartAccountAddress;
+
+        if (cancelled) return;
+
+        // ── Step 4: persist smart account address ─────────────────────────────
         await SecureStore.setItemAsync(SECURE_KEYS.SMART_ACCOUNT, deployedAddress);
 
-        // ── Step 4: hydrate global store ──────────────────────────────────────
+        // ── Step 5: mark onboarding complete and hydrate store ────────────────
+        await AsyncStorage.setItem('latch_onboarding_complete', 'true');
         const storedMnemonic = await SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC);
         if (storedMnemonic) {
           const wallet = restoreStellarWallet(storedMnemonic);
@@ -141,14 +209,13 @@ const DeployAccount = () => {
   const retry = () => {
     setStage('saving');
     setErrorMsg('');
-    // Re-trigger effect by navigating to the same screen (simple approach)
     router.replace({
       pathname: '/(onboarding)/deploy-account',
-      params: { mnemonic, publicKeyHex, gAddress, skipPersist },
+      params: { mnemonic, gAddress, skipPersist },
     });
   };
 
-  const isSpinning = stage === 'saving' || stage === 'deploying';
+  const isSpinning = stage === 'saving' || stage === 'auth' || stage === 'deploying';
 
   return (
     <Box flex={1} backgroundColor="mainBackground" justifyContent="center" alignItems="center">
@@ -205,8 +272,9 @@ const DeployAccount = () => {
         {isSpinning && (
           <Box gap="s" width="100%">
             {[
-              { label: 'Secure wallet created', done: stage !== 'saving' },
-              { label: 'Deploying on Stellar Testnet', done: stage === 'deploying' || 'success' },
+              { label: 'Passkey credential verified', done: stage === 'deploying' },
+              { label: 'Building smart account', done: stage === 'deploying' },
+              { label: 'Deploying on Stellar', done: false },
             ].map(({ label, done }) => (
               <Box key={label} flexDirection="row" alignItems="center" gap="m">
                 <Box

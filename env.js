@@ -3,7 +3,7 @@ const { z } = require('zod');
 
 const runtimeEnv = z
   .object({
-    EXPO_PUBLIC_API_BASE_URL: z.string().url(),
+    // EXPO_PUBLIC_API_BASE_URL: z.string().url(),
     // EXPO_PUBLIC_LOGIN_EMAIL: z.string(),
     // EXPO_PUBLIC_LOGIN_PASSWORD: z.string(),
     // EXPO_PUBLIC_DOJAH_KEY: z.string(),
@@ -52,7 +52,7 @@ const envSchema =
  * @type {Record<keyof z.TypeOf<typeof runtimeEnv>, string | undefined>}
  */
 const envObject = {
-  EXPO_PUBLIC_API_BASE_URL: process.env.EXPO_PUBLIC_API_BASE_URL,
+  // EXPO_PUBLIC_API_BASE_URL: process.env.EXPO_PUBLIC_API_BASE_URL,
   //   EXPO_PUBLIC_LOGIN_EMAIL: process.env.EXPO_PUBLIC_LOGIN_EMAIL,
   //   EXPO_PUBLIC_LOGIN_PASSWORD: process.env.EXPO_PUBLIC_LOGIN_PASSWORD,
   //   EXPO_PUBLIC_DOJAH_KEY: process.env.EXPO_PUBLIC_DOJAH_KEY,

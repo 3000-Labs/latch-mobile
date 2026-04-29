@@ -57,7 +57,7 @@ const SplashAnimation = () => {
 
       const onboardingComplete = await AsyncStorage.getItem(ONBOARDING_KEY);
       if (onboardingComplete === 'true') {
-        router.replace('/(tabs)/home');
+        router.replace('/(tabs)');
       } else {
         router.replace('/onboarding');
       }

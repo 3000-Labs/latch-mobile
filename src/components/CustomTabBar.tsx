@@ -43,7 +43,7 @@ export function CustomTabBar({ state, navigation }: any) {
             const route = state.routes.find((r: any) => r.name === item.name);
             if (route) {
               const event = navigation.emit({
-                type: 'tabPress',
+                // type: 'tabPress',
                 target: route.key,
                 canPreventDefault: true,
               });

@@ -28,10 +28,24 @@ export default {
       buildNumber,
       infoPlist: {
         NSFaceIDUsageDescription: 'Allow $(PRODUCT_NAME) to use FaceID for secure access.',
+        // Allow outbound HTTPS to Stellar RPC + Horizon endpoints.
+        // ATS by default requires forward-secrecy ciphers; some Stellar infrastructure
+        // doesn't advertise them, causing xhr.onerror at the TLS handshake stage.
+        NSAppTransportSecurity: {
+          NSExceptionDomains: {
+            'stellar.org': {
+              NSIncludesSubdomains: true,
+              NSExceptionAllowsInsecureHTTPLoads: false,
+              NSExceptionRequiresForwardSecrecy: false,
+              NSExceptionMinimumTLSVersion: 'TLSv1.2',
+            },
+          },
+        },
       },
     },
     android: {
       versionCode,
+      usescleartexttraffic: true, // Allow outbound HTTP to local dev servers; testnet RPCs should be HTTPS and won't be affected.
       package: appName === 'Latch' ? 'app.getlatch.app' : 'qa.getlatch.app',
       adaptiveIcon: {
         backgroundColor: '#000',
@@ -52,6 +66,8 @@ export default {
     },
     plugins: [
       'expo-router',
+      '@react-native-community/datetimepicker',
+      'expo-image',
       [
         'expo-splash-screen',
         {
@@ -77,10 +93,33 @@ export default {
           ],
         },
       ],
+      // [
+      //   '@hot-updater/react-native',
+      //   {
+      //     channel: env.EXPO_PUBLIC_APP_ENV,
+      //   },
+      // ],
       [
-        '@hot-updater/react-native',
+        'expo-build-properties',
         {
-          channel: env.EXPO_PUBLIC_APP_ENV,
+          // Explicitly trust the system CA store for stellar.org subdomains.
+          // Android 7+ apps can restrict trust anchors; this restores the default
+          // system trust so OkHttp can complete TLS handshakes to Stellar RPC/Horizon.
+
+          // ios: {
+          //   useFrameworks: "static",
+          //   forceStaticLinking: ["RNFBApp", "RNFBAuth", "RNFBFirestore"]
+          // },
+          android: {
+            compileSdkVersion: 36,
+            targetSdkVersion: 35,
+            buildToolsVersion: '36.0.0',
+            gradlePluginVersion: '8.9.1',
+            ndk: '27.1.12297006',
+            networkInspector: false,
+            usescleartexttraffic: true, // Allow outbound HTTP to local dev servers; testnet RPCs should be HTTPS and won't be affected.
+            networkSecurityConfig: './network_security_config.xml',
+          },
         },
       ],
       // ['react-native-quick-crypto', { sodiumEnabled: true }], // Optional configuration

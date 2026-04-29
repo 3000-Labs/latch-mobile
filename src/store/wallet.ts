@@ -8,6 +8,9 @@ export const SECURE_KEYS = {
   SMART_ACCOUNT: 'latch_smart_account',
   PIN: 'latch_pin',
   PENDING_MNEMONIC: 'latch_pending_mnemonic',
+  CREDENTIAL_ID: 'latch_credential_id',
+  KEY_DATA_HEX: 'latch_key_data_hex',
+  PASSKEY_PRIVATE_KEY: 'latch_passkey_private_key',
 } as const;
 
 interface WalletStore {
@@ -73,6 +76,9 @@ export const useWalletStore = create<WalletStore>((set) => ({
       SecureStore.deleteItemAsync(SECURE_KEYS.SMART_ACCOUNT),
       SecureStore.deleteItemAsync(SECURE_KEYS.PIN),
       SecureStore.deleteItemAsync(SECURE_KEYS.PENDING_MNEMONIC),
+      SecureStore.deleteItemAsync(SECURE_KEYS.CREDENTIAL_ID),
+      SecureStore.deleteItemAsync(SECURE_KEYS.KEY_DATA_HEX),
+      SecureStore.deleteItemAsync(SECURE_KEYS.PASSKEY_PRIVATE_KEY),
     ]);
     set({ pendingWallet: null, activeWallet: null, smartAccountAddress: null });
   },

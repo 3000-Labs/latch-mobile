@@ -22,7 +22,7 @@ import {
   Vibration,
   View,
 } from 'react-native';
-import QuickCrypto from 'react-native-quick-crypto';
+import { createPasskeyCredential, storePasskeyCredential } from '@/src/lib/passkey-webauthn';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export const BIOMETRIC_ENABLED_KEY = 'latch_biometric_enabled';
@@ -156,29 +156,25 @@ const Biometrics = () => {
       cancelLabel: 'Cancel',
     });
 
-    if (result.success) {
-      await AsyncStorage.setItem(BIOMETRIC_ENABLED_KEY, 'true');
-
-      // Generate a P-256 passkey credential tied to this biometric consent.
-      // Only create if one doesn't already exist (e.g. re-enabling after reinstall).
-      const existingCredId = await SecureStore.getItemAsync(SECURE_KEYS.CREDENTIAL_ID);
-      if (!existingCredId) {
-        const ecdh = QuickCrypto.createECDH('prime256v1');
-        ecdh.generateKeys();
-        const pubKeyHex = (ecdh.getPublicKey() as unknown as Buffer).toString('hex');
-        const credIdHex = (QuickCrypto.randomBytes(16) as unknown as Buffer).toString('hex');
-        const keyDataHex = pubKeyHex + credIdHex;
-
-        await SecureStore.setItemAsync(SECURE_KEYS.CREDENTIAL_ID, credIdHex);
-        await SecureStore.setItemAsync(SECURE_KEYS.KEY_DATA_HEX, keyDataHex);
-        await SecureStore.setItemAsync(
-          SECURE_KEYS.PASSKEY_PRIVATE_KEY,
-          (ecdh.getPrivateKey() as unknown as Buffer).toString('hex'),
-        );
-      }
+    if (!result.success) {
+      return;
     }
 
-    proceedToPin();
+    await AsyncStorage.setItem(BIOMETRIC_ENABLED_KEY, 'true');
+
+    // Generate a P-256 passkey credential tied to this biometric consent.
+    // Only create if one doesn't already exist (e.g. re-enabling after reinstall).
+    // The private key is stored with requireAuthentication: true — it lives in the
+    // iOS Keychain / Android Keystore with biometric access control (Secure Enclave
+    // on iPhone). Every future signing operation will trigger Face ID / Touch ID.
+    const existingCredId = await SecureStore.getItemAsync(SECURE_KEYS.CREDENTIAL_ID);
+    if (!existingCredId) {
+      const credential = createPasskeyCredential();
+      await storePasskeyCredential(credential);
+    }
+
+    // Passkey is ready — deploy the smart account directly, no recovery phrase needed.
+    router.replace('/(onboarding)/deploy-account');
   };
 
   // ─── Unlock UI ────────────────────────────────────────────────────────────
@@ -444,7 +440,7 @@ const Biometrics = () => {
               style={{ width: 80, height: 80 }}
               resizeMode="contain"
             />
-            <Text variant="h8" fontSize={24} mt="l">
+            <Text variant="h8" color="text200" fontSize={24} mt="l">
               Do you want to allow &quot;Latch&quot; to use Face ID?
             </Text>
             <Text variant="p5" color="text200" mt="m">

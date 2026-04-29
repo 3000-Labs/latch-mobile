@@ -91,7 +91,7 @@ const SetPin = () => {
                   });
                 }
               } else {
-                router.push('/(onboarding)/recovery-phrase');
+                router.push('/(onboarding)/deploy-account');
               }
             } else {
               Vibration.vibrate(400);
