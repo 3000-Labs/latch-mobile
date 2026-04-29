@@ -48,7 +48,7 @@ export default {
       usescleartexttraffic: true, // Allow outbound HTTP to local dev servers; testnet RPCs should be HTTPS and won't be affected.
       package: appName === 'Latch' ? 'app.getlatch.app' : 'qa.getlatch.app',
       adaptiveIcon: {
-        backgroundColor: '#000',
+        backgroundColor: '#000000',
         foregroundImage: './assets/images/android-icon-foreground.png',
         backgroundImage: './assets/images/android-icon-background.png',
         monochromeImage: './assets/images/android-icon-monochrome.png',
