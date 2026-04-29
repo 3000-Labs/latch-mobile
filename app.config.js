@@ -124,6 +124,12 @@ export default {
       ],
       // ['react-native-quick-crypto', { sodiumEnabled: true }], // Optional configuration
     ],
+    updates: {
+      url: 'https://u.expo.dev/8b122713-0d94-4940-a71c-58da86f923ad',
+    },
+    runtimeVersion: {
+      policy: 'appVersion',
+    },
     experiments: {
       typedRoutes: true,
       reactCompiler: true,
