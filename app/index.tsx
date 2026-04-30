@@ -50,14 +50,15 @@ const SplashAnimation = () => {
   const checkUserStatusAndNavigate = useCallback(async () => {
     try {
       const storedMnemonic = await SecureStore.getItemAsync('latch_mnemonic');
-      // if (storedMnemonic) {
-      //   router.replace({ pathname: '/(auth)/biometric', params: { mode: 'unlock' } });
-      //   return;
-      // }
+      if (storedMnemonic) {
+        router.replace({ pathname: '/(auth)/biometric', params: { mode: 'unlock' } });
+        return;
+      }
 
       const onboardingComplete = await AsyncStorage.getItem(ONBOARDING_KEY);
       if (onboardingComplete === 'true') {
-        router.replace('/(tabs)');
+        // router.replace('/(tabs)');
+        router.replace({ pathname: '/(auth)/biometric', params: { mode: 'unlock' } });
       } else {
         router.replace('/onboarding');
       }

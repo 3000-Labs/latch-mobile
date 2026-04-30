@@ -10,6 +10,7 @@ import { useTheme } from '@shopify/restyle';
 import { Horizon } from '@stellar/stellar-sdk';
 import { useQuery } from '@tanstack/react-query';
 import { ImageBackground } from 'expo-image';
+import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import {
@@ -113,7 +114,7 @@ const Home = () => {
         style={{ paddingTop: insets.top + 8 }}
         mb="m"
       >
-        <TouchableOpacity activeOpacity={0.7}>
+        <TouchableOpacity activeOpacity={0.7} onPress={() => router.navigate('/(tabs)/profile')}>
           <Box
             flexDirection="row"
             alignItems="center"

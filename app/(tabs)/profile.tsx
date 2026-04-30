@@ -1,14 +1,17 @@
 import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import Switch from '@/src/components/shared/Switch';
 import Box from '@/src/components/shared/Box';
+import Button from '@/src/components/shared/Button';
 import Text from '@/src/components/shared/Text';
+import { useWalletStore } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
+import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
-import { ScrollView } from 'react-native';
+import { Alert, ScrollView } from 'react-native';
 
 const NOTIF_PUSH_KEY = '@latch_notif_push';
 const NOTIF_PRICE_KEY = '@latch_notif_price';
@@ -46,12 +49,24 @@ const NOTIFICATION_SETTINGS: NotificationSetting[] = [
   },
 ];
 
+const ASYNC_KEYS_TO_CLEAR = [
+  'latch_onboarding_complete',
+  '@latch_theme_mode',
+  'latch_biometric_enabled',
+  NOTIF_PUSH_KEY,
+  NOTIF_PRICE_KEY,
+  NOTIF_TX_KEY,
+];
+
 const Profile = () => {
   const theme = useTheme<Theme>();
   const statusBarStyle = useStatusBarStyle();
+  const router = useRouter();
+  const { clearAll } = useWalletStore();
 
   const [settings, setSettings] = useState({ push: false, price: false, tx: false });
   const [loaded, setLoaded] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -69,6 +84,30 @@ const Profile = () => {
     };
     loadSettings();
   }, []);
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Log Out',
+      'This will remove your wallet and all credentials from this device. Make sure you have your recovery phrase saved before continuing.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Log Out',
+          style: 'destructive',
+          onPress: async () => {
+            setLoggingOut(true);
+            try {
+              await clearAll();
+              await AsyncStorage.multiRemove(ASYNC_KEYS_TO_CLEAR);
+              router.replace('/onboarding');
+            } finally {
+              setLoggingOut(false);
+            }
+          },
+        },
+      ],
+    );
+  };
 
   const handleToggle = async (stateKey: 'push' | 'price' | 'tx', storageKey: string, value: boolean) => {
     setSettings((prev) => ({ ...prev, [stateKey]: value }));
@@ -146,6 +185,38 @@ const Profile = () => {
               )}
             </Box>
           ))}
+        </Box>
+        {/* Account Section */}
+        <Text
+          variant="body"
+          fontWeight="700"
+          color="textSecondary"
+          mb="m"
+          style={{ textTransform: 'uppercase', letterSpacing: 1 }}
+        >
+          Account
+        </Text>
+
+        <Box
+          backgroundColor={statusBarStyle !== 'light' ? 'text50' : 'gray900'}
+          borderRadius={16}
+          borderWidth={1}
+          borderColor="gray800"
+          overflow="hidden"
+          mb="xl"
+        >
+          <Button
+            label={loggingOut ? 'Logging out…' : 'Log Out'}
+            variant="secondary"
+            onPress={handleLogout}
+            disabled={loggingOut}
+            bg={statusBarStyle !== 'light' ? 'text50' : 'gray900'}
+            labelColor="danger900"
+            height={56}
+            leftIcon={
+              <Ionicons name="log-out-outline" size={20} color={theme.colors.danger900} />
+            }
+          />
         </Box>
       </ScrollView>
     </Box>
