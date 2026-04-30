@@ -98,14 +98,17 @@ export function createPasskeyCredential(): PasskeyCredential {
  * The public material (credentialId, keyDataHex) is stored without biometric
  * protection so it can be read freely for deployment / lookup.
  */
-export async function storePasskeyCredential(credential: PasskeyCredential): Promise<void> {
-  // Public material — no biometric required
+export async function storePasskeyCredential(
+  credential: PasskeyCredential,
+  requireBiometric = true,
+): Promise<void> {
+  // Public material — never biometric-gated (needed freely for deployment / lookup)
   await SecureStore.setItemAsync(SECURE_KEYS.CREDENTIAL_ID, credential.credentialId);
   await SecureStore.setItemAsync(SECURE_KEYS.KEY_DATA_HEX, credential.keyDataHex);
 
-  // Private key — biometric-gated (Secure Enclave on iOS)
+  // Private key — biometric-gated on biometric path, plain on PIN-only path
   await SecureStore.setItemAsync(SECURE_KEYS.PASSKEY_PRIVATE_KEY, credential.privateKeyHex, {
-    requireAuthentication: true,
+    requireAuthentication: requireBiometric,
     authenticationPrompt: 'Authenticate to access your Latch wallet',
   });
 }

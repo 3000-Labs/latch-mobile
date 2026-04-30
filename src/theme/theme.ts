@@ -390,8 +390,8 @@ const darkTheme = createTheme({
 
     display: { fontSize: 48, lineHeight: 61, letterSpacing: -1.44, fontFamily: 'SFproBold' },
     displayItalic: {
-      fontSize: 80,
-      lineHeight: 89,
+      fontSize: 60,
+      lineHeight: 69,
       letterSpacing: 1.5,
       fontFamily: 'SFproSemiboldItalic',
     },

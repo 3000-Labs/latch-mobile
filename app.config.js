@@ -10,8 +10,8 @@ const appName = env.APP_NAME;
 export default {
   expo: {
     owner: 'frankiepower',
-    name: 'latch-mobile',
-    slug: 'latch-mobile',
+    name: appName === 'Latch' ? 'Latch' : 'Latch QA',
+    slug: appName === 'Latch' ? 'Latch' : 'Latch-QA',
     version: buildVersion,
     orientation: 'portrait',
     icon: appName === 'Latch' ? './assets/images/icon.png' : './assets/images/iconStaging.png',
@@ -102,14 +102,6 @@ export default {
       [
         'expo-build-properties',
         {
-          // Explicitly trust the system CA store for stellar.org subdomains.
-          // Android 7+ apps can restrict trust anchors; this restores the default
-          // system trust so OkHttp can complete TLS handshakes to Stellar RPC/Horizon.
-
-          // ios: {
-          //   useFrameworks: "static",
-          //   forceStaticLinking: ["RNFBApp", "RNFBAuth", "RNFBFirestore"]
-          // },
           android: {
             compileSdkVersion: 36,
             targetSdkVersion: 35,
@@ -120,6 +112,10 @@ export default {
           },
         },
       ],
+      // Injects network_security_config.xml into the Android build so OkHttp
+      // trusts the system CA store.  Without this, Android 7+ (API 24+) throws:
+      //   CertPathValidatorException: Trust anchor for certification path not found
+      // './trust-local-certs.js',
       // ['react-native-quick-crypto', { sodiumEnabled: true }], // Optional configuration
     ],
     updates: {

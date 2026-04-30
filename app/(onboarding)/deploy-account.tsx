@@ -13,12 +13,14 @@
  */
 
 import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
-import { deploySmartAccount } from '@/src/api/passkey';
+import { deploySmartAccount as deploySmartAccountPasskey } from '@/src/api/passkey';
+import { deploySmartAccount as deploySmartAccountEd25519 } from '@/src/api/smart-account';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import Box from '@/src/components/shared/Box';
 import Button from '@/src/components/shared/Button';
 import Text from '@/src/components/shared/Text';
+import { createPasskeyCredential, storePasskeyCredential } from '@/src/lib/passkey-webauthn';
 import { restoreStellarWallet } from '@/src/lib/seed-wallet';
 import { SECURE_KEYS, useWalletStore } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
@@ -29,11 +31,10 @@ import * as SecureStore from 'expo-secure-store';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Image, StyleSheet } from 'react-native';
-import { createPasskeyCredential, storePasskeyCredential } from '@/src/lib/passkey-webauthn';
 
 type Stage =
   | 'saving' // persisting mnemonic to SecureStore
-  | 'auth' // biometric auth + passkey credential generation
+  | 'auth' // biometric auth + passkey credential generation (passkey path only)
   | 'deploying' // waiting on Soroban RPC
   | 'success' // all done
   | 'error'; // deployment failed
@@ -145,21 +146,27 @@ const DeployAccount = () => {
 
         if (cancelled) return;
 
-        // ── Step 2: retrieve passkey credentials (created on biometric screen) ─
-        setStage('auth');
-        const { credentialId, keyDataHex } = await getOrCreatePasskeyCredentials();
-
-        if (cancelled) return;
-
-        // ── Step 3: deploy smart account with passkey signer ──────────────────
+        // ── Step 2: deploy smart account ──────────────────────────────────────
         setStage('deploying');
-        const result = await deploySmartAccount(credentialId, keyDataHex);
+        let deployedAddress: string;
 
-        if (result.error) {
-          throw new Error(result.error);
+        if (mnemonic) {
+          // Import-wallet path: derive Ed25519 pubkey from mnemonic and deploy.
+          // No biometric auth needed — the mnemonic itself proves ownership.
+          const wallet = restoreStellarWallet(mnemonic);
+          const result = await deploySmartAccountEd25519(wallet.publicKeyHex);
+          deployedAddress = result.smartAccountAddress;
+        } else {
+          // New-wallet path: passkey / biometric credential created on the
+          // biometric setup screen; retrieve it and deploy with WebAuthn signer.
+          setStage('auth');
+          const { credentialId, keyDataHex } = await getOrCreatePasskeyCredentials();
+          if (cancelled) return;
+          setStage('deploying');
+          const result = await deploySmartAccountPasskey(credentialId, keyDataHex);
+          if (result.error) throw new Error(result.error);
+          deployedAddress = result.smartAccountAddress;
         }
-
-        const deployedAddress = result.smartAccountAddress;
 
         if (cancelled) return;
 
@@ -272,7 +279,10 @@ const DeployAccount = () => {
         {isSpinning && (
           <Box gap="s" width="100%">
             {[
-              { label: 'Passkey credential verified', done: stage === 'deploying' },
+              {
+                label: mnemonic ? 'Wallet imported' : 'Passkey credential verified',
+                done: stage === 'deploying',
+              },
               { label: 'Building smart account', done: stage === 'deploying' },
               { label: 'Deploying on Stellar', done: false },
             ].map(({ label, done }) => (

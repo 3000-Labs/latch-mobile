@@ -2,6 +2,7 @@ import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import Box from '@/src/components/shared/Box';
 import Button from '@/src/components/shared/Button';
 import Text from '@/src/components/shared/Text';
+import { createPasskeyCredential, storePasskeyCredential } from '@/src/lib/passkey-webauthn';
 import { SECURE_KEYS } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,7 +23,6 @@ import {
   Vibration,
   View,
 } from 'react-native';
-import { createPasskeyCredential, storePasskeyCredential } from '@/src/lib/passkey-webauthn';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export const BIOMETRIC_ENABLED_KEY = 'latch_biometric_enabled';
@@ -133,7 +133,17 @@ const Biometrics = () => {
 
   // ─── Setup helpers ────────────────────────────────────────────────────────
 
-  const proceedToPin = () => router.replace('/(onboarding)/set-pin');
+  const proceedToPin = async () => {
+    // Create a passkey credential for PIN-only devices so they can still deploy
+    // a smart account. The private key is stored without requireAuthentication —
+    // the app PIN is the security gate instead of biometrics.
+    const existingCredId = await SecureStore.getItemAsync(SECURE_KEYS.CREDENTIAL_ID);
+    if (!existingCredId) {
+      const credential = createPasskeyCredential();
+      await storePasskeyCredential(credential, false);
+    }
+    router.replace('/(onboarding)/set-pin');
+  };
 
   const handleAllow = async () => {
     setShowModal(false);

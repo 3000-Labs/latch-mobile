@@ -26,8 +26,96 @@ import {
   TransactionBuilder,
   xdr,
 } from '@stellar/stellar-sdk';
-// import * as crypto from 'crypto';
 import QuickCrypto from 'react-native-quick-crypto';
+
+// ─── XHR-based JSON-RPC ───────────────────────────────────────────────────────
+// The stellar SDK uses Axios internally, which fails with "Network Error" on
+// Android because the bundled Axios doesn't go through the platform TLS stack.
+// Using XMLHttpRequest directly routes through OkHttp and respects the
+// network_security_config.xml trust anchors.
+
+function toBase64(bytes: Uint8Array): string {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+}
+
+function txToBase64(tx: { toEnvelope(): { toXDR(): Uint8Array } }): string {
+  return toBase64(new Uint8Array(tx.toEnvelope().toXDR()));
+}
+
+function ledgerKeyToBase64(key: xdr.LedgerKey): string {
+  return toBase64(new Uint8Array(key.toXDR()));
+}
+
+function sorobanCall(rpcUrl: string, method: string, params: object): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', rpcUrl, true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.setRequestHeader('Accept', 'application/json');
+    xhr.timeout = 60000;
+    xhr.onload = function () {
+      try {
+        const json = JSON.parse(xhr.responseText);
+        if (json.error) {
+          reject(new Error(`${method}: ${json.error.message ?? JSON.stringify(json.error)}`));
+        } else {
+          resolve(json.result);
+        }
+      } catch {
+        reject(new Error(`${method}: parse error (status=${xhr.status})`));
+      }
+    };
+    xhr.onerror = function () {
+      reject(new Error(`${method}: network error (status=${xhr.status})`));
+    };
+    xhr.ontimeout = function () {
+      reject(new Error(`${method}: timed out`));
+    };
+    xhr.send(JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }));
+  });
+}
+
+function extractAddressFromMeta(resultMetaXdr: string): string | undefined {
+  try {
+    const meta = xdr.TransactionMeta.fromXDR(resultMetaXdr, 'base64');
+    //@ts-ignore - the SDK types don't reflect the v4 meta changes yet
+    const arm = meta.arm();
+    let sorobanMeta: any;
+    if (arm === 'v3') sorobanMeta = meta.v3().sorobanMeta();
+    else if (arm === 'v4') sorobanMeta = (meta as any).v4().sorobanMeta();
+    if (sorobanMeta) return scValToNative(sorobanMeta.returnValue());
+  } catch (e) {
+    console.warn('Could not parse address from resultMetaXdr:', e);
+  }
+  return undefined;
+}
+
+function parseSimResult(raw: any): rpc.Api.SimulateTransactionSuccessResponse {
+  return {
+    id: String(raw.id ?? '1'),
+    latestLedger: raw.latestLedger,
+    minResourceFee: raw.minResourceFee,
+    transactionData: xdr.SorobanTransactionData.fromXDR(raw.transactionData, 'base64'),
+    cost: raw.cost ?? { cpuInsns: '0', memBytes: '0' },
+    events: [],
+    results: [
+      {
+        auth: (raw.results?.[0]?.auth ?? []).map((a: string) =>
+          xdr.SorobanAuthorizationEntry.fromXDR(a, 'base64'),
+        ),
+        retval: (() => {
+          try {
+            return xdr.ScVal.fromXDR(raw.results?.[0]?.retval || 'AAAAAA==', 'base64');
+          } catch {
+            return xdr.ScVal.scvVoid();
+          }
+        })(),
+      },
+    ],
+  } as unknown as rpc.Api.SimulateTransactionSuccessResponse;
+}
 
 // Load configuration from environment variables
 // Define configuration lazily using getters so we don't crash at module initialization
@@ -122,7 +210,7 @@ async function getAccountFromHorizon(publicKey: string): Promise<Account> {
 }
 
 async function predictAddress(
-  server: rpc.Server,
+  rpcUrl: string,
   networkPassphrase: string,
   factoryAddress: string,
   paramsMap: xdr.ScVal,
@@ -136,11 +224,11 @@ async function predictAddress(
     .setTimeout(30)
     .build();
 
-  const sim = await server.simulateTransaction(tx);
-  if (rpc.Api.isSimulationError(sim)) {
-    throw new Error(`get_account_address simulation failed: ${sim.error}`);
-  }
-  return scValToNative(sim.result!.retval);
+  const raw = await sorobanCall(rpcUrl, 'simulateTransaction', { transaction: txToBase64(tx) });
+  if (raw.error) throw new Error(`get_account_address simulation failed: ${raw.error}`);
+
+  const retval = xdr.ScVal.fromXDR(raw.results?.[0]?.retval ?? 'AAAAAA==', 'base64');
+  return scValToNative(retval);
 }
 
 export interface DeployResult {
@@ -190,7 +278,6 @@ export async function deploySmartAccount(publicKeyHex: string): Promise<DeployRe
       throw new Error('Missing EXPO_PUBLIC_FACTORY_ADDRESS in environment variables.');
     }
 
-    const server = new rpc.Server(config.rpcUrl);
     const bundlerKeypair = Keypair.fromSecret(config.bundlerSecret);
 
     const salt = await deriveSalt(publicKeyHex);
@@ -209,53 +296,58 @@ export async function deploySmartAccount(publicKeyHex: string): Promise<DeployRe
       .build();
 
     console.log('Simulating factory create_account...');
-    const simResult = await server.simulateTransaction(deployTx);
+    const rawSim = await sorobanCall(config.rpcUrl, 'simulateTransaction', {
+      transaction: txToBase64(deployTx),
+    });
+    if (rawSim.error) throw new Error(`Factory deployment simulation failed: ${rawSim.error}`);
 
-    if (rpc.Api.isSimulationError(simResult)) {
-      throw new Error(`Factory deployment simulation failed: ${simResult.error}`);
-    }
-
-    // The simulation succeeded — extract the Smart Account address from the sim result.
-    // scValToNative correctly handles scvAddress ScVal types, returning the C-address string.
     try {
-      const returnValNative = scValToNative(simResult.result!.retval);
-      smartAccountAddress = returnValNative;
+      smartAccountAddress = scValToNative(
+        xdr.ScVal.fromXDR(rawSim.results?.[0]?.retval || 'AAAAAA==', 'base64'),
+      );
       console.log(`Simulation preview. Predicted Account: ${smartAccountAddress}`);
-    } catch (e) {
+    } catch {
       console.log('Could not pre-read address from simulation — will parse from settled tx.');
     }
 
-    const assembledTx = rpc.assembleTransaction(deployTx, simResult).build();
+    const assembledTx = rpc.assembleTransaction(deployTx, parseSimResult(rawSim)).build();
     assembledTx.sign(bundlerKeypair);
 
-    const deployResult = await server.sendTransaction(assembledTx);
+    const sendRaw = await sorobanCall(config.rpcUrl, 'sendTransaction', {
+      transaction: txToBase64(assembledTx),
+    });
 
-    if (deployResult.status === 'ERROR') {
-      throw new Error(`Factory deployment failed: ${deployResult.errorResult?.toXDR('base64')}`);
+    if (sendRaw.status === 'ERROR') {
+      throw new Error(
+        `Factory deployment failed: ${sendRaw.errorResultXdr ?? JSON.stringify(sendRaw)}`,
+      );
     }
 
-    let deployTxResult: rpc.Api.GetTransactionResponse | undefined;
+    const txHash: string = sendRaw.hash;
+    let finalStatus: string | undefined;
+    let returnValueXdr: string | undefined;
+
     for (let i = 0; i < 30; i++) {
       await new Promise((r) => setTimeout(r, 1000));
-      deployTxResult = await server.getTransaction(deployResult.hash);
-      if (deployTxResult.status !== rpc.Api.GetTransactionStatus.NOT_FOUND) {
+      const poll = await sorobanCall(config.rpcUrl, 'getTransaction', { hash: txHash });
+      finalStatus = poll.status;
+      if (poll.status !== 'NOT_FOUND') {
+        returnValueXdr = poll.resultMetaXdr;
         break;
       }
     }
 
-    if (!deployTxResult) throw new Error('Transaction not found after polling');
+    if (!finalStatus) throw new Error('Transaction not found after polling');
 
-    if (deployTxResult.status === rpc.Api.GetTransactionStatus.SUCCESS) {
-      const result = deployTxResult as rpc.Api.GetSuccessfulTransactionResponse;
-      if (result.returnValue) {
-        // Use scValToNative — the factory returns a Soroban Address ScVal
-        smartAccountAddress = scValToNative(result.returnValue);
+    if (finalStatus === 'SUCCESS') {
+      if (returnValueXdr) {
+        smartAccountAddress = extractAddressFromMeta(returnValueXdr) ?? '';
       }
       console.log(`Deployment successful via factory: ${smartAccountAddress}`);
     } else {
-      throw new Error(`Factory deployment transaction status: ${deployTxResult.status}`);
+      throw new Error(`Factory deployment transaction status: ${finalStatus}`);
     }
-
+    //
     deployedAccounts.set(publicKeyHex, {
       smartAccountAddress: smartAccountAddress!,
       gAddress: userGAddress,
@@ -298,33 +390,15 @@ export async function lookupSmartAccount(publicKeyHex: string): Promise<LookupRe
       return { deployed: true, smartAccountAddress: cached.smartAccountAddress };
     }
 
-    const server = new rpc.Server(config.rpcUrl);
     const salt = await deriveSalt(publicKeyHex);
     const params = buildParamsMap(publicKeyHex, salt);
+    const predictedAddress = await predictAddress(
+      config.rpcUrl,
+      config.networkPassphrase,
+      config.factoryAddress,
+      params,
+    );
 
-    // Simulate get_account_address — pure read, costs nothing
-    // Use a random throwaway keypair as the tx source (same pattern as /api/counter)
-    const dummyKp = Keypair.random();
-    const dummyAccount = new Account(dummyKp.publicKey(), '0');
-    const contract = new Contract(config.factoryAddress);
-    const lookupTx = new TransactionBuilder(dummyAccount, {
-      fee: '100',
-      networkPassphrase: config.networkPassphrase,
-    })
-      .addOperation(contract.call('get_account_address', params))
-      .setTimeout(30)
-      .build();
-
-    const simResult = await server.simulateTransaction(lookupTx);
-
-    if (rpc.Api.isSimulationError(simResult)) {
-      throw new Error(`Address lookup simulation failed: ${simResult.error}`);
-    }
-
-    const predictedAddress: string = scValToNative(simResult.result!.retval);
-
-    // Check whether the contract instance ledger entry exists at that address
-    // ContractData(contract, ScvLedgerKeyContractInstance, Persistent) is the instance key.
     const instanceLedgerKey = xdr.LedgerKey.contractData(
       new xdr.LedgerKeyContractData({
         contract: new Address(predictedAddress).toScAddress(),
@@ -333,7 +407,10 @@ export async function lookupSmartAccount(publicKeyHex: string): Promise<LookupRe
       }),
     );
 
-    const { entries } = await server.getLedgerEntries(instanceLedgerKey);
+    const raw = await sorobanCall(config.rpcUrl, 'getLedgerEntries', {
+      keys: [ledgerKeyToBase64(instanceLedgerKey)],
+    });
+    const entries = raw.entries ?? [];
     const deployed = entries.length > 0;
 
     if (deployed) {
@@ -368,16 +445,16 @@ export async function deploySmartAccountForGAddress(gAddress: string): Promise<D
 
     await fundAccountIfNeeded(gAddress);
 
-    const server = new rpc.Server(getTestnetConfig().rpcUrl);
-    const bundlerKeypair = Keypair.fromSecret(getTestnetConfig().bundlerSecret || '');
+    const cfg = getTestnetConfig();
+    const bundlerKeypair = Keypair.fromSecret(cfg.bundlerSecret || '');
     const salt = await deriveSalt(gAddress);
     const paramsMap = buildParamsMap(gAddress, salt);
-    const factory = new Contract(getTestnetConfig().factoryAddress || '');
+    const factory = new Contract(cfg.factoryAddress || '');
 
     const predictedAddress = await predictAddress(
-      server,
-      getTestnetConfig().networkPassphrase,
-      getTestnetConfig().factoryAddress || '',
+      cfg.rpcUrl,
+      cfg.networkPassphrase,
+      cfg.factoryAddress || '',
       paramsMap,
     );
 
@@ -385,36 +462,39 @@ export async function deploySmartAccountForGAddress(gAddress: string): Promise<D
 
     const createTx = new TransactionBuilder(bundlerAccount, {
       fee: '1500000',
-      networkPassphrase: getTestnetConfig().networkPassphrase,
+      networkPassphrase: cfg.networkPassphrase,
     })
       .addOperation(factory.call('create_account', paramsMap))
       .setTimeout(300)
       .build();
 
-    const sim = await server.simulateTransaction(createTx);
-    if (rpc.Api.isSimulationError(sim)) {
-      throw new Error(`create_account simulation failed: ${sim.error}`);
-    }
+    const rawSim = await sorobanCall(cfg.rpcUrl, 'simulateTransaction', {
+      transaction: txToBase64(createTx),
+    });
+    if (rawSim.error) throw new Error(`create_account simulation failed: ${rawSim.error}`);
 
-    const assembled = rpc.assembleTransaction(createTx, sim).build();
+    const assembled = rpc.assembleTransaction(createTx, parseSimResult(rawSim)).build();
     assembled.sign(bundlerKeypair);
 
-    const sendResult = await server.sendTransaction(assembled);
-    if (sendResult.status === 'ERROR') {
-      throw new Error(`Factory create_account failed: ${sendResult.errorResult?.toXDR('base64')}`);
+    const sendRaw = await sorobanCall(cfg.rpcUrl, 'sendTransaction', {
+      transaction: txToBase64(assembled),
+    });
+    if (sendRaw.status === 'ERROR') {
+      throw new Error(
+        `Factory create_account failed: ${sendRaw.errorResultXdr ?? JSON.stringify(sendRaw)}`,
+      );
     }
 
     let smartAccountAddress: string | undefined;
     for (let i = 0; i < 30; i++) {
       await new Promise((r) => setTimeout(r, 1000));
-      const txResult = await server.getTransaction(sendResult.hash);
-      if (txResult.status === rpc.Api.GetTransactionStatus.NOT_FOUND) continue;
-      if (txResult.status === rpc.Api.GetTransactionStatus.SUCCESS) {
-        const success = txResult as rpc.Api.GetSuccessfulTransactionResponse;
-        if (success.returnValue) smartAccountAddress = scValToNative(success.returnValue);
+      const poll = await sorobanCall(cfg.rpcUrl, 'getTransaction', { hash: sendRaw.hash });
+      if (poll.status === 'NOT_FOUND') continue;
+      if (poll.status === 'SUCCESS') {
+        if (poll.resultMetaXdr) smartAccountAddress = extractAddressFromMeta(poll.resultMetaXdr);
         break;
       }
-      throw new Error(`Factory deployment failed with status: ${txResult.status}`);
+      throw new Error(`Factory deployment failed with status: ${poll.status}`);
     }
 
     if (!smartAccountAddress) smartAccountAddress = predictedAddress;
@@ -457,11 +537,10 @@ export async function lookupSmartAccountByGAddress(gAddress: string): Promise<Lo
       return { deployed: false, smartAccountAddress: '' };
     }
 
-    const server = new rpc.Server(config.rpcUrl);
     const salt = await deriveSalt(gAddress);
     const paramsMap = buildParamsMap(gAddress, salt);
     const predictedAddress = await predictAddress(
-      server,
+      config.rpcUrl,
       config.networkPassphrase,
       config.factoryAddress,
       paramsMap,
@@ -474,8 +553,10 @@ export async function lookupSmartAccountByGAddress(gAddress: string): Promise<Lo
         durability: xdr.ContractDataDurability.persistent(),
       }),
     );
-    const { entries } = await server.getLedgerEntries(instanceKey);
-    const deployed = entries.length > 0;
+    const raw = await sorobanCall(config.rpcUrl, 'getLedgerEntries', {
+      keys: [ledgerKeyToBase64(instanceKey)],
+    });
+    const deployed = (raw.entries?.length ?? 0) > 0;
     if (deployed) cache.set(gAddress, predictedAddress);
 
     return { deployed, smartAccountAddress: predictedAddress };
