@@ -133,34 +133,34 @@ function Home({ width = 24, color }: { width: number; color: string }) {
   );
 }
 
-function Swap({ width = 24, color }: { width: number; color: string }) {
+export function Swap({ width = 24, color }: { width: number; color: string }) {
   return (
     <Svg width={width} height={width} viewBox="0 0 24 24" fill="none">
       <Path
-        d="M13 19H10C7.239 19 5 16.761 5 14V5"
+        d="M17 1L21 5L17 9"
         stroke={color}
-        stroke-width="1.5"
+        stroke-width="2"
         stroke-linecap="round"
         stroke-linejoin="round"
       />
       <Path
-        d="M11 5H14C16.761 5 19 7.239 19 10V19"
+        d="M3 11V9C3 7.93913 3.42143 6.92172 4.17157 6.17157C4.92172 5.42143 5.93913 5 7 5H21"
         stroke={color}
-        stroke-width="1.5"
+        stroke-width="2"
         stroke-linecap="round"
         stroke-linejoin="round"
       />
       <Path
-        d="M7.5 7.5L5 5L2.5 7.5"
+        d="M7 23L3 19L7 15"
         stroke={color}
-        stroke-width="1.5"
+        stroke-width="2"
         stroke-linecap="round"
         stroke-linejoin="round"
       />
       <Path
-        d="M16 16L19 19L22 16"
+        d="M21 13V15C21 16.0609 20.5786 17.0783 19.8284 17.8284C19.0783 18.5786 18.0609 19 17 19H3"
         stroke={color}
-        stroke-width="1.5"
+        stroke-width="2"
         stroke-linecap="round"
         stroke-linejoin="round"
       />

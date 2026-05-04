@@ -1,16 +1,18 @@
 import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
+import TransactionItem from '@/src/components/shared/TransactionItem';
 import { useStellarTransactions } from '@/src/hooks/use-stellar-transactions';
 import { useWalletStore } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
 import { useAppTheme } from '@/src/theme/ThemeContext';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { useTheme } from '@shopify/restyle';
 import { Horizon } from '@stellar/stellar-sdk';
 import { useQuery } from '@tanstack/react-query';
 import { ImageBackground } from 'expo-image';
-import { router } from 'expo-router';
+import { useNavigation } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import {
@@ -100,6 +102,10 @@ const Home = () => {
   };
 
   const recentTx = transactions?.slice(0, 5) ?? [];
+  const XLM_PRICE = 0.16; // TODO: Fetch real-time price from API
+  const usdBalance = Number(xlmBalance) * XLM_PRICE;
+
+  const navigation = useNavigation<DrawerNavigationProp<any>>();
 
   return (
     <Box flex={1} backgroundColor="mainBackground">
@@ -114,7 +120,7 @@ const Home = () => {
         style={{ paddingTop: insets.top + 8 }}
         mb="m"
       >
-        <TouchableOpacity activeOpacity={0.7} onPress={() => router.navigate('/(tabs)/profile')}>
+        <TouchableOpacity activeOpacity={0.7} onPress={() => navigation.openDrawer()}>
           <Box
             flexDirection="row"
             alignItems="center"
@@ -166,7 +172,7 @@ const Home = () => {
         contentContainerStyle={{ paddingBottom: 120 }}
       >
         {/* Balance Section */}
-        <Box alignItems="center" py="xl" position="relative" mt="s">
+        <Box alignItems="center" pb="xl" position="relative" mt="s">
           {!isDark && <RaysBackground />}
           <TouchableOpacity
             onPress={() => setShowBalance(!showBalance)}
@@ -182,17 +188,20 @@ const Home = () => {
             />
           </TouchableOpacity>
 
-          <Text variant="h4" color="textPrimary" style={{ fontWeight: '700', letterSpacing: -1 }}>
+          <Text variant="h5" color="textPrimary" style={{ fontWeight: '700', letterSpacing: -1 }}>
             {showBalance
               ? balanceLoading
                 ? '...'
-                : `$${parseFloat(xlmBalance).toLocaleString()}`
+                : `$${Number(usdBalance).toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}`
               : '••••••••'}
           </Text>
 
           <Box flexDirection="row" alignItems="center" gap="s" mt="xs">
             <Text variant="p7" color="textSecondary" fontWeight="600">
-              0.00
+              {Number(xlmBalance).toLocaleString()} XLM
             </Text>
             <Box
               backgroundColor={isDark ? 'gray900' : 'gray100'}
@@ -313,59 +322,7 @@ const Home = () => {
             </Box>
           ) : (
             recentTx.map((tx) => (
-              <Box
-                key={tx.id}
-                flexDirection="row"
-                alignItems="center"
-                backgroundColor={isDark ? 'gray900' : 'white'}
-                padding="m"
-                borderRadius={20}
-                mb="s"
-                style={
-                  !isDark
-                    ? {
-                        borderWidth: 1,
-                        borderColor: '#F5F5F5',
-                        shadowColor: '#000',
-                        shadowOffset: { width: 0, height: 2 },
-                        shadowOpacity: 0.05,
-                        shadowRadius: 4,
-                        elevation: 2,
-                      }
-                    : {}
-                }
-              >
-                <Box
-                  width={48}
-                  height={48}
-                  borderRadius={24}
-                  backgroundColor={isDark ? 'black' : 'text400'}
-                  justifyContent="center"
-                  alignItems="center"
-                >
-                  <Ionicons
-                    name={tx.from === gAddress ? 'arrow-up' : 'arrow-down'}
-                    size={22}
-                    color={theme.colors.primary700}
-                  />
-                </Box>
-                <Box flex={1} ml="m">
-                  <Text variant="h11" color="textPrimary" fontWeight="700">
-                    {tx.assetCode || 'Stellar'}
-                  </Text>
-                  <Text variant="p8" color="textSecondary" fontWeight="600" mt="xs">
-                    {tx.from === gAddress ? 'Sent' : 'Received'}
-                  </Text>
-                </Box>
-                <Box alignItems="flex-end">
-                  <Text variant="h11" color="textPrimary" fontWeight="700">
-                    {tx.from === gAddress ? '-' : '+'}${parseFloat(tx.amount).toFixed(2)}
-                  </Text>
-                  <Text variant="p8" color="textSecondary" fontWeight="600" mt="xs">
-                    2hrs ago
-                  </Text>
-                </Box>
-              </Box>
+              <TransactionItem key={tx.id} tx={tx} gAddress={gAddress} />
             ))
           )}
         </Box>

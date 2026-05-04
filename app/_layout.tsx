@@ -3,7 +3,6 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { IconRegistry } from '@ui-kitten/components';
 import { EvaIconsPack } from '@ui-kitten/eva-icons';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
@@ -29,15 +28,30 @@ if (__DEV__) {
 
 LogBox.ignoreAllLogs(true);
 
+import { Drawer } from 'expo-router/drawer';
+import Profile from './(tabs)/profile';
+
 function RootLayoutContent() {
   const { isDark } = useAppTheme();
 
   return (
     <>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="transaction/[id]" />
-      </Stack>
+      <Drawer
+        drawerContent={(props) => <Profile {...props} />}
+        screenOptions={{
+          headerShown: false,
+          drawerType: 'front',
+          drawerStyle: {
+            width: '90%',
+            backgroundColor: 'transparent',
+          },
+          swipeEnabled: false,
+          drawerItemStyle: { display: 'none' },
+        }}
+      >
+        <Drawer.Screen name="(tabs)" />
+        <Drawer.Screen name="transaction/[id]" />
+      </Drawer>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <Toast />
     </>
