@@ -41,7 +41,7 @@ type Stage =
 
 const STAGE_LABELS: Record<Stage, string> = {
   saving: 'Securing your wallet…',
-  auth: 'Authenticating with biometrics…',
+  auth: 'Verifying your identity…',
   deploying: 'Deploying your smart account…\nThis can take up to 30 seconds.',
   success: 'Your smart account is ready!',
   error: 'Something went wrong',
@@ -75,10 +75,13 @@ async function requireBiometricAuth(promptMessage: string): Promise<void> {
 
 /**
  * Return passkey credentials from SecureStore.
- * Credentials are created (and biometrics verified) on the biometric setup screen,
- * so by the time we reach this screen they should always exist.
- * If for some reason they are missing (e.g. direct deep-link), we create them here
- * behind a fresh biometric prompt.
+ * Credentials are created on the biometric setup screen, so by the time we reach
+ * this screen they should always exist.
+ * If for some reason they are missing (e.g. direct deep-link or retry after wipe),
+ * we re-create them with the appropriate auth gate for this device:
+ *   - Biometric devices  → require Face ID / Touch ID before re-creating
+ *   - PIN-only devices   → no extra prompt (device passcode is the boundary;
+ *                          the user's app PIN was already verified at unlock)
  * keyDataHex = uncompressed P-256 pubkey (65 bytes, 130 hex) + credentialId (16 bytes, 32 hex)
  */
 async function getOrCreatePasskeyCredentials(): Promise<{
@@ -89,15 +92,19 @@ async function getOrCreatePasskeyCredentials(): Promise<{
   const existingKeyData = await SecureStore.getItemAsync(SECURE_KEYS.KEY_DATA_HEX);
 
   if (existingCredId && existingKeyData) {
-    // Biometric auth already happened on the previous screen — use the credentials directly.
     return { credentialId: existingCredId, keyDataHex: existingKeyData };
   }
 
-  // Fallback: credentials missing, gate creation behind biometric auth.
-  await requireBiometricAuth('Authenticate to create your secure passkey');
+  // Credentials missing — re-create with the auth mode that was chosen at setup.
+  const requiresBiometric = await SecureStore.getItemAsync(SECURE_KEYS.PASSKEY_REQUIRES_BIOMETRIC);
+  const useBiometric = requiresBiometric !== 'false';
+
+  if (useBiometric) {
+    await requireBiometricAuth('Authenticate to create your secure passkey');
+  }
 
   const credential = createPasskeyCredential();
-  await storePasskeyCredential(credential); // private key stored with biometric protection
+  await storePasskeyCredential(credential, useBiometric);
 
   return { credentialId: credential.credentialId, keyDataHex: credential.keyDataHex };
 }
@@ -117,6 +124,7 @@ const DeployAccount = () => {
   const [stage, setStage] = useState<Stage>('saving');
   const [errorMsg, setErrorMsg] = useState('');
   const [smartAccountAddress, setLocalSmartAccount] = useState('');
+  const [retryCount, setRetryCount] = useState(0);
 
   // Pulse animation for the spinner container
   const pulse = useRef(new Animated.Value(1)).current;
@@ -131,7 +139,7 @@ const DeployAccount = () => {
     return () => loop.stop();
   }, [pulse]);
 
-  // Run deployment once on mount
+  // Run deployment on mount and on each retry
   useEffect(() => {
     let cancelled = false;
 
@@ -183,7 +191,19 @@ const DeployAccount = () => {
         setSmartAccountAddress(deployedAddress);
         setLocalSmartAccount(deployedAddress);
 
-        if (!cancelled) setStage('success');
+        if (!cancelled) {
+          setStage('success');
+          router.replace({
+            pathname: '/(auth)/thank-you',
+            params: {
+              title: 'Your Smart Account is Ready',
+              subtext: 'Start using your secure Stellar wallet today',
+              buttonLabel: 'Go to Dashboard',
+              imageSource: 'success',
+              accountAddress: smartAccountAddress || gAddress,
+            },
+          });
+        }
       } catch (err: any) {
         console.log(err);
         if (!cancelled) {
@@ -197,8 +217,9 @@ const DeployAccount = () => {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // retryCount is the only trigger that changes — all other deps are stable route params/store setters
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [retryCount]);
 
   const goToDashboard = () => {
     router.replace({
@@ -214,12 +235,9 @@ const DeployAccount = () => {
   };
 
   const retry = () => {
-    setStage('saving');
     setErrorMsg('');
-    router.replace({
-      pathname: '/(onboarding)/deploy-account',
-      params: { mnemonic, gAddress, skipPersist },
-    });
+    setStage('saving');
+    setRetryCount((c) => c + 1);
   };
 
   const isSpinning = stage === 'saving' || stage === 'auth' || stage === 'deploying';

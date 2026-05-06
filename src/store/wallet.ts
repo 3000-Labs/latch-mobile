@@ -1,6 +1,6 @@
+import { restoreStellarWallet, StellarWallet } from '@/src/lib/seed-wallet';
 import * as SecureStore from 'expo-secure-store';
 import { create } from 'zustand';
-import { restoreStellarWallet, StellarWallet } from '@/src/lib/seed-wallet';
 
 // SecureStore keys
 export const SECURE_KEYS = {
@@ -11,6 +11,7 @@ export const SECURE_KEYS = {
   CREDENTIAL_ID: 'latch_credential_id',
   KEY_DATA_HEX: 'latch_key_data_hex',
   PASSKEY_PRIVATE_KEY: 'latch_passkey_private_key',
+  PASSKEY_REQUIRES_BIOMETRIC: 'latch_passkey_requires_biometric',
 } as const;
 
 interface WalletStore {
@@ -54,11 +55,16 @@ export const useWalletStore = create<WalletStore>((set) => ({
 
   rehydrateWallet: async () => {
     try {
-      const mnemonic = await SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC);
-      if (!mnemonic) return false;
+      const [mnemonic, smartAccountAddress] = await Promise.all([
+        SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC),
+        SecureStore.getItemAsync(SECURE_KEYS.SMART_ACCOUNT),
+      ]);
 
-      const wallet = restoreStellarWallet(mnemonic);
-      const smartAccountAddress = await SecureStore.getItemAsync(SECURE_KEYS.SMART_ACCOUNT);
+      // Always restore the smart account address — passkey users have no mnemonic
+      // but still have a deployed C address.
+      if (!mnemonic && !smartAccountAddress) return false;
+
+      const wallet = mnemonic ? restoreStellarWallet(mnemonic) : null;
 
       set({
         activeWallet: wallet,
@@ -76,9 +82,14 @@ export const useWalletStore = create<WalletStore>((set) => ({
       SecureStore.deleteItemAsync(SECURE_KEYS.SMART_ACCOUNT),
       SecureStore.deleteItemAsync(SECURE_KEYS.PIN),
       SecureStore.deleteItemAsync(SECURE_KEYS.PENDING_MNEMONIC),
-      SecureStore.deleteItemAsync(SECURE_KEYS.CREDENTIAL_ID),
-      SecureStore.deleteItemAsync(SECURE_KEYS.KEY_DATA_HEX),
-      SecureStore.deleteItemAsync(SECURE_KEYS.PASSKEY_PRIVATE_KEY),
+      // SecureStore.deleteItemAsync(SECURE_KEYS.CREDENTIAL_ID),
+      // SecureStore.deleteItemAsync(SECURE_KEYS.KEY_DATA_HEX),
+      // SecureStore.deleteItemAsync(SECURE_KEYS.PASSKEY_PRIVATE_KEY),
+      // CREDENTIAL_ID, KEY_DATA_HEX, and PASSKEY_PRIVATE_KEY are intentionally
+      // preserved — they are the user's on-chain identity. Deleting them causes
+      // createPasskeyCredential() to generate a fresh random P-256 keypair on the
+      // next flow, producing a different account_salt and therefore a different
+      // smart account address.
     ]);
     set({ pendingWallet: null, activeWallet: null, smartAccountAddress: null });
   },

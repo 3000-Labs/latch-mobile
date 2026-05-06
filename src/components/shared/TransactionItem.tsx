@@ -14,14 +14,14 @@ interface TransactionItemProps {
     assetCode?: string;
     createdAt?: string;
   };
-  gAddress: string | null;
+  walletAddress: string | null;
 }
 
-const TransactionItem = ({ tx, gAddress }: TransactionItemProps) => {
+const TransactionItem = ({ tx, walletAddress }: TransactionItemProps) => {
   const theme = useTheme<Theme>();
   const { isDark } = useAppTheme();
 
-  const isSent = tx.from === gAddress;
+  const isSent = tx.from === walletAddress;
 
   const getTokenIcon = (code?: string) => {
     switch (code?.toUpperCase()) {

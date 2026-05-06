@@ -17,6 +17,7 @@ import {
   Alert,
   Dimensions,
   Image,
+  Linking,
   Modal,
   StyleSheet,
   TouchableOpacity,
@@ -134,9 +135,22 @@ const Biometrics = () => {
   // ─── Setup helpers ────────────────────────────────────────────────────────
 
   const proceedToPin = async () => {
-    // Create a passkey credential for PIN-only devices so they can still deploy
-    // a smart account. The private key is stored without requireAuthentication —
-    // the app PIN is the security gate instead of biometrics.
+    // Block setup on devices with no lock screen at all. Without a device passcode
+    // the private key cannot be stored with WHEN_PASSCODE_SET_THIS_DEVICE_ONLY on
+    // iOS, and there is no hardware-backed auth boundary on either platform.
+    const securityLevel = await LocalAuthentication.getEnrolledLevelAsync();
+    if (securityLevel === LocalAuthentication.SecurityLevel.NONE) {
+      Alert.alert(
+        'Device Passcode Required',
+        'To keep your wallet secure, please set a PIN, password, or pattern on your device first, then return to Latch.',
+        [
+          { text: 'Not Now', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
+        ],
+      );
+      return;
+    }
+
     const existingCredId = await SecureStore.getItemAsync(SECURE_KEYS.CREDENTIAL_ID);
     if (!existingCredId) {
       const credential = createPasskeyCredential();

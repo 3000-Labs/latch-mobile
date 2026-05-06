@@ -62,7 +62,7 @@ const Home = () => {
   const statusBarStyle = useStatusBarStyle();
   const insets = useSafeAreaInsets();
 
-  const { activeWallet, rehydrateWallet } = useWalletStore();
+  const { smartAccountAddress, rehydrateWallet } = useWalletStore();
   const [showBalance, setShowBalance] = useState(true);
   const [bannerIndex, setBannerIndex] = useState(0);
 
@@ -70,20 +70,18 @@ const Home = () => {
     rehydrateWallet();
   }, [rehydrateWallet]);
 
-  const gAddress = activeWallet?.gAddress ?? null;
-
   const {
     data: account,
     isLoading: balanceLoading,
     refetch: refetchBalance,
     isRefetching: isRefetchingBalance,
   } = useQuery({
-    queryKey: ['stellar-account', gAddress],
+    queryKey: ['stellar-account', smartAccountAddress],
     queryFn: async () => {
       const server = new Horizon.Server(HORIZON_URL);
-      return server.accounts().accountId(gAddress!).call();
+      return server.accounts().accountId(smartAccountAddress!).call();
     },
-    enabled: !!gAddress,
+    enabled: !!smartAccountAddress,
     staleTime: 30_000,
   });
 
@@ -92,7 +90,7 @@ const Home = () => {
     isLoading: txLoading,
     refetch: refetchTx,
     isRefetching: isRefetchingTx,
-  } = useStellarTransactions(gAddress);
+  } = useStellarTransactions(smartAccountAddress);
 
   const xlmBalance = account?.balances?.find((b) => b.asset_type === 'native')?.balance ?? '0.00';
 
@@ -322,7 +320,7 @@ const Home = () => {
             </Box>
           ) : (
             recentTx.map((tx) => (
-              <TransactionItem key={tx.id} tx={tx} gAddress={gAddress} />
+              <TransactionItem key={tx.id} tx={tx} walletAddress={smartAccountAddress} />
             ))
           )}
         </Box>

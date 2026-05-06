@@ -90,27 +90,47 @@ export function createPasskeyCredential(): PasskeyCredential {
 /**
  * Persist a passkey credential to SecureStore.
  *
- * The private key is stored with requireAuthentication: true — this tells the OS
- * to protect it in the iOS Keychain / Android Keystore with biometric access
- * control (Secure Enclave on iPhone). Every read of the private key will trigger
- * a native Face ID / Touch ID prompt automatically.
+ * Biometric path (requireBiometric = true):
+ *   The private key is stored with requireAuthentication: true — protected in the
+ *   iOS Keychain / Android Keystore with biometric access control (Secure Enclave
+ *   on iPhone). Every read triggers a Face ID / Touch ID prompt automatically.
  *
- * The public material (credentialId, keyDataHex) is stored without biometric
- * protection so it can be read freely for deployment / lookup.
+ * PIN-only path (requireBiometric = false):
+ *   The private key is stored with WHEN_PASSCODE_SET_THIS_DEVICE_ONLY on iOS —
+ *   hardware-backed Keychain entry tied to passcode existence, never backed up to
+ *   iCloud, and wiped if the device passcode is removed. On Android the key lands
+ *   in the hardware Keystore without an additional auth gate; the app-level PIN is
+ *   the security boundary.
+ *
+ * The public material (credentialId, keyDataHex) is stored without any protection
+ * so it can be read freely for deployment and address lookup.
  */
 export async function storePasskeyCredential(
   credential: PasskeyCredential,
   requireBiometric = true,
 ): Promise<void> {
-  // Public material — never biometric-gated (needed freely for deployment / lookup)
+  // Public material — never auth-gated
   await SecureStore.setItemAsync(SECURE_KEYS.CREDENTIAL_ID, credential.credentialId);
   await SecureStore.setItemAsync(SECURE_KEYS.KEY_DATA_HEX, credential.keyDataHex);
 
-  // Private key — biometric-gated on biometric path, plain on PIN-only path
-  await SecureStore.setItemAsync(SECURE_KEYS.PASSKEY_PRIVATE_KEY, credential.privateKeyHex, {
-    requireAuthentication: requireBiometric,
-    authenticationPrompt: 'Authenticate to access your Latch wallet',
-  });
+  // Auth mode flag — read back by signWithStoredPasskey to pick the right read options
+  await SecureStore.setItemAsync(
+    SECURE_KEYS.PASSKEY_REQUIRES_BIOMETRIC,
+    requireBiometric ? 'true' : 'false',
+  );
+
+  if (requireBiometric) {
+    await SecureStore.setItemAsync(SECURE_KEYS.PASSKEY_PRIVATE_KEY, credential.privateKeyHex, {
+      requireAuthentication: true,
+      authenticationPrompt: 'Authenticate to access your Latch wallet',
+    });
+  } else {
+    // Hardware-backed on iOS: key exists only while device has a passcode set.
+    // On Android: key is in hardware Keystore, accessible without additional auth.
+    await SecureStore.setItemAsync(SECURE_KEYS.PASSKEY_PRIVATE_KEY, credential.privateKeyHex, {
+      keychainAccessible: SecureStore.WHEN_PASSCODE_SET_THIS_DEVICE_ONLY,
+    });
+  }
 }
 
 // ─── Signing ──────────────────────────────────────────────────────────────────
@@ -208,24 +228,30 @@ export async function signWithPasskey(
 /**
  * Sign using the passkey stored in SecureStore.
  *
- * Reading the private key triggers the native Face ID / Touch ID prompt because
- * it was stored with requireAuthentication: true (Secure Enclave on iOS).
- * This is the primary signing API — callers do not handle the private key directly.
+ * Biometric users: reading the private key triggers Face ID / Touch ID automatically
+ * (key was stored with requireAuthentication: true / Secure Enclave on iOS).
+ *
+ * PIN-only users: key is read without a biometric prompt — it was stored with
+ * WHEN_PASSCODE_SET_THIS_DEVICE_ONLY (hardware-backed but no auth prompt on read).
+ * The app-level PIN already gated access to this code path.
  *
  * @param authDigest   32-byte auth digest to sign
  * @param rpId         Relying party ID (e.g. "latch.finance")
- * @param promptMsg    Message shown in the biometric prompt
+ * @param promptMsg    Message shown in the biometric prompt (biometric path only)
  */
 export async function signWithStoredPasskey(
   authDigest: Uint8Array,
   rpId: string,
   promptMsg = 'Authenticate to sign this transaction',
 ): Promise<PasskeySignature> {
-  // Reading the private key triggers Face ID / Touch ID automatically
-  const privateKeyHex = await SecureStore.getItemAsync(SECURE_KEYS.PASSKEY_PRIVATE_KEY, {
-    requireAuthentication: true,
-    authenticationPrompt: promptMsg,
-  });
+  const requiresBiometric = await SecureStore.getItemAsync(SECURE_KEYS.PASSKEY_REQUIRES_BIOMETRIC);
+  // Default to biometric if the flag is absent (accounts created before this change)
+  const useBiometric = requiresBiometric !== 'false';
+
+  const privateKeyHex = await SecureStore.getItemAsync(
+    SECURE_KEYS.PASSKEY_PRIVATE_KEY,
+    useBiometric ? { requireAuthentication: true, authenticationPrompt: promptMsg } : undefined,
+  );
 
   if (!privateKeyHex) {
     throw new Error('No passkey found. Please complete biometric setup first.');

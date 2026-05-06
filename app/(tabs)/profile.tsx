@@ -1,14 +1,18 @@
 import Box from '@/src/components/shared/Box';
 import Switch from '@/src/components/shared/Switch';
 import Text from '@/src/components/shared/Text';
+import { useWalletStore } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '@shopify/restyle';
 import { Image } from 'expo-image';
+import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useState } from 'react';
-import { Dimensions, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { Alert, Dimensions, ScrollView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BIOMETRIC_ENABLED_KEY } from '../(auth)/biometric';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const DRAWER_WIDTH = SCREEN_WIDTH * 0.85;
@@ -16,10 +20,27 @@ const DRAWER_WIDTH = SCREEN_WIDTH * 0.85;
 const Profile = (props: any) => {
   const theme = useTheme<Theme>();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { clearAll } = useWalletStore();
   const [biometricsEnabled, setBiometricsEnabled] = useState(false);
 
   const closeDrawer = () => {
     props.navigation.closeDrawer();
+  };
+
+  const handleLogout = () => {
+    Alert.alert('Log Out', 'Are you sure you want to log out?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Log Out',
+        style: 'destructive',
+        onPress: async () => {
+          await clearAll();
+          await AsyncStorage.multiRemove([BIOMETRIC_ENABLED_KEY, 'latch_onboarding_complete']);
+          router.replace('/onboarding');
+        },
+      },
+    ]);
   };
 
   const SettingItem = ({
@@ -162,14 +183,38 @@ const Profile = (props: any) => {
             <SettingItem icon="help-circle-outline" label="Help & Support" />
             <SettingItem icon="information-circle-outline" label="About Latch" value="v1.0.0" />
           </Box>
+          {/* Logout — fixed at the bottom of the drawer */}
+          <Box pb="l" style={{ paddingBottom: insets.bottom + 16 }}>
+            <TouchableOpacity onPress={handleLogout} activeOpacity={0.7}>
+              <Box
+                flexDirection="row"
+                alignItems="center"
+                paddingVertical="m"
+                paddingHorizontal="m"
+                backgroundColor="bg900"
+                borderRadius={16}
+              >
+                <Box
+                  width={36}
+                  height={36}
+                  borderRadius={10}
+                  backgroundColor="bg800"
+                  justifyContent="center"
+                  alignItems="center"
+                  mr="m"
+                >
+                  <Ionicons name="log-out-outline" size={20} color={theme.colors.danger900} />
+                </Box>
+                <Text variant="p7" color="danger900" flex={1}>
+                  Log Out
+                </Text>
+              </Box>
+            </TouchableOpacity>
+          </Box>
         </Box>
       </ScrollView>
     </Box>
   );
 };
-
-const styles = StyleSheet.create({
-  // No specific styles needed as we use Box/Text
-});
 
 export default Profile;
