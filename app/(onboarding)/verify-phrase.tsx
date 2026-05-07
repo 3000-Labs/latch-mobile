@@ -1,9 +1,9 @@
 import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
-import { PENDING_MNEMONIC_KEY } from '@/app/(onboarding)/recovery-phrase';
-import { useWalletStore } from '@/src/store/wallet';
+import { SECURE_KEYS, useWalletStore } from '@/src/store/wallet';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
 import { useRouter } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import { Dimensions, Image, ScrollView, TouchableOpacity, Vibration, View } from 'react-native';
@@ -71,18 +71,12 @@ const VerifyPhrase = () => {
     if (isCorrect) {
       setIsSaving(true);
       try {
-        // Clear in-memory pending wallet — deploy-account will persist mnemonic
-        // to SecureStore and handle PENDING_MNEMONIC_KEY cleanup itself.
+        // Persist mnemonic to SecureStore before clearing in-memory wallet.
+        // deploy-account reads from SecureStore directly — no route params needed.
+        await SecureStore.setItemAsync(SECURE_KEYS.MNEMONIC, pendingWallet.mnemonic);
+        await SecureStore.deleteItemAsync(SECURE_KEYS.PENDING_MNEMONIC);
         clearPendingWallet();
-        router.navigate({
-          pathname: '/(onboarding)/deploy-account',
-          params: {
-            mnemonic: pendingWallet.mnemonic,
-            publicKeyHex: pendingWallet.publicKeyHex,
-            gAddress: pendingWallet.gAddress,
-            skipPersist: 'false',
-          },
-        });
+        router.navigate('/(onboarding)/deploy-account');
       } catch {
         setIsSaving(false);
       }

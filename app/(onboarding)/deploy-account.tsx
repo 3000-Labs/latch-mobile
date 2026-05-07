@@ -1,15 +1,11 @@
 /**
  * DeployAccount — deploys the user's passkey-backed Soroban smart account.
  *
- * Primary path (passkey/biometric): credentials were created on the biometric screen;
- * this screen just calls the Latch backend to deploy via the factory contract.
+ * Primary path (passkey): credentials were created on the biometric screen;
+ * this screen retrieves them from SecureStore and deploys via the factory contract.
  *
- * Legacy path (import-phrase): mnemonic is passed as a route param and saved first.
- *
- * Route params (optional, import-phrase path only):
- *   mnemonic    – plaintext mnemonic to commit
- *   gAddress    – Stellar G-address (for display)
- *   skipPersist – "true" when mnemonic was already saved
+ * Legacy path (import-phrase): mnemonic was saved to SecureStore by set-pin.tsx;
+ * this screen reads it from there — no route params needed.
  */
 
 import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
@@ -26,21 +22,19 @@ import { SECURE_KEYS, useWalletStore } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
 import { useTheme } from '@shopify/restyle';
 import * as LocalAuthentication from 'expo-local-authentication';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Image, StyleSheet } from 'react-native';
 
 type Stage =
-  | 'saving' // persisting mnemonic to SecureStore
-  | 'auth' // biometric auth + passkey credential generation (passkey path only)
+  | 'auth' // verifying credentials / passkey gate
   | 'deploying' // waiting on Soroban RPC
   | 'success' // all done
   | 'error'; // deployment failed
 
 const STAGE_LABELS: Record<Stage, string> = {
-  saving: 'Securing your wallet…',
   auth: 'Verifying your identity…',
   deploying: 'Deploying your smart account…\nThis can take up to 30 seconds.',
   success: 'Your smart account is ready!',
@@ -58,7 +52,7 @@ async function requireBiometricAuth(promptMessage: string): Promise<void> {
   if (!hasHardware || !isEnrolled) {
     throw new Error(
       'Biometric authentication is required to deploy your smart account. ' +
-        'Please set up Face ID or Touch ID on your device and try again.',
+        'Please enroll a biometric (fingerprint or face) on your device and try again.',
     );
   }
 
@@ -69,7 +63,7 @@ async function requireBiometricAuth(promptMessage: string): Promise<void> {
   });
 
   if (!result.success) {
-    throw new Error('Biometric authentication is required to deploy your smart account.');
+    throw new Error('Biometric authentication failed. Please try again.');
   }
 }
 
@@ -115,16 +109,10 @@ const DeployAccount = () => {
   const router = useRouter();
   const { setActiveWallet, setSmartAccountAddress } = useWalletStore();
 
-  const { mnemonic, gAddress, skipPersist } = useLocalSearchParams<{
-    mnemonic: string;
-    gAddress: string;
-    skipPersist: string;
-  }>();
-
-  const [stage, setStage] = useState<Stage>('saving');
+  const [stage, setStage] = useState<Stage>('auth');
   const [errorMsg, setErrorMsg] = useState('');
-  const [smartAccountAddress, setLocalSmartAccount] = useState('');
   const [retryCount, setRetryCount] = useState(0);
+  const [isMnemonicPath, setIsMnemonicPath] = useState(false);
 
   // Pulse animation for the spinner container
   const pulse = useRef(new Animated.Value(1)).current;
@@ -145,23 +133,20 @@ const DeployAccount = () => {
 
     const run = async () => {
       try {
-        // ── Step 1: persist mnemonic (legacy import-phrase path only) ─────────
-        if (skipPersist !== 'true' && mnemonic) {
-          setStage('saving');
-          await SecureStore.setItemAsync(SECURE_KEYS.MNEMONIC, mnemonic);
-          await SecureStore.deleteItemAsync(SECURE_KEYS.PENDING_MNEMONIC);
-        }
+        // ── Step 1: determine deploy path from SecureStore ────────────────────
+        const storedMnemonic = await SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC);
 
         if (cancelled) return;
 
         // ── Step 2: deploy smart account ──────────────────────────────────────
-        setStage('deploying');
         let deployedAddress: string;
 
-        if (mnemonic) {
+        if (storedMnemonic) {
           // Import-wallet path: derive Ed25519 pubkey from mnemonic and deploy.
           // No biometric auth needed — the mnemonic itself proves ownership.
-          const wallet = restoreStellarWallet(mnemonic);
+          setIsMnemonicPath(true);
+          setStage('deploying');
+          const wallet = restoreStellarWallet(storedMnemonic);
           const result = await deploySmartAccountEd25519(wallet.publicKeyHex);
           deployedAddress = result.smartAccountAddress;
         } else {
@@ -178,34 +163,23 @@ const DeployAccount = () => {
 
         if (cancelled) return;
 
-        // ── Step 4: persist smart account address ─────────────────────────────
+        // ── Step 3: persist smart account address ─────────────────────────────
         await SecureStore.setItemAsync(SECURE_KEYS.SMART_ACCOUNT, deployedAddress);
 
-        // ── Step 5: mark onboarding complete and hydrate store ────────────────
+        // ── Step 4: mark onboarding complete and hydrate store ────────────────
         await AsyncStorage.setItem('latch_onboarding_complete', 'true');
-        const storedMnemonic = await SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC);
         if (storedMnemonic) {
           const wallet = restoreStellarWallet(storedMnemonic);
           setActiveWallet(wallet);
         }
         setSmartAccountAddress(deployedAddress);
-        setLocalSmartAccount(deployedAddress);
 
         if (!cancelled) {
+          // Surface success — user explicitly taps "Go to Dashboard" to proceed.
           setStage('success');
-          router.replace({
-            pathname: '/(auth)/thank-you',
-            params: {
-              title: 'Your Smart Account is Ready',
-              subtext: 'Start using your secure Stellar wallet today',
-              buttonLabel: 'Go to Dashboard',
-              imageSource: 'success',
-              accountAddress: smartAccountAddress || gAddress,
-            },
-          });
         }
       } catch (err: any) {
-        console.log(err);
+        __DEV__ && console.log(err);
         if (!cancelled) {
           setErrorMsg(err?.message ?? 'Deployment failed. Please try again.');
           setStage('error');
@@ -229,18 +203,17 @@ const DeployAccount = () => {
         subtext: 'Start using your secure Stellar wallet today',
         buttonLabel: 'Go to Dashboard',
         imageSource: 'success',
-        accountAddress: smartAccountAddress || gAddress,
       },
     });
   };
 
   const retry = () => {
     setErrorMsg('');
-    setStage('saving');
+    setStage('auth');
     setRetryCount((c) => c + 1);
   };
 
-  const isSpinning = stage === 'saving' || stage === 'auth' || stage === 'deploying';
+  const isSpinning = stage === 'auth' || stage === 'deploying';
 
   return (
     <Box flex={1} backgroundColor="mainBackground" justifyContent="center" alignItems="center">
@@ -298,10 +271,9 @@ const DeployAccount = () => {
           <Box gap="s" width="100%">
             {[
               {
-                label: mnemonic ? 'Wallet imported' : 'Passkey credential verified',
+                label: isMnemonicPath ? 'Wallet imported' : 'Passkey credential verified',
                 done: stage === 'deploying',
               },
-              { label: 'Building smart account', done: stage === 'deploying' },
               { label: 'Deploying on Stellar', done: false },
             ].map(({ label, done }) => (
               <Box key={label} flexDirection="row" alignItems="center" gap="m">

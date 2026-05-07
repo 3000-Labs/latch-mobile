@@ -1,5 +1,8 @@
 import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
+import Box from '@/src/components/shared/Box';
+import Text from '@/src/components/shared/Text';
 import { useWalletStore } from '@/src/store/wallet';
+import { Theme } from '@/src/theme/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -15,10 +18,11 @@ import {
   Vibration,
   View,
 } from 'react-native';
+import QuickCrypto from 'react-native-quick-crypto';
 
-import Box from '@/src/components/shared/Box';
-import Text from '@/src/components/shared/Text';
-import { Theme } from '@/src/theme/theme';
+function hashPin(pin: string): string {
+  return QuickCrypto.createHash('sha256').update(pin).digest('hex') as unknown as string;
+}
 
 const { width } = Dimensions.get('window');
 
@@ -72,27 +76,16 @@ const SetPin = () => {
         if (next.length === PIN_LENGTH) {
           setTimeout(async () => {
             if (next === pin) {
-              await SecureStore.setItemAsync(PIN_KEY, pin);
+              await SecureStore.setItemAsync(PIN_KEY, hashPin(pin));
 
               if (from === 'import-phrase') {
                 if (pendingWallet) {
                   await SecureStore.setItemAsync('latch_mnemonic', pendingWallet.mnemonic);
                   clearPendingWallet();
-                  // Navigate to deploy-account to create the smart account on-chain.
-                  // mnemonic is already persisted above, so skipPersist=true.
-                  router.push({
-                    pathname: '/(onboarding)/deploy-account',
-                    params: {
-                      mnemonic: pendingWallet.mnemonic,
-                      publicKeyHex: pendingWallet.publicKeyHex,
-                      gAddress: pendingWallet.gAddress,
-                      skipPersist: 'true',
-                    },
-                  });
                 }
-              } else {
-                router.push('/(onboarding)/deploy-account');
               }
+              // deploy-account reads mnemonic from SecureStore directly
+              router.push('/(onboarding)/deploy-account');
             } else {
               Vibration.vibrate(400);
               setError(true);

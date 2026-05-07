@@ -12,7 +12,8 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { StatusBar } from 'expo-status-bar';
-import React, { useCallback, useEffect, useState } from 'react';
+import QuickCrypto from 'react-native-quick-crypto';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Dimensions,
@@ -25,6 +26,13 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+function hashPin(pin: string): string {
+  return QuickCrypto.createHash('sha256').update(pin).digest('hex') as unknown as string;
+}
+
+const MAX_ATTEMPTS = 5;
+const LOCKOUT_SECONDS = 30;
 
 export const BIOMETRIC_ENABLED_KEY = 'latch_biometric_enabled';
 const PIN_KEY = 'latch_pin';
@@ -50,15 +58,61 @@ const Biometrics = () => {
 
   // setup mode state
   const [showModal, setShowModal] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   // unlock mode state
   const [showPin, setShowPin] = useState(false);
   const [pin, setPin] = useState('');
   const [pinError, setPinError] = useState(false);
+  const [attempts, setAttempts] = useState(0);
+  const [lockedUntil, setLockedUntil] = useState<number | null>(null);
+  const [lockoutSecondsLeft, setLockoutSecondsLeft] = useState(0);
+  const lockoutTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const [biometricLabel, setBiometricLabel] = useState('Biometrics');
   const [biometricIcon, setBiometricIcon] = useState<'scan' | 'finger-print'>('scan');
+  const [biometricEnabledForUnlock, setBiometricEnabledForUnlock] = useState(false);
 
   const keySize = (width - theme.spacing.m * 2 - theme.spacing.m * 2) / 3;
+
+  // Detect biometric type — runs on mount for setup mode; for unlock mode the
+  // sequential init effect below handles detection before triggering auth.
+  useEffect(() => {
+    if (isUnlockMode) return; // handled inside init
+    const detectType = async () => {
+      const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
+      if (types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
+        setBiometricLabel('Face ID');
+        setBiometricIcon('scan');
+      } else if (types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
+        setBiometricLabel('Touch ID');
+        setBiometricIcon('finger-print');
+      }
+    };
+    detectType();
+  }, [isUnlockMode]);
+
+  // ─── Lockout countdown ────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!lockedUntil) return;
+    const tick = () => {
+      const left = Math.ceil((lockedUntil - Date.now()) / 1000);
+      if (left <= 0) {
+        setLockedUntil(null);
+        setLockoutSecondsLeft(0);
+        setAttempts(0);
+        if (lockoutTimer.current) clearInterval(lockoutTimer.current);
+      } else {
+        setLockoutSecondsLeft(left);
+      }
+    };
+    tick();
+    lockoutTimer.current = setInterval(tick, 1000);
+    return () => {
+      if (lockoutTimer.current) clearInterval(lockoutTimer.current);
+    };
+  }, [lockedUntil]);
 
   // ─── Unlock helpers ───────────────────────────────────────────────────────
 
@@ -79,10 +133,13 @@ const Biometrics = () => {
     }
   }, [unlockSuccess]);
 
+  // Sequential init for unlock mode: detect biometric type first, then decide flow.
+  // This prevents the race where triggerBiometrics fires before labels are set.
   useEffect(() => {
     if (!isUnlockMode) return;
 
     const init = async () => {
+      // 1. Detect biometric type so labels/icons are correct before any prompt.
       const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
       if (types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
         setBiometricLabel('Face ID');
@@ -92,19 +149,35 @@ const Biometrics = () => {
         setBiometricIcon('finger-print');
       }
 
+      // 2. Check whether biometric unlock is enabled.
       const enabled = await AsyncStorage.getItem(BIOMETRIC_ENABLED_KEY);
+      setBiometricEnabledForUnlock(enabled === 'true');
+
       if (enabled === 'true') {
-        triggerBiometrics();
+        const result = await LocalAuthentication.authenticateAsync({
+          promptMessage: 'Unlock Latch',
+          disableDeviceFallback: true,
+          cancelLabel: 'Use PIN',
+        });
+        if (result.success) {
+          unlockSuccess();
+        } else {
+          setShowPin(true);
+        }
       } else {
         setShowPin(true);
       }
     };
 
     init();
-  }, [isUnlockMode, triggerBiometrics]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isUnlockMode]);
 
   const handlePinKey = useCallback(
     async (key: string) => {
+      // Reject all input while locked out
+      if (lockedUntil && Date.now() < lockedUntil) return;
+
       if (key === 'del') {
         setPin((p) => p.slice(0, -1));
         setPinError(false);
@@ -117,11 +190,17 @@ const Biometrics = () => {
 
       if (next.length === PIN_LENGTH) {
         const stored = await SecureStore.getItemAsync(PIN_KEY);
-        if (next === stored) {
+        if (hashPin(next) === stored) {
+          setAttempts(0);
           unlockSuccess();
         } else {
           Vibration.vibrate(400);
           setPinError(true);
+          const newAttempts = attempts + 1;
+          setAttempts(newAttempts);
+          if (newAttempts >= MAX_ATTEMPTS) {
+            setLockedUntil(Date.now() + LOCKOUT_SECONDS * 1000);
+          }
           setTimeout(() => {
             setPin('');
             setPinError(false);
@@ -129,7 +208,7 @@ const Biometrics = () => {
         }
       }
     },
-    [pin, unlockSuccess],
+    [pin, attempts, lockedUntil, unlockSuccess],
   );
 
   // ─── Setup helpers ────────────────────────────────────────────────────────
@@ -151,12 +230,23 @@ const Biometrics = () => {
       return;
     }
 
-    const existingCredId = await SecureStore.getItemAsync(SECURE_KEYS.CREDENTIAL_ID);
-    if (!existingCredId) {
-      const credential = createPasskeyCredential();
-      await storePasskeyCredential(credential, false);
+    setIsProcessing(true);
+    try {
+      const existingCredId = await SecureStore.getItemAsync(SECURE_KEYS.CREDENTIAL_ID);
+      if (!existingCredId) {
+        const credential = createPasskeyCredential();
+        await storePasskeyCredential(credential, false);
+      }
+      router.replace('/(onboarding)/set-pin');
+    } catch {
+      Alert.alert(
+        'Setup Failed',
+        'Could not save your secure credential. Please try again.',
+        [{ text: 'OK' }],
+      );
+    } finally {
+      setIsProcessing(false);
     }
-    router.replace('/(onboarding)/set-pin');
   };
 
   const handleAllow = async () => {
@@ -175,7 +265,7 @@ const Biometrics = () => {
     }
 
     const result = await LocalAuthentication.authenticateAsync({
-      promptMessage: 'Register passkey with biometrics',
+      promptMessage: `Register passkey with ${biometricLabel}`,
       disableDeviceFallback: true,
       cancelLabel: 'Cancel',
     });
@@ -184,21 +274,30 @@ const Biometrics = () => {
       return;
     }
 
-    await AsyncStorage.setItem(BIOMETRIC_ENABLED_KEY, 'true');
+    setIsProcessing(true);
+    try {
+      // Generate credential first — only write the biometric flag after it's
+      // safely stored. If storePasskeyCredential throws, the flag stays unset
+      // and the user is not left in a broken state on next launch.
+      const existingCredId = await SecureStore.getItemAsync(SECURE_KEYS.CREDENTIAL_ID);
+      if (!existingCredId) {
+        const credential = createPasskeyCredential();
+        await storePasskeyCredential(credential);
+      }
+      await AsyncStorage.setItem(BIOMETRIC_ENABLED_KEY, 'true');
 
-    // Generate a P-256 passkey credential tied to this biometric consent.
-    // Only create if one doesn't already exist (e.g. re-enabling after reinstall).
-    // The private key is stored with requireAuthentication: true — it lives in the
-    // iOS Keychain / Android Keystore with biometric access control (Secure Enclave
-    // on iPhone). Every future signing operation will trigger Face ID / Touch ID.
-    const existingCredId = await SecureStore.getItemAsync(SECURE_KEYS.CREDENTIAL_ID);
-    if (!existingCredId) {
-      const credential = createPasskeyCredential();
-      await storePasskeyCredential(credential);
+      // Navigate to PIN setup so biometric users have a PIN as emergency fallback.
+      // set-pin will forward to deploy-account once the PIN is confirmed.
+      router.replace('/(onboarding)/set-pin');
+    } catch {
+      Alert.alert(
+        'Setup Failed',
+        'Could not save your biometric credential. Please try again.',
+        [{ text: 'OK' }],
+      );
+    } finally {
+      setIsProcessing(false);
     }
-
-    // Passkey is ready — deploy the smart account directly, no recovery phrase needed.
-    router.replace('/(onboarding)/deploy-account');
   };
 
   // ─── Unlock UI ────────────────────────────────────────────────────────────
@@ -230,9 +329,15 @@ const Biometrics = () => {
                 >
                   Welcome Back
                 </Text>
-                <Text variant="body" color="textSecondary" mt="s" textAlign="center">
-                  Enter your PIN to unlock
-                </Text>
+                {lockedUntil ? (
+                  <Text variant="body" color="danger900" mt="s" textAlign="center">
+                    Too many attempts. Try again in {lockoutSecondsLeft}s
+                  </Text>
+                ) : (
+                  <Text variant="body" color="textSecondary" mt="s" textAlign="center">
+                    Enter your PIN to unlock
+                  </Text>
+                )}
               </Box>
 
               {/* PIN dots */}
@@ -260,7 +365,8 @@ const Biometrics = () => {
                   <Box key={rIdx} flexDirection="row" justifyContent="space-between" mb="m">
                     {row.map((key, kIdx) => {
                       if (key === '') {
-                        return biometricLabel !== 'Biometrics' ? (
+                        // Show biometric shortcut only when biometric unlock is enabled
+                        return biometricEnabledForUnlock ? (
                           <TouchableOpacity
                             key={kIdx}
                             activeOpacity={0.6}
@@ -336,11 +442,15 @@ const Biometrics = () => {
                   alignItems="center"
                   justifyContent="center"
                 >
-                  <Image
-                    source={require('@/src/assets/images/face_id.png')}
-                    style={{ width: 80, height: 80, tintColor: theme.colors.primary700 }}
-                    resizeMode="contain"
-                  />
+                  {biometricIcon === 'finger-print' ? (
+                    <Ionicons name="finger-print" size={80} color={theme.colors.primary700} />
+                  ) : (
+                    <Image
+                      source={require('@/src/assets/images/face_id.png')}
+                      style={{ width: 80, height: 80, tintColor: theme.colors.primary700 }}
+                      resizeMode="contain"
+                    />
+                  )}
                 </Box>
                 <Text variant="h8" fontSize={24} textAlign="center" color="textPrimary">
                   Unlock with {biometricLabel}
@@ -384,8 +494,12 @@ const Biometrics = () => {
 
       {/* Header */}
       <Box flexDirection="row" justifyContent="space-between" alignItems="center" mb="m">
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="chevron-back" size={24} color={theme.colors.textPrimary} />
+        <TouchableOpacity onPress={() => router.back()} disabled={isProcessing}>
+          <Ionicons
+            name="chevron-back"
+            size={24}
+            color={isProcessing ? theme.colors.textSecondary : theme.colors.textPrimary}
+          />
         </TouchableOpacity>
         <Image
           source={require('@/src/assets/images/logosym.png')}
@@ -405,7 +519,7 @@ const Biometrics = () => {
         </Text>
       </Box>
 
-      {/* Face ID Icon */}
+      {/* Biometric Icon */}
       <Box flex={1} justifyContent="center" alignItems="center">
         <Box
           backgroundColor="bg800"
@@ -415,11 +529,15 @@ const Biometrics = () => {
           alignItems="center"
           justifyContent="center"
         >
-          <Image
-            source={require('@/src/assets/images/face_id.png')}
-            style={{ width: 80, height: 80, tintColor: theme.colors.primary700 }}
-            resizeMode="contain"
-          />
+          {biometricIcon === 'finger-print' ? (
+            <Ionicons name="finger-print" size={80} color={theme.colors.primary700} />
+          ) : (
+            <Image
+              source={require('@/src/assets/images/face_id.png')}
+              style={{ width: 80, height: 80, tintColor: theme.colors.primary700 }}
+              resizeMode="contain"
+            />
+          )}
         </Box>
       </Box>
 
@@ -431,6 +549,7 @@ const Biometrics = () => {
           onPress={() => setShowModal(true)}
           bg="primary700"
           labelColor="black"
+          disabled={isProcessing}
         />
         <Button
           label="Maybe Later"
@@ -439,6 +558,7 @@ const Biometrics = () => {
           mt="m"
           borderColor={statusBarStyle === 'light' ? 'textWhite' : 'textDark900'}
           labelColor={statusBarStyle === 'light' ? 'textWhite' : 'black'}
+          disabled={isProcessing}
         />
       </Box>
 
@@ -465,10 +585,10 @@ const Biometrics = () => {
               resizeMode="contain"
             />
             <Text variant="h8" color="text200" fontSize={24} mt="l">
-              Do you want to allow &quot;Latch&quot; to use Face ID?
+              Do you want to allow &quot;Latch&quot; to use {biometricLabel}?
             </Text>
             <Text variant="p5" color="text200" mt="m">
-              Allow Latch to access your Face ID biometric data.
+              Allow Latch to access your {biometricLabel} data.
             </Text>
             <Box flexDirection="row" gap="m" mt="xl" width="100%">
               <Button
