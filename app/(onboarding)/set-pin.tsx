@@ -84,8 +84,15 @@ const SetPin = () => {
                   clearPendingWallet();
                 }
               }
-              // deploy-account reads mnemonic from SecureStore directly
-              router.push('/(onboarding)/deploy-account');
+
+              if (from === 'recovery') {
+                // Credentials already restored from backup — skip deploy, go straight to app.
+                router.replace('/(tabs)');
+                return;
+              }
+
+              // Collect email for recovery backup before deploying
+              router.push('/(onboarding)/collect-email');
             } else {
               Vibration.vibrate(400);
               setError(true);
@@ -95,7 +102,7 @@ const SetPin = () => {
         }
       }
     },
-    [currentPin, phase, pin, router, from, accountAddress, pendingWallet, clearPendingWallet],
+    [currentPin, phase, pin, router, from, pendingWallet, clearPendingWallet],
   );
 
   const handleBack = () => {

@@ -13,6 +13,7 @@ import Toast from 'react-native-toast-message';
 import '../shim';
 // Now you can import libraries that need crypto
 import { Buffer } from 'buffer';
+import { Stack } from 'expo-router';
 import { install } from 'react-native-quick-crypto';
 import { queryClient } from '../src/api/client';
 import { AppThemeProvider, useAppTheme } from '../src/theme/ThemeContext';
@@ -28,30 +29,12 @@ if (__DEV__) {
 
 LogBox.ignoreAllLogs(true);
 
-import { Drawer } from 'expo-router/drawer';
-import Profile from './(tabs)/profile';
-
 function RootLayoutContent() {
   const { isDark } = useAppTheme();
 
   return (
     <>
-      <Drawer
-        drawerContent={(props) => <Profile {...props} />}
-        screenOptions={{
-          headerShown: false,
-          drawerType: 'front',
-          drawerStyle: {
-            width: '90%',
-            backgroundColor: 'transparent',
-          },
-          swipeEnabled: false,
-          drawerItemStyle: { display: 'none' },
-        }}
-      >
-        <Drawer.Screen name="(tabs)" />
-        <Drawer.Screen name="transaction/[id]" />
-      </Drawer>
+      <Stack screenOptions={{ headerShown: false }} />
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <Toast />
     </>

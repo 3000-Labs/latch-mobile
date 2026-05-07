@@ -1,6 +1,7 @@
 import Box from '@/src/components/shared/Box';
 import Switch from '@/src/components/shared/Switch';
 import Text from '@/src/components/shared/Text';
+import { useDrawer } from '@/src/context/drawer-context';
 import { useWalletStore } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,16 +18,13 @@ import { BIOMETRIC_ENABLED_KEY } from '../(auth)/biometric';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const DRAWER_WIDTH = SCREEN_WIDTH * 0.85;
 
-const Profile = (props: any) => {
+const Profile = () => {
   const theme = useTheme<Theme>();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { clearAll } = useWalletStore();
+  const { closeDrawer } = useDrawer();
   const [biometricsEnabled, setBiometricsEnabled] = useState(false);
-
-  const closeDrawer = () => {
-    props.navigation.closeDrawer();
-  };
 
   const handleLogout = () => {
     Alert.alert('Log Out', 'Are you sure you want to log out?', [

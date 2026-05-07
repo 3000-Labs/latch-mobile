@@ -6,13 +6,12 @@ import { useStellarTransactions } from '@/src/hooks/use-stellar-transactions';
 import { useWalletStore } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
 import { useAppTheme } from '@/src/theme/ThemeContext';
+import { useDrawer } from '@/src/context/drawer-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { useTheme } from '@shopify/restyle';
 import { Horizon } from '@stellar/stellar-sdk';
 import { useQuery } from '@tanstack/react-query';
 import { ImageBackground } from 'expo-image';
-import { useNavigation } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import {
@@ -103,7 +102,7 @@ const Home = () => {
   const XLM_PRICE = 0.16; // TODO: Fetch real-time price from API
   const usdBalance = Number(xlmBalance) * XLM_PRICE;
 
-  const navigation = useNavigation<DrawerNavigationProp<any>>();
+  const { openDrawer } = useDrawer();
 
   return (
     <Box flex={1} backgroundColor="mainBackground">
@@ -118,7 +117,7 @@ const Home = () => {
         style={{ paddingTop: insets.top + 8 }}
         mb="m"
       >
-        <TouchableOpacity activeOpacity={0.7} onPress={() => navigation.openDrawer()}>
+        <TouchableOpacity activeOpacity={0.7} onPress={openDrawer}>
           <Box
             flexDirection="row"
             alignItems="center"

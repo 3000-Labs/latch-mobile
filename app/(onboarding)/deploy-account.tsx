@@ -9,6 +9,7 @@
  */
 
 import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
+import { uploadBackup } from '@/src/api/latch-auth';
 import { deploySmartAccount as deploySmartAccountPasskey } from '@/src/api/passkey';
 import { deploySmartAccount as deploySmartAccountEd25519 } from '@/src/api/smart-account';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -107,10 +108,11 @@ const DeployAccount = () => {
   const theme = useTheme<Theme>();
   const statusBarStyle = useStatusBarStyle();
   const router = useRouter();
-  const { setActiveWallet, setSmartAccountAddress } = useWalletStore();
+  const { setActiveWallet, setSmartAccountAddress, smartAccountAddress } = useWalletStore();
 
   const [stage, setStage] = useState<Stage>('auth');
   const [errorMsg, setErrorMsg] = useState('');
+  //  const [smartAccountAddress, setLocalSmartAccount] = useState('');
   const [retryCount, setRetryCount] = useState(0);
   const [isMnemonicPath, setIsMnemonicPath] = useState(false);
 
@@ -174,9 +176,15 @@ const DeployAccount = () => {
         }
         setSmartAccountAddress(deployedAddress);
 
+        // ── Step 5: upload encrypted backup (best-effort, non-blocking) ───────
+        uploadBackup().catch((err) => {
+          __DEV__ && console.log('[backup] upload failed:', err?.message);
+        });
+
         if (!cancelled) {
           // Surface success — user explicitly taps "Go to Dashboard" to proceed.
           setStage('success');
+          setTimeout(goToDashboard, 1500);
         }
       } catch (err: any) {
         __DEV__ && console.log(err);
@@ -191,8 +199,8 @@ const DeployAccount = () => {
     return () => {
       cancelled = true;
     };
-  // retryCount is the only trigger that changes — all other deps are stable route params/store setters
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // retryCount is the only trigger that changes — all other deps are stable route params/store setters
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [retryCount]);
 
   const goToDashboard = () => {
@@ -203,6 +211,7 @@ const DeployAccount = () => {
         subtext: 'Start using your secure Stellar wallet today',
         buttonLabel: 'Go to Dashboard',
         imageSource: 'success',
+        accountAddress: smartAccountAddress || '',
       },
     });
   };
@@ -300,7 +309,7 @@ const DeployAccount = () => {
         )}
 
         {/* Action buttons */}
-        {stage === 'success' && (
+        {/* {stage === 'success' && (
           <Box width="100%" mt="m">
             <Button
               label="Go to Dashboard"
@@ -310,7 +319,7 @@ const DeployAccount = () => {
               labelColor="black"
             />
           </Box>
-        )}
+        )} */}
 
         {stage === 'error' && (
           <Box width="100%" gap="m" mt="m">

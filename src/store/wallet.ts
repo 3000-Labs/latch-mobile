@@ -12,6 +12,10 @@ export const SECURE_KEYS = {
   KEY_DATA_HEX: 'latch_key_data_hex',
   PASSKEY_PRIVATE_KEY: 'latch_passkey_private_key',
   PASSKEY_REQUIRES_BIOMETRIC: 'latch_passkey_requires_biometric',
+  // Latch backend auth tokens
+  ACCESS_TOKEN: 'latch_access_token',
+  REFRESH_TOKEN: 'latch_refresh_token',
+  USER_EMAIL: 'latch_user_email',
 } as const;
 
 interface WalletStore {
@@ -82,9 +86,12 @@ export const useWalletStore = create<WalletStore>((set) => ({
       SecureStore.deleteItemAsync(SECURE_KEYS.SMART_ACCOUNT),
       SecureStore.deleteItemAsync(SECURE_KEYS.PIN),
       SecureStore.deleteItemAsync(SECURE_KEYS.PENDING_MNEMONIC),
-      // SecureStore.deleteItemAsync(SECURE_KEYS.CREDENTIAL_ID),
-      // SecureStore.deleteItemAsync(SECURE_KEYS.KEY_DATA_HEX),
-      // SecureStore.deleteItemAsync(SECURE_KEYS.PASSKEY_PRIVATE_KEY),
+      SecureStore.deleteItemAsync(SECURE_KEYS.ACCESS_TOKEN),
+      SecureStore.deleteItemAsync(SECURE_KEYS.REFRESH_TOKEN),
+      SecureStore.deleteItemAsync(SECURE_KEYS.USER_EMAIL),
+      SecureStore.deleteItemAsync(SECURE_KEYS.CREDENTIAL_ID),
+      SecureStore.deleteItemAsync(SECURE_KEYS.KEY_DATA_HEX),
+      SecureStore.deleteItemAsync(SECURE_KEYS.PASSKEY_PRIVATE_KEY),
       // CREDENTIAL_ID, KEY_DATA_HEX, and PASSKEY_PRIVATE_KEY are intentionally
       // preserved — they are the user's on-chain identity. Deleting them causes
       // createPasskeyCredential() to generate a fresh random P-256 keypair on the
