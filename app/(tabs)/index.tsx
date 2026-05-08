@@ -2,16 +2,17 @@ import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
 import TransactionItem from '@/src/components/shared/TransactionItem';
+import { useDrawer } from '@/src/context/drawer-context';
 import { useStellarTransactions } from '@/src/hooks/use-stellar-transactions';
 import { useWalletStore } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
 import { useAppTheme } from '@/src/theme/ThemeContext';
-import { useDrawer } from '@/src/context/drawer-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
 import { Horizon } from '@stellar/stellar-sdk';
 import { useQuery } from '@tanstack/react-query';
 import { ImageBackground } from 'expo-image';
+import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import {
@@ -218,7 +219,7 @@ const Home = () => {
         <Box flexDirection="row" justifyContent="space-around" paddingHorizontal="m" mb="xl" mt="m">
           {[
             { label: 'Add', icon: require('@/src/assets/icon/plus-big.png') },
-            { label: 'Send', icon: require('@/src/assets/icon/ArrowUp.png') },
+            { label: 'Send', icon: require('@/src/assets/icon/ArrowUp.png'), route: '/send-token' },
             { label: 'Receive', icon: require('@/src/assets/icon/arrowDown.png') },
             {
               label: 'Swap',
@@ -226,7 +227,14 @@ const Home = () => {
             },
           ].map((item, index) => (
             <Box key={index} alignItems="center" gap="s">
-              <TouchableOpacity activeOpacity={0.7}>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => {
+                  if ('route' in item && item.route) {
+                    router.push(item.route as any);
+                  }
+                }}
+              >
                 <Box
                   width={68}
                   height={68}

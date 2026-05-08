@@ -3,6 +3,7 @@ import { createTheme } from '@shopify/restyle';
 const palette = {
   black: '#000000',
   white: '#FFFFFF',
+  cardbg: '#1c1c1c',
 
   gray100: '#F2F2F7',
   gray200: '#E5E5EA',
@@ -178,6 +179,7 @@ const sharedColors = {
   btnHover: '#6D3E04',
 
   black: palette.black,
+  cardbg: palette.cardbg,
   textWhite: palette.white,
   white: palette.white,
   inputError: palette.inputError,
