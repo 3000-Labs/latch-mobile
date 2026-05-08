@@ -149,11 +149,13 @@ const Biometrics = () => {
         setBiometricIcon('finger-print');
       }
 
-      // 2. Check whether biometric unlock is enabled.
-      const enabled = await AsyncStorage.getItem(BIOMETRIC_ENABLED_KEY);
-      setBiometricEnabledForUnlock(enabled === 'true');
+      // 2. Use biometrics if the device has them enrolled; PIN is always the fallback.
+      const hasHardware = await LocalAuthentication.hasHardwareAsync();
+      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+      const biometricAvailable = hasHardware && isEnrolled;
+      setBiometricEnabledForUnlock(biometricAvailable);
 
-      if (enabled === 'true') {
+      if (biometricAvailable) {
         const result = await LocalAuthentication.authenticateAsync({
           promptMessage: 'Unlock Latch',
           disableDeviceFallback: true,

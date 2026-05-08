@@ -43,29 +43,24 @@ const STAGE_LABELS: Record<Stage, string> = {
 };
 
 /**
- * Require successful biometric authentication.
- * Throws if the device has no enrolled biometrics or if the user cancels / fails auth.
+ * Attempt biometric authentication. Returns true if successful, false if unavailable or declined.
+ * Never throws — PIN (already verified at unlock) is the fallback.
  */
-async function requireBiometricAuth(promptMessage: string): Promise<void> {
+async function tryBiometricAuth(promptMessage: string): Promise<boolean> {
   const hasHardware = await LocalAuthentication.hasHardwareAsync();
   const isEnrolled = await LocalAuthentication.isEnrolledAsync();
 
   if (!hasHardware || !isEnrolled) {
-    throw new Error(
-      'Biometric authentication is required to deploy your smart account. ' +
-        'Please enroll a biometric (fingerprint or face) on your device and try again.',
-    );
+    return false;
   }
 
   const result = await LocalAuthentication.authenticateAsync({
     promptMessage,
     disableDeviceFallback: false,
-    cancelLabel: 'Cancel',
+    cancelLabel: 'Use PIN',
   });
 
-  if (!result.success) {
-    throw new Error('Biometric authentication failed. Please try again.');
-  }
+  return result.success;
 }
 
 /**
@@ -90,12 +85,13 @@ async function getOrCreatePasskeyCredentials(): Promise<{
     return { credentialId: existingCredId, keyDataHex: existingKeyData };
   }
 
-  // Credentials missing — re-create with the auth mode that was chosen at setup.
-  const requiresBiometric = await SecureStore.getItemAsync(SECURE_KEYS.PASSKEY_REQUIRES_BIOMETRIC);
-  const useBiometric = requiresBiometric !== 'false';
+  // Credentials missing — re-create, preferring biometrics if the device supports them.
+  const hasHardware = await LocalAuthentication.hasHardwareAsync();
+  const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+  const useBiometric = hasHardware && isEnrolled;
 
   if (useBiometric) {
-    await requireBiometricAuth('Authenticate to create your secure passkey');
+    await tryBiometricAuth('Authenticate to create your secure passkey');
   }
 
   const credential = createPasskeyCredential();
@@ -108,7 +104,7 @@ const DeployAccount = () => {
   const theme = useTheme<Theme>();
   const statusBarStyle = useStatusBarStyle();
   const router = useRouter();
-  const { setActiveWallet, setSmartAccountAddress, smartAccountAddress } = useWalletStore();
+  const { setActiveWallet, setSmartAccountAddress } = useWalletStore();
 
   const [stage, setStage] = useState<Stage>('auth');
   const [errorMsg, setErrorMsg] = useState('');
@@ -184,7 +180,7 @@ const DeployAccount = () => {
         if (!cancelled) {
           // Surface success — user explicitly taps "Go to Dashboard" to proceed.
           setStage('success');
-          setTimeout(goToDashboard, 1500);
+          setTimeout(() => goToDashboard(deployedAddress), 1500);
         }
       } catch (err: any) {
         __DEV__ && console.log(err);
@@ -203,7 +199,7 @@ const DeployAccount = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [retryCount]);
 
-  const goToDashboard = () => {
+  const goToDashboard = (address: string) => {
     router.replace({
       pathname: '/(auth)/thank-you',
       params: {
@@ -211,7 +207,7 @@ const DeployAccount = () => {
         subtext: 'Start using your secure Stellar wallet today',
         buttonLabel: 'Go to Dashboard',
         imageSource: 'success',
-        accountAddress: smartAccountAddress || '',
+        accountAddress: address,
       },
     });
   };

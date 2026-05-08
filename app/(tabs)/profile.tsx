@@ -1,3 +1,6 @@
+import LogoutItem from '@/src/components/profile/LogoutItem';
+import ProfileCard from '@/src/components/profile/ProfileCard';
+import SettingItem from '@/src/components/profile/SettingItem';
 import Box from '@/src/components/shared/Box';
 import Switch from '@/src/components/shared/Switch';
 import Text from '@/src/components/shared/Text';
@@ -7,16 +10,13 @@ import { Theme } from '@/src/theme/theme';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '@shopify/restyle';
-import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useState } from 'react';
-import { Alert, Dimensions, ScrollView, TouchableOpacity } from 'react-native';
+import { Alert, ScrollView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BIOMETRIC_ENABLED_KEY } from '../(auth)/biometric';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const DRAWER_WIDTH = SCREEN_WIDTH * 0.85;
+import { BIOMETRIC_ENABLED_KEY } from '../(auth)/biometric';
 
 const Profile = () => {
   const theme = useTheme<Theme>();
@@ -41,63 +41,9 @@ const Profile = () => {
     ]);
   };
 
-  const SettingItem = ({
-    icon,
-    label,
-    value,
-    onPress,
-    showChevron = true,
-    rightElement,
-  }: {
-    icon: keyof typeof Ionicons.glyphMap;
-    label: string;
-    value?: string;
-    onPress?: () => void;
-    showChevron?: boolean;
-    rightElement?: React.ReactNode;
-  }) => (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
-      <Box
-        flexDirection="row"
-        alignItems="center"
-        paddingVertical="m"
-        paddingHorizontal="m"
-        backgroundColor="bg900"
-        borderRadius={16}
-        mb="s"
-      >
-        <Box
-          width={36}
-          height={36}
-          borderRadius={10}
-          backgroundColor="bg800"
-          justifyContent="center"
-          alignItems="center"
-          mr="m"
-        >
-          <Ionicons name={icon} size={20} color={theme.colors.textPrimary} />
-        </Box>
-        <Text variant="p7" color="textPrimary" flex={1}>
-          {label}
-        </Text>
-        {value && (
-          <Text variant="p7" color="textSecondary" mr="s">
-            {value}
-          </Text>
-        )}
-        {rightElement}
-        {showChevron && (
-          <Ionicons name="chevron-forward" size={20} color={theme.colors.textSecondary} />
-        )}
-      </Box>
-    </TouchableOpacity>
-  );
-
   return (
-    <Box flex={1} backgroundColor="mainBackground" style={{ paddingTop: insets.top }}>
+    <Box flex={1} backgroundColor="cardbg" style={{ paddingTop: insets.top }}>
       <StatusBar style="light" />
-
-      {/* Header */}
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -108,35 +54,8 @@ const Profile = () => {
             <Ionicons name="close" size={28} color={theme.colors.textPrimary} />
           </TouchableOpacity>
         </Box>
-        {/* Profile Card */}
-        <Box alignItems="center" mb="xl">
-          <Box
-            width={DRAWER_WIDTH - 32}
-            backgroundColor="bg900"
-            borderRadius={24}
-            height={120}
-            paddingVertical="m"
-            alignItems="center"
-          >
-            <Box mb="s">
-              <Image
-                source={require('@/src/assets/token/user.png')}
-                style={{ width: 40, height: 40, borderRadius: 40 }}
-              />
-            </Box>
-            <Text variant="h10" color="textPrimary" mb="xs">
-              German Bushbaby
-            </Text>
-            <Box flexDirection="row" alignItems="center">
-              <Text variant="p7" color="textSecondary" mr="xs">
-                GABC...XYZ1
-              </Text>
-              <TouchableOpacity>
-                <Ionicons name="copy-outline" size={14} color={theme.colors.textSecondary} />
-              </TouchableOpacity>
-            </Box>
-          </Box>
-        </Box>
+
+        <ProfileCard name="German Bushbaby" address="GABC...XYZ1" />
 
         <Box paddingHorizontal="m">
           {/* Account Section */}
@@ -145,6 +64,14 @@ const Profile = () => {
               Account
             </Text>
             <SettingItem icon="person-outline" label="Account" />
+            <SettingItem
+              icon="book-outline"
+              label="Address Book"
+              onPress={() => {
+                closeDrawer();
+                router.push('/address-book');
+              }}
+            />
             <SettingItem icon="key-outline" label="Recovery Phrase" />
           </Box>
 
@@ -169,8 +96,23 @@ const Profile = () => {
             <Text variant="p7" color="textSecondary" mb="s" style={{ marginLeft: 4 }}>
               Preferences
             </Text>
-            <SettingItem icon="globe-outline" label="Network" value="Public" />
-            <SettingItem icon="notifications-outline" label="Notifications" />
+            <SettingItem
+              icon="globe-outline"
+              label="Network"
+              value="Public"
+              onPress={() => {
+                closeDrawer();
+                router.push('/network-settings');
+              }}
+            />
+            <SettingItem
+              icon="notifications-outline"
+              label="Notifications"
+              onPress={() => {
+                closeDrawer();
+                router.push('/notification');
+              }}
+            />
           </Box>
 
           {/* Support Section */}
@@ -178,37 +120,26 @@ const Profile = () => {
             <Text variant="p7" color="textSecondary" mb="s" style={{ marginLeft: 4 }}>
               Support
             </Text>
-            <SettingItem icon="help-circle-outline" label="Help & Support" />
-            <SettingItem icon="information-circle-outline" label="About Latch" value="v1.0.0" />
+            <SettingItem
+              icon="help-circle-outline"
+              label="Help & Support"
+              onPress={() => {
+                closeDrawer();
+                router.push('/help-support');
+              }}
+            />
+            <SettingItem
+              icon="information-circle-outline"
+              label="About Latch"
+              value="v1.0.0"
+              onPress={() => {
+                closeDrawer();
+                router.push('/about');
+              }}
+            />
           </Box>
-          {/* Logout — fixed at the bottom of the drawer */}
-          <Box pb="l" style={{ paddingBottom: insets.bottom + 16 }}>
-            <TouchableOpacity onPress={handleLogout} activeOpacity={0.7}>
-              <Box
-                flexDirection="row"
-                alignItems="center"
-                paddingVertical="m"
-                paddingHorizontal="m"
-                backgroundColor="bg900"
-                borderRadius={16}
-              >
-                <Box
-                  width={36}
-                  height={36}
-                  borderRadius={10}
-                  backgroundColor="bg800"
-                  justifyContent="center"
-                  alignItems="center"
-                  mr="m"
-                >
-                  <Ionicons name="log-out-outline" size={20} color={theme.colors.danger900} />
-                </Box>
-                <Text variant="p7" color="danger900" flex={1}>
-                  Log Out
-                </Text>
-              </Box>
-            </TouchableOpacity>
-          </Box>
+
+          <LogoutItem onPress={handleLogout} bottomInset={insets.bottom} />
         </Box>
       </ScrollView>
     </Box>
