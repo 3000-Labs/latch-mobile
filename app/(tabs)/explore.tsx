@@ -264,23 +264,6 @@ const Explore = () => {
           </Box>
         </Box>
       </ScrollView>
-
-      {/* Floating Marker (The 'M' badge) */}
-      <Box position="absolute" right={theme.spacing.m} top={400}>
-        <Box
-          width={40}
-          height={40}
-          borderRadius={20}
-          backgroundColor="blue"
-          justifyContent="center"
-          alignItems="center"
-          style={{ backgroundColor: '#2D6BFF', borderBottomLeftRadius: 0 }}
-        >
-          <Text color="white" variant="h10">
-            M
-          </Text>
-        </Box>
-      </Box>
     </Box>
   );
 };

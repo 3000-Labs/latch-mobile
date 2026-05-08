@@ -220,7 +220,11 @@ const Home = () => {
           {[
             { label: 'Add', icon: require('@/src/assets/icon/plus-big.png') },
             { label: 'Send', icon: require('@/src/assets/icon/ArrowUp.png'), route: '/send-token' },
-            { label: 'Receive', icon: require('@/src/assets/icon/arrowDown.png') },
+            {
+              label: 'Receive',
+              icon: require('@/src/assets/icon/arrowDown.png'),
+              route: '/receive-token',
+            },
             {
               label: 'Swap',
               icon: require('@/src/assets/icon/RepeatGold.png'),

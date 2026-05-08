@@ -37,6 +37,7 @@ function RootLayoutContent() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="send-token" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="receive-token" options={{ presentation: 'modal' }} />
       </Stack>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <Toast />
