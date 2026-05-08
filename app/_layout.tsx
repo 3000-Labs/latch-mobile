@@ -43,6 +43,7 @@ function RootLayoutContent() {
         <Stack.Screen name="notification" options={{ presentation: 'modal' }} />
         <Stack.Screen name="help-support" options={{ presentation: 'modal' }} />
         <Stack.Screen name="about" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="qrcode-scan" options={{ headerShown: false }} />
       </Stack>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <Toast />

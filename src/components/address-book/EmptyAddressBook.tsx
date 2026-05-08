@@ -3,6 +3,7 @@ import { TouchableOpacity } from 'react-native';
 
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
+import { Image } from 'react-native';
 
 interface EmptyAddressBookProps {
   onAdd: () => void;
@@ -10,7 +11,13 @@ interface EmptyAddressBookProps {
 
 const EmptyAddressBook = ({ onAdd }: EmptyAddressBookProps) => {
   return (
-    <Box flex={1} justifyContent="center" alignItems="center" paddingHorizontal="xl">
+    <Box flex={1} alignItems="center" paddingHorizontal="xl">
+      <Image
+        source={require('@/src/assets/images/empty.png')}
+        style={{ width: 186, height: 156, marginTop: 130 }}
+        resizeMode="contain"
+      />
+
       <Text variant="h7" color="textPrimary" fontWeight="700" textAlign="center" mb="xs">
         Empty Address Book
       </Text>

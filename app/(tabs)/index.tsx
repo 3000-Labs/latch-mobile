@@ -148,7 +148,7 @@ const Home = () => {
               color={isDark ? theme.colors.bgDark700 : theme.colors.bgDark100}
             />
           </TouchableOpacity>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push('/qrcode-scan')}>
             <MaterialCommunityIcons
               name="qrcode-scan"
               size={24}
