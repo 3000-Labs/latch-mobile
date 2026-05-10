@@ -11,7 +11,7 @@ export default {
   expo: {
     owner: 'frankiepower',
     name: appName === 'Latch' ? 'Latch' : 'Latch QA',
-    slug: appName === 'Latch' ? 'Latch' : 'Latch-QA',
+    slug: 'latch-mobile',
     version: buildVersion,
     orientation: 'portrait',
     icon: appName === 'Latch' ? './assets/images/icon.png' : './assets/images/iconStaging.png',
@@ -25,8 +25,10 @@ export default {
     ios: {
       supportsTablet: true,
       bundleIdentifier: appName === 'Latch' ? 'co.getlatch.latchapp' : 'qa.getlatch.app',
+      appleTeamId: 'P5QF5H77W5',
       buildNumber,
       infoPlist: {
+        ITSAppUsesNonExemptEncryption: false,
         NSFaceIDUsageDescription: 'Allow $(PRODUCT_NAME) to use FaceID for secure access.',
         // Allow outbound HTTPS to Stellar RPC + Horizon endpoints.
         // ATS by default requires forward-secrecy ciphers; some Stellar infrastructure
