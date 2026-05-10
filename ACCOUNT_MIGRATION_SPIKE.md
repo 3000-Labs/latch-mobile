@@ -256,3 +256,56 @@ Migration is complete when:
 4. The user can execute a transaction from the smart account using the same device key they
    used to control the G-address.
 5. (Optional) The G-address has been merged and removed from the ledger.
+
+---
+
+## Implementation Notes (for the engineer picking this up)
+
+### Mental model
+
+The migration is three beats:
+
+1. **Discovery** — read-only. Determine what's on the G-address and whether a C-address already exists.
+2. **Build** — construct the transfer transactions from what discovery found.
+3. **Approve** — user signs once with their Ed25519 keypair (same key that controls the G-address) and the transactions are submitted.
+
+### What is already built — do not rebuild
+
+The `creation-stage` branch has most of the infrastructure you need:
+
+- **Smart account lookup** — `src/api/smart-account.ts` → `lookupSmartAccount(publicKeyHex)` already does the RPC existence check via `getLedgerEntries`. Use this directly for step 1 of discovery.
+- **Horizon G-address query** — `app/(tabs)/index.tsx` already queries `Horizon.Server` for the G-address balance. Extract that pattern into a shared utility.
+- **Signing infrastructure** — `src/lib/seed-wallet.ts` → `restoreStellarWallet()` gives you the full `Keypair` from the stored mnemonic. The G-address Ed25519 keypair signs the migration transactions, not the passkey.
+- **XHR-based Soroban RPC transport** — `src/api/smart-account.ts` → `sorobanCall()`. Use this for any Soroban simulation calls; do not use Axios for RPC (Android TLS issue, documented in `docs/smart-account-deployment-fixes.md`).
+- **Wallet store** — `src/store/wallet.ts` → `activeWallet` (holds the keypair) and `smartAccountAddress` (the C-address) are already hydrated on app launch via `rehydrateWallet()`.
+
+### Reference wallet — read this before writing any transaction code
+
+`reference/freighter-mobile/` is a full Stellar mobile wallet. The following files contain the exact patterns you need:
+
+| What you need | Reference file | Function |
+| --- | --- | --- |
+| Enumerate G-address balances + trustlines | `src/services/backend.ts` | `fetchBalances()` |
+| Build classic XLM payment op | `src/services/transactionService.ts` | `buildPaymentTransaction()` |
+| Resolve SAC contract ID from CODE:ISSUER asset | `src/helpers/soroban.ts` | `getTokenSacAddress()` |
+| Build SAC `token::transfer` invocation | `src/services/transactionService.ts` | `buildSorobanTransferOperation()` |
+| Submit to Horizon with retry | `src/services/stellar.ts` | `submitTx()` |
+| Soroban RPC server setup | `src/services/stellar.ts` | `getSorobanRpcServer()` |
+
+`AccountMerge` is not in the reference wallet. It is a single `Operation.accountMerge({ destination })` call added to the transaction builder — straightforward to write.
+
+### Key constraint: who signs what
+
+The migration transactions are **classic Stellar transactions signed by the G-address keypair**. This is the Ed25519 key from the user's mnemonic (`activeWallet.keypair`). The passkey/P-256 credential is the smart account signer and is not involved in migration.
+
+### Suggested file layout
+
+```text
+src/lib/migration.ts          — discovery function + state derivation
+src/api/migration-tx.ts       — transaction builders (XLM payment, SAC transfer, AccountMerge)
+app/(migration)/index.tsx     — entry: runs discovery, routes to correct step
+app/(migration)/sweep.tsx     — shows what will move, user confirms
+app/(migration)/success.tsx   — post-migration confirmation
+```
+
+The migration state machine (§7 above) can be derived entirely from two on-chain reads inside `migration.ts`: the G-address balance from Horizon and the C-address existence check from `lookupSmartAccount()`. No AsyncStorage or backend state needed.
