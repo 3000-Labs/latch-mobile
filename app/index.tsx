@@ -1,6 +1,6 @@
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { SECURE_KEYS } from '@/src/store/wallet';
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import React, { useCallback, useEffect } from 'react';
@@ -15,7 +15,6 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-const ONBOARDING_KEY = 'latch_onboarding_complete';
 
 const AnimatedLetter = ({
   opacity,
@@ -49,19 +48,17 @@ const SplashAnimation = () => {
 
   const checkUserStatusAndNavigate = useCallback(async () => {
     try {
-      const storedMnemonic = await SecureStore.getItemAsync('latch_mnemonic');
-      if (storedMnemonic) {
+      // SECURE_KEYS.SMART_ACCOUNT is written by deploy-account.tsx for BOTH
+      // the passkey path and the Ed25519 (import-phrase) path.
+      // Its presence is the single source of truth that a wallet exists on this device.
+      const smartAccountAddress = await SecureStore.getItemAsync(SECURE_KEYS.SMART_ACCOUNT);
+      if (smartAccountAddress) {
         router.replace({ pathname: '/(auth)/biometric', params: { mode: 'unlock' } });
         return;
       }
 
-      const onboardingComplete = await AsyncStorage.getItem(ONBOARDING_KEY);
-      if (onboardingComplete === 'true') {
-        // router.replace('/(tabs)');
-        router.replace({ pathname: '/(auth)/biometric', params: { mode: 'unlock' } });
-      } else {
-        router.replace('/onboarding');
-      }
+      // No deployed wallet yet — show onboarding.
+      router.replace('/onboarding');
     } catch {
       router.replace('/onboarding');
     }

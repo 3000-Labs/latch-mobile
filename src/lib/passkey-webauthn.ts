@@ -19,7 +19,7 @@
  * Buffer polyfill bug where Buffer.toString('base64') can emit "0,255,..." in React Native.
  */
 
-import { SECURE_KEYS } from '@/src/store/wallet';
+import { getPasskeyStorageKeys, SECURE_KEYS } from '@/src/store/wallet';
 import { Address, hash, xdr } from '@stellar/stellar-sdk';
 import * as SecureStore from 'expo-secure-store';
 import QuickCrypto from 'react-native-quick-crypto';
@@ -128,6 +128,34 @@ export async function storePasskeyCredential(
     // Hardware-backed on iOS: key exists only while device has a passcode set.
     // On Android: key is in hardware Keystore, accessible without additional auth.
     await SecureStore.setItemAsync(SECURE_KEYS.PASSKEY_PRIVATE_KEY, credential.privateKeyHex, {
+      keychainAccessible: SecureStore.WHEN_PASSCODE_SET_THIS_DEVICE_ONLY,
+    });
+  }
+}
+
+/**
+ * Store a passkey credential at a specific list index.
+ * Index 0 uses the original non-indexed keys (same as storePasskeyCredential).
+ * Index 1+ uses indexed keys so each passkey account has its own credential.
+ */
+export async function storePasskeyCredentialAtIndex(
+  credential: PasskeyCredential,
+  listIndex: number,
+  requireBiometric = true,
+): Promise<void> {
+  const keys = getPasskeyStorageKeys(listIndex);
+
+  await SecureStore.setItemAsync(keys.credentialId, credential.credentialId);
+  await SecureStore.setItemAsync(keys.keyDataHex, credential.keyDataHex);
+  await SecureStore.setItemAsync(keys.requiresBiometric, requireBiometric ? 'true' : 'false');
+
+  if (requireBiometric) {
+    await SecureStore.setItemAsync(keys.privateKey, credential.privateKeyHex, {
+      requireAuthentication: true,
+      authenticationPrompt: 'Authenticate to access your Latch wallet',
+    });
+  } else {
+    await SecureStore.setItemAsync(keys.privateKey, credential.privateKeyHex, {
       keychainAccessible: SecureStore.WHEN_PASSCODE_SET_THIS_DEVICE_ONLY,
     });
   }

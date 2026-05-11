@@ -213,6 +213,7 @@ export interface LookupResult {
 export async function deploySmartAccount(
   credentialId: string,
   keyDataHex: string,
+  skipCache = false,
 ): Promise<DeployResult> {
   if (!keyDataHex || keyDataHex.length < 132) {
     return {
@@ -222,9 +223,13 @@ export async function deploySmartAccount(
     };
   }
 
-  // Check SecureStore first — survives across app restarts
-  const stored = await SecureStore.getItemAsync(SECURE_KEYS.SMART_ACCOUNT);
-  if (stored) return { smartAccountAddress: stored, alreadyDeployed: true };
+  // Check SecureStore first — survives across app restarts.
+  // Skipped when deploying a new additional account (skipCache=true), because
+  // SMART_ACCOUNT holds the ACTIVE account's address, not this new account's.
+  if (!skipCache) {
+    const stored = await SecureStore.getItemAsync(SECURE_KEYS.SMART_ACCOUNT);
+    if (stored) return { smartAccountAddress: stored, alreadyDeployed: true };
+  }
 
   try {
     const config = getConfig();

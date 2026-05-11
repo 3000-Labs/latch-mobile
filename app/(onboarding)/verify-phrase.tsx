@@ -5,7 +5,7 @@ import { useTheme } from '@shopify/restyle';
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Dimensions, Image, ScrollView, TouchableOpacity, Vibration, View } from 'react-native';
 
 import Box from '@/src/components/shared/Box';
@@ -22,7 +22,10 @@ const VerifyPhrase = () => {
   const router = useRouter();
 
   const { pendingWallet, clearPendingWallet } = useWalletStore();
-  const recoveryPhrase = pendingWallet?.mnemonic.split(' ') ?? [];
+  const recoveryPhrase = useMemo(
+    () => pendingWallet?.mnemonic.split(' ') ?? [],
+    [pendingWallet?.mnemonic],
+  );
 
   const [missingIndices, setMissingIndices] = useState<number[]>([]);
   const [shuffledBank, setShuffledBank] = useState<string[]>([]);

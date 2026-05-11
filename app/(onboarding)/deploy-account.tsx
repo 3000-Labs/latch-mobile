@@ -19,7 +19,7 @@ import Button from '@/src/components/shared/Button';
 import Text from '@/src/components/shared/Text';
 import { createPasskeyCredential, storePasskeyCredential } from '@/src/lib/passkey-webauthn';
 import { restoreStellarWallet } from '@/src/lib/seed-wallet';
-import { SECURE_KEYS, useWalletStore } from '@/src/store/wallet';
+import { SECURE_KEYS, useWalletStore, WalletAccount } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
 import { useTheme } from '@shopify/restyle';
 import * as LocalAuthentication from 'expo-local-authentication';
@@ -104,7 +104,7 @@ const DeployAccount = () => {
   const theme = useTheme<Theme>();
   const statusBarStyle = useStatusBarStyle();
   const router = useRouter();
-  const { setActiveWallet, setSmartAccountAddress } = useWalletStore();
+  const { setActiveWallet, setSmartAccountAddress, accounts } = useWalletStore();
 
   const [stage, setStage] = useState<Stage>('auth');
   const [errorMsg, setErrorMsg] = useState('');
@@ -164,7 +164,32 @@ const DeployAccount = () => {
         // ── Step 3: persist smart account address ─────────────────────────────
         await SecureStore.setItemAsync(SECURE_KEYS.SMART_ACCOUNT, deployedAddress);
 
-        // ── Step 4: mark onboarding complete and hydrate store ────────────────
+        // ── Step 4: write the multi-account array (account 0) if not yet set ──
+        if (accounts.length === 0) {
+          let account0: WalletAccount;
+          if (storedMnemonic) {
+            const wallet = restoreStellarWallet(storedMnemonic);
+            account0 = {
+              index: 0,
+              name: 'Account 1',
+              gAddress: wallet.gAddress,
+              publicKeyHex: wallet.publicKeyHex,
+              smartAccountAddress: deployedAddress,
+            };
+          } else {
+            account0 = {
+              index: -1,
+              name: 'Account 1',
+              gAddress: '',
+              publicKeyHex: '',
+              smartAccountAddress: deployedAddress,
+            };
+          }
+          await SecureStore.setItemAsync(SECURE_KEYS.ACCOUNTS, JSON.stringify([account0]));
+          await SecureStore.setItemAsync(SECURE_KEYS.ACTIVE_ACCOUNT_INDEX, '0');
+        }
+
+        // ── Step 5: mark onboarding complete and hydrate store ────────────────
         await AsyncStorage.setItem('latch_onboarding_complete', 'true');
         if (storedMnemonic) {
           const wallet = restoreStellarWallet(storedMnemonic);

@@ -15,7 +15,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ImageBackground } from 'expo-image';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { memo, useEffect, useState } from 'react';
+import React, { memo, useState } from 'react';
 import {
   Dimensions,
   FlatList,
@@ -28,7 +28,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-const RaysBackground = memo(() => {
+function RaysBackgroundInner() {
   return (
     <Box position="absolute" style={{ top: 0, left: '28%' }}>
       <ImageBackground
@@ -41,7 +41,8 @@ const RaysBackground = memo(() => {
       />
     </Box>
   );
-});
+}
+const RaysBackground = memo(RaysBackgroundInner);
 const banners = [
   {
     id: 1,
@@ -62,13 +63,14 @@ const Home = () => {
   const statusBarStyle = useStatusBarStyle();
   const insets = useSafeAreaInsets();
 
-  const { smartAccountAddress, rehydrateWallet } = useWalletStore();
+  const { smartAccountAddress, accounts, activeAccountIndex } = useWalletStore();
   const [showBalance, setShowBalance] = useState(true);
   const [bannerIndex, setBannerIndex] = useState(0);
 
-  useEffect(() => {
-    rehydrateWallet();
-  }, [rehydrateWallet]);
+  const activeAccount = accounts[activeAccountIndex];
+  const activeAccountName = activeAccount?.name ?? 'Account 1';
+
+  const { openDrawer } = useDrawer();
 
   const {
     data: account,
@@ -114,8 +116,6 @@ const Home = () => {
   const XLM_PRICE = 0.16; // TODO: Fetch real-time price from API
   const usdBalance = spendableXlm * XLM_PRICE;
 
-  const { openDrawer } = useDrawer();
-
   return (
     <Box flex={1} backgroundColor="mainBackground">
       <StatusBar style={statusBarStyle} />
@@ -140,12 +140,20 @@ const Home = () => {
             gap="s"
             style={!isDark ? { borderWidth: 1, borderColor: '#F0F0F0' } : {}}
           >
-            <Image
-              source={{ uri: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100' }}
-              style={{ width: 32, height: 32, borderRadius: 16 }}
-            />
+            <Box
+              width={32}
+              height={32}
+              borderRadius={16}
+              backgroundColor="primary700"
+              justifyContent="center"
+              alignItems="center"
+            >
+              <Text variant="p7" color="textWhite" fontWeight="700">
+                {activeAccountName.charAt(0)}
+              </Text>
+            </Box>
             <Text variant="h11" color="textPrimary" fontWeight="700">
-              Crownz
+              {activeAccountName}
             </Text>
             <Ionicons name="chevron-down" size={14} color={theme.colors.textPrimary} />
           </Box>
@@ -351,6 +359,7 @@ const Home = () => {
           )}
         </Box>
       </ScrollView>
+
     </Box>
   );
 };

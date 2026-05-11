@@ -1,3 +1,4 @@
+import AccountSwitcherSheet from '@/src/components/account/AccountSwitcherSheet';
 import LogoutItem from '@/src/components/profile/LogoutItem';
 import ProfileCard from '@/src/components/profile/ProfileCard';
 import SettingItem from '@/src/components/profile/SettingItem';
@@ -7,24 +8,29 @@ import Text from '@/src/components/shared/Text';
 import { useDrawer } from '@/src/context/drawer-context';
 import { useWalletStore } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
+import { useAppTheme } from '@/src/theme/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '@shopify/restyle';
+import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useState } from 'react';
 import { Alert, ScrollView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
 import { BIOMETRIC_ENABLED_KEY } from '../(auth)/biometric';
 
 const Profile = () => {
   const theme = useTheme<Theme>();
+  const { isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { clearAll } = useWalletStore();
+  const { clearAll, accounts, activeAccountIndex } = useWalletStore();
   const { closeDrawer } = useDrawer();
   const [biometricsEnabled, setBiometricsEnabled] = useState(false);
+  const [switcherVisible, setSwitcherVisible] = useState(false);
+
+  const activeAccount = accounts[activeAccountIndex];
 
   const handleLogout = () => {
     Alert.alert('Log Out', 'Are you sure you want to log out?', [
@@ -54,8 +60,66 @@ const Profile = () => {
             <Ionicons name="close" size={28} color={theme.colors.textPrimary} />
           </TouchableOpacity>
         </Box>
+        <ProfileCard
+          name={activeAccount?.name}
+          address={activeAccount?.smartAccountAddress || activeAccount?.gAddress}
+          onCopyAddress={async () => {
+            // COPY ADDRESS
+            if (activeAccount?.smartAccountAddress) {
+              await Clipboard.setStringAsync(activeAccount?.smartAccountAddress);
+            }
+          }}
+          onPress={() => setSwitcherVisible(true)}
+        />
 
-        <ProfileCard name="German Bushbaby" address="GABC...XYZ1" />
+        {/* ── Account Switcher Row ─────────────────────────────────── */}
+        {/* <Box paddingHorizontal="m" mb="l">
+          <Text variant="p7" color="textSecondary" mb="s" style={{ marginLeft: 4 }}>
+            My Accounts
+          </Text>
+
+          <TouchableOpacity activeOpacity={0.7} onPress={() => setSwitcherVisible(true)}>
+            <Box
+              flexDirection="row"
+              alignItems="center"
+              gap="m"
+              paddingVertical="s"
+              paddingHorizontal="s"
+              borderRadius={12}
+              style={{
+                backgroundColor: isDark ? theme.colors.gray800 : theme.colors.primary700 + '14',
+              }}
+            >
+              <Box
+                width={40}
+                height={40}
+                borderRadius={20}
+                backgroundColor="primary700"
+                justifyContent="center"
+                alignItems="center"
+              >
+                <Text variant="p7" color="textWhite" fontWeight="700">
+                  {activeAccount?.name.charAt(0) ?? 'A'}
+                </Text>
+              </Box>
+              <Box flex={1}>
+                <Text variant="h11" color="textPrimary" fontWeight="700">
+                  {activeAccount?.name ?? 'Account 1'}
+                </Text>
+                <Text variant="p7" color="textSecondary">
+                  {activeAccount?.smartAccountAddress
+                    ? shortenAddress(activeAccount.smartAccountAddress)
+                    : activeAccount?.gAddress
+                      ? shortenAddress(activeAccount.gAddress)
+                      : 'Passkey account'}
+                </Text>
+              </Box>
+              <Ionicons name="chevron-forward" size={18} color={theme.colors.textSecondary} />
+            </Box>
+          </TouchableOpacity>
+        </Box> */}
+
+        <AccountSwitcherSheet visible={switcherVisible} onClose={() => setSwitcherVisible(false)} />
 
         <Box paddingHorizontal="m">
           {/* Account Section */}
@@ -63,7 +127,6 @@ const Profile = () => {
             <Text variant="p7" color="textSecondary" mb="s" style={{ marginLeft: 4 }}>
               Account
             </Text>
-            <SettingItem icon="person-outline" label="Account" />
             <SettingItem
               icon="book-outline"
               label="Address Book"
