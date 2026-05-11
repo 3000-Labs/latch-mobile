@@ -2,6 +2,7 @@ import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
 import TransactionItem from '@/src/components/shared/TransactionItem';
+import { BASE_RESERVE, BASE_RESERVE_MIN_COUNT, HORIZON_URL } from '@/src/constants/config';
 import { useDrawer } from '@/src/context/drawer-context';
 import { useStellarTransactions } from '@/src/hooks/use-stellar-transactions';
 import { useWalletStore } from '@/src/store/wallet';
@@ -14,7 +15,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ImageBackground } from 'expo-image';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useState } from 'react';
+import React, { memo, useEffect, useState } from 'react';
 import {
   Dimensions,
   FlatList,
@@ -26,9 +27,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const HORIZON_URL = 'https://horizon-testnet.stellar.org';
 
-const RaysBackground = () => {
+const RaysBackground = memo(() => {
   return (
     <Box position="absolute" style={{ top: 0, left: '28%' }}>
       <ImageBackground
@@ -41,7 +41,7 @@ const RaysBackground = () => {
       />
     </Box>
   );
-};
+});
 const banners = [
   {
     id: 1,
@@ -94,6 +94,17 @@ const Home = () => {
 
   const xlmBalance = account?.balances?.find((b) => b.asset_type === 'native')?.balance ?? '0.00';
 
+  // Minimum reserve the account must keep per Stellar protocol.
+  // Formula: (2 + subentry_count + num_sponsoring - num_sponsored) × 0.5 XLM
+  const minReserve = account
+    ? (BASE_RESERVE_MIN_COUNT +
+        account.subentry_count +
+        account.num_sponsoring -
+        account.num_sponsored) *
+      BASE_RESERVE
+    : 0;
+  const spendableXlm = Math.max(0, Number(xlmBalance) - minReserve);
+
   const handleRefresh = () => {
     refetchBalance();
     refetchTx();
@@ -101,7 +112,7 @@ const Home = () => {
 
   const recentTx = transactions?.slice(0, 5) ?? [];
   const XLM_PRICE = 0.16; // TODO: Fetch real-time price from API
-  const usdBalance = Number(xlmBalance) * XLM_PRICE;
+  const usdBalance = spendableXlm * XLM_PRICE;
 
   const { openDrawer } = useDrawer();
 
@@ -199,7 +210,11 @@ const Home = () => {
 
           <Box flexDirection="row" alignItems="center" gap="s" mt="xs">
             <Text variant="p7" color="textSecondary" fontWeight="600">
-              {Number(xlmBalance).toLocaleString()} XLM
+              {spendableXlm.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 7,
+              })}{' '}
+              XLM
             </Text>
             <Box
               backgroundColor={isDark ? 'gray900' : 'gray100'}

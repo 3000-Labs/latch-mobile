@@ -1,7 +1,7 @@
 import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
-import { useWalletStore } from '@/src/store/wallet';
+import { SECURE_KEYS, useWalletStore } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
@@ -80,7 +80,7 @@ const SetPin = () => {
 
               if (from === 'import-phrase') {
                 if (pendingWallet) {
-                  await SecureStore.setItemAsync('latch_mnemonic', pendingWallet.mnemonic);
+                  await SecureStore.setItemAsync(SECURE_KEYS.MNEMONIC, pendingWallet.mnemonic);
                   clearPendingWallet();
                 }
               }

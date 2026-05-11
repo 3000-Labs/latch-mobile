@@ -1,6 +1,4 @@
-import { Theme } from '@/src/theme/theme';
 import { useAppTheme } from '@/src/theme/ThemeContext';
-import { useTheme } from '@shopify/restyle';
 import { Image } from 'expo-image';
 import React from 'react';
 import Box from './Box';
@@ -17,22 +15,41 @@ interface TransactionItemProps {
   walletAddress: string | null;
 }
 
+const TOKEN_ICONS: Record<string, ReturnType<typeof require>> = {
+  ETH: require('@/src/assets/token/eth.png'),
+  USDT: require('@/src/assets/token/usdt.png'),
+};
+const DEFAULT_TOKEN_ICON = require('@/src/assets/token/stellar.png');
+
+const getTokenIcon = (code?: string) => TOKEN_ICONS[code?.toUpperCase() ?? ''] ?? DEFAULT_TOKEN_ICON;
+
+function formatRelativeTime(dateStr?: string): string {
+  if (!dateStr) return '';
+  const diffMs = Date.now() - new Date(dateStr).getTime();
+  const minutes = Math.floor(diffMs / 60_000);
+  if (minutes < 1) return 'Just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+function formatTokenAmount(amount: string, assetCode?: string): string {
+  const num = parseFloat(amount);
+  const code = assetCode || 'XLM';
+  // Trim trailing zeros but keep at least 2 decimal places
+  const formatted = num.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 7,
+  });
+  return `${formatted} ${code}`;
+}
+
 const TransactionItem = ({ tx, walletAddress }: TransactionItemProps) => {
-  const theme = useTheme<Theme>();
   const { isDark } = useAppTheme();
 
   const isSent = tx.from === walletAddress;
-
-  const getTokenIcon = (code?: string) => {
-    switch (code?.toUpperCase()) {
-      case 'ETH':
-        return require('@/src/assets/token/eth.png');
-      case 'USDT':
-        return require('@/src/assets/token/usdt.png');
-      default:
-        return require('@/src/assets/token/stellar.png');
-    }
-  };
 
   return (
     <Box
@@ -72,7 +89,7 @@ const TransactionItem = ({ tx, walletAddress }: TransactionItemProps) => {
       </Box>
       <Box flex={1} ml="m">
         <Text variant="h11" color="textPrimary" fontWeight="700">
-          {tx.assetCode || 'Stellar'}
+          {tx.assetCode || 'XLM'}
         </Text>
         <Text variant="p8" color="textSecondary" fontWeight="600" mt="xs">
           {isSent ? 'Sent' : 'Received'}
@@ -80,10 +97,10 @@ const TransactionItem = ({ tx, walletAddress }: TransactionItemProps) => {
       </Box>
       <Box alignItems="flex-end">
         <Text variant="h11" color="textPrimary" fontWeight="700">
-          {isSent ? '-' : '+'}${parseFloat(tx.amount).toFixed(2)}
+          {isSent ? '-' : '+'}{formatTokenAmount(tx.amount, tx.assetCode)}
         </Text>
         <Text variant="p8" color="textSecondary" fontWeight="600" mt="xs">
-          2hrs ago
+          {formatRelativeTime(tx.createdAt)}
         </Text>
       </Box>
     </Box>

@@ -1,17 +1,23 @@
 /**
  * Smart account API service.
  *
- * Wraps the latch backend endpoints for deploying and looking up
- * Soroban smart accounts. All heavy protocol work (bundler signing,
- * Soroban RPC simulation, contract deployment) runs server-side.
+ * Handles deploying and looking up Soroban smart accounts directly via
+ * the Soroban RPC. Bundler signing, simulation, and polling all run client-side.
  *
  * Ed25519 path (mobile seed wallet):
- *   POST /api/smart-account/factory  { publicKeyHex }
- *   GET  /api/smart-account/factory?pubkey=<hex>
+ *   deploySmartAccount(publicKeyHex)
+ *   lookupSmartAccount(publicKeyHex)
  *
  * Freighter / delegated G-address path:
- *   POST /api/smart-account/freighter  { gAddress }
- *   GET  /api/smart-account/freighter?gAddress=...
+ *   deploySmartAccountForGAddress(gAddress)
+ *   lookupSmartAccountByGAddress(gAddress)
+ *
+ * ⚠️  SECURITY NOTE — EXPO_PUBLIC_BUNDLER_SECRET
+ * EXPO_PUBLIC_* variables are baked into the JS bundle at build time and are
+ * readable by anyone who extracts the APK/IPA. The bundler keypair should be
+ * moved server-side (a backend endpoint that receives { publicKeyHex } and
+ * returns { smartAccountAddress }) before production. This is safe for testnet
+ * development only.
  */
 
 import {
@@ -80,14 +86,13 @@ function sorobanCall(rpcUrl: string, method: string, params: object): Promise<an
 function extractAddressFromMeta(resultMetaXdr: string): string | undefined {
   try {
     const meta = xdr.TransactionMeta.fromXDR(resultMetaXdr, 'base64');
-    //@ts-ignore - the SDK types don't reflect the v4 meta changes yet
-    const arm = meta.arm();
+    const arm = (meta as any).arm(); // SDK types don't reflect v4 meta changes yet
     let sorobanMeta: any;
     if (arm === 'v3') sorobanMeta = meta.v3().sorobanMeta();
     else if (arm === 'v4') sorobanMeta = (meta as any).v4().sorobanMeta();
     if (sorobanMeta) return scValToNative(sorobanMeta.returnValue());
   } catch (e) {
-    console.warn('Could not parse address from resultMetaXdr:', e);
+    if (__DEV__) console.warn('Could not parse address from resultMetaXdr:', e);
   }
   return undefined;
 }
@@ -117,8 +122,7 @@ function parseSimResult(raw: any): rpc.Api.SimulateTransactionSuccessResponse {
   } as unknown as rpc.Api.SimulateTransactionSuccessResponse;
 }
 
-// Load configuration from environment variables
-// Define configuration lazily using getters so we don't crash at module initialization
+// Load configuration lazily so we don't crash at module initialization
 const getTestnetConfig = () => ({
   rpcUrl: process.env.EXPO_PUBLIC_SOROBAN_RPC_URL || 'https://soroban-testnet.stellar.org',
   networkPassphrase: process.env.EXPO_PUBLIC_NETWORK_PASSPHRASE || Networks.TESTNET,
@@ -126,15 +130,14 @@ const getTestnetConfig = () => ({
   bundlerSecret: process.env.EXPO_PUBLIC_BUNDLER_SECRET,
 });
 
-const cache: Map<string, string> = new Map();
+// ─── Unified deployment cache ─────────────────────────────────────────────────
+// Keyed by publicKeyHex (Ed25519 path) or G-address (Freighter path).
+const deploymentCache = new Map<string, { smartAccountAddress: string; gAddress?: string }>();
 
-// In-memory cache
-const deployedAccounts: Map<string, { smartAccountAddress: string; gAddress: string }> = new Map();
-
-async function deriveSalt(publicKeyHex: string): Promise<Buffer> {
+async function deriveSalt(input: string): Promise<Buffer> {
   const SMART_ACCOUNT_VERSION = 'factory-v2';
   const saltHex = QuickCrypto.createHash('sha256')
-    .update(publicKeyHex + SMART_ACCOUNT_VERSION)
+    .update(input + SMART_ACCOUNT_VERSION)
     .digest('hex');
   return Buffer.from(saltHex, 'hex');
 }
@@ -173,12 +176,11 @@ function buildParamsMap(publicKeyHex: string, salt: Buffer): xdr.ScVal {
     }),
   ]);
 }
+
 function deriveGAddressFromPubkey(pubkeyHex: string): string {
   try {
-    const pubkeyBytes = Buffer.from(pubkeyHex, 'hex');
-    return StrKey.encodeEd25519PublicKey(pubkeyBytes);
+    return StrKey.encodeEd25519PublicKey(Buffer.from(pubkeyHex, 'hex'));
   } catch (err) {
-    console.error('Error deriving G-address:', err);
     throw new Error(
       `Failed to derive G-address from pubkey: ${err instanceof Error ? err.message : String(err)}`,
     );
@@ -189,9 +191,9 @@ async function fundAccountIfNeeded(gAddress: string): Promise<void> {
   try {
     const horizonResponse = await fetch(`https://horizon-testnet.stellar.org/accounts/${gAddress}`);
     if (horizonResponse.ok) return;
-  } catch (err) {}
+  } catch {}
 
-  console.log(`Funding account ${gAddress} via Friendbot...`);
+  if (__DEV__) console.log(`Funding account ${gAddress} via Friendbot...`);
   const response = await fetch(
     `https://friendbot.stellar.org?addr=${encodeURIComponent(gAddress)}`,
   );
@@ -254,8 +256,8 @@ export async function deploySmartAccount(publicKeyHex: string): Promise<DeployRe
   try {
     const userGAddress = deriveGAddressFromPubkey(publicKeyHex);
 
-    if (deployedAccounts.has(publicKeyHex)) {
-      const cached = deployedAccounts.get(publicKeyHex)!;
+    const cached = deploymentCache.get(publicKeyHex);
+    if (cached) {
       return {
         smartAccountAddress: cached.smartAccountAddress,
         gAddress: cached.gAddress,
@@ -265,7 +267,7 @@ export async function deploySmartAccount(publicKeyHex: string): Promise<DeployRe
 
     await fundAccountIfNeeded(userGAddress);
 
-    console.log(`Deploying smart account for pubkey: ${publicKeyHex}`);
+    if (__DEV__) console.log(`Deploying smart account for pubkey: ${publicKeyHex}`);
 
     const config = getTestnetConfig();
 
@@ -279,13 +281,12 @@ export async function deploySmartAccount(publicKeyHex: string): Promise<DeployRe
     }
 
     const bundlerKeypair = Keypair.fromSecret(config.bundlerSecret);
-
     const salt = await deriveSalt(publicKeyHex);
     const paramsMap = buildParamsMap(publicKeyHex, salt);
     const contract = new Contract(config.factoryAddress);
     const bundlerAccount = await getAccountFromHorizon(bundlerKeypair.publicKey());
 
-    let smartAccountAddress: string = '';
+    let smartAccountAddress = '';
 
     const deployTx = new TransactionBuilder(bundlerAccount, {
       fee: '1500000',
@@ -295,7 +296,7 @@ export async function deploySmartAccount(publicKeyHex: string): Promise<DeployRe
       .setTimeout(300)
       .build();
 
-    console.log('Simulating factory create_account...');
+    if (__DEV__) console.log('Simulating factory create_account...');
     const rawSim = await sorobanCall(config.rpcUrl, 'simulateTransaction', {
       transaction: txToBase64(deployTx),
     });
@@ -305,9 +306,9 @@ export async function deploySmartAccount(publicKeyHex: string): Promise<DeployRe
       smartAccountAddress = scValToNative(
         xdr.ScVal.fromXDR(rawSim.results?.[0]?.retval || 'AAAAAA==', 'base64'),
       );
-      console.log(`Simulation preview. Predicted Account: ${smartAccountAddress}`);
+      if (__DEV__) console.log(`Simulation preview. Predicted Account: ${smartAccountAddress}`);
     } catch {
-      console.log('Could not pre-read address from simulation — will parse from settled tx.');
+      if (__DEV__) console.log('Could not pre-read address from simulation — will parse from settled tx.');
     }
 
     const assembledTx = rpc.assembleTransaction(deployTx, parseSimResult(rawSim)).build();
@@ -343,28 +344,22 @@ export async function deploySmartAccount(publicKeyHex: string): Promise<DeployRe
       if (returnValueXdr) {
         smartAccountAddress = extractAddressFromMeta(returnValueXdr) ?? '';
       }
-      console.log(`Deployment successful via factory: ${smartAccountAddress}`);
+      if (__DEV__) console.log(`Deployment successful via factory: ${smartAccountAddress}`);
     } else {
       throw new Error(`Factory deployment transaction status: ${finalStatus}`);
     }
-    //
-    deployedAccounts.set(publicKeyHex, {
-      smartAccountAddress: smartAccountAddress!,
-      gAddress: userGAddress,
-    });
+
+    deploymentCache.set(publicKeyHex, { smartAccountAddress, gAddress: userGAddress });
 
     return {
-      smartAccountAddress: smartAccountAddress!,
+      smartAccountAddress,
       gAddress: userGAddress,
-      factoryAddress: config.factoryAddress!,
+      factoryAddress: config.factoryAddress,
       alreadyDeployed: false,
     };
   } catch (error) {
     console.error('Error creating via factory:', error);
-    const errorMessage =
-      error instanceof Error ? error.message : 'Failed to deploy smart account via factory';
-    const errorStack = error instanceof Error ? error.stack : undefined;
-    throw error instanceof Error ? error : new Error(String(errorMessage));
+    throw error instanceof Error ? error : new Error(String(error));
   }
 }
 
@@ -384,9 +379,8 @@ export async function lookupSmartAccount(publicKeyHex: string): Promise<LookupRe
       return { deployed: false, smartAccountAddress: '' };
     }
 
-    // Check in-memory cache first (fast path)
-    if (deployedAccounts.has(publicKeyHex)) {
-      const cached = deployedAccounts.get(publicKeyHex)!;
+    const cached = deploymentCache.get(publicKeyHex);
+    if (cached) {
       return { deployed: true, smartAccountAddress: cached.smartAccountAddress };
     }
 
@@ -410,13 +404,11 @@ export async function lookupSmartAccount(publicKeyHex: string): Promise<LookupRe
     const raw = await sorobanCall(config.rpcUrl, 'getLedgerEntries', {
       keys: [ledgerKeyToBase64(instanceLedgerKey)],
     });
-    const entries = raw.entries ?? [];
-    const deployed = entries.length > 0;
+    const deployed = (raw.entries ?? []).length > 0;
 
     if (deployed) {
-      // Populate cache so POST can fast-path on subsequent calls
       const gAddress = deriveGAddressFromPubkey(publicKeyHex);
-      deployedAccounts.set(publicKeyHex, { smartAccountAddress: predictedAddress, gAddress });
+      deploymentCache.set(publicKeyHex, { smartAccountAddress: predictedAddress, gAddress });
     }
 
     return { deployed, smartAccountAddress: predictedAddress };
@@ -435,12 +427,13 @@ export async function lookupSmartAccount(publicKeyHex: string): Promise<LookupRe
  */
 export async function deploySmartAccountForGAddress(gAddress: string): Promise<DeployResult> {
   try {
-    if (!gAddress || typeof gAddress !== 'string' || !StrKey.isValidEd25519PublicKey(gAddress)) {
-      return { smartAccountAddress: '', gAddress: '', alreadyDeployed: false, factoryAddress: '' };
+    if (!gAddress || !StrKey.isValidEd25519PublicKey(gAddress)) {
+      return { smartAccountAddress: '', gAddress: '', alreadyDeployed: false };
     }
 
-    if (cache.has(gAddress)) {
-      return { smartAccountAddress: cache.get(gAddress) || '', alreadyDeployed: true };
+    const cached = deploymentCache.get(gAddress);
+    if (cached) {
+      return { smartAccountAddress: cached.smartAccountAddress, alreadyDeployed: true };
     }
 
     await fundAccountIfNeeded(gAddress);
@@ -504,16 +497,11 @@ export async function deploySmartAccountForGAddress(gAddress: string): Promise<D
       );
     }
 
-    cache.set(gAddress, smartAccountAddress);
+    deploymentCache.set(gAddress, { smartAccountAddress });
     return { smartAccountAddress, alreadyDeployed: false };
   } catch (error) {
     console.error('Freighter account deploy error:', error);
-    return {
-      smartAccountAddress: '',
-      gAddress: '',
-      alreadyDeployed: false,
-      factoryAddress: '',
-    };
+    return { smartAccountAddress: '', gAddress: '', alreadyDeployed: false };
   }
 }
 
@@ -528,8 +516,9 @@ export async function lookupSmartAccountByGAddress(gAddress: string): Promise<Lo
       return { deployed: false, smartAccountAddress: '' };
     }
 
-    if (cache.has(gAddress)) {
-      return { deployed: true, smartAccountAddress: cache.get(gAddress) || '' };
+    const cached = deploymentCache.get(gAddress);
+    if (cached) {
+      return { deployed: true, smartAccountAddress: cached.smartAccountAddress };
     }
 
     const config = getTestnetConfig();
@@ -557,7 +546,7 @@ export async function lookupSmartAccountByGAddress(gAddress: string): Promise<Lo
       keys: [ledgerKeyToBase64(instanceKey)],
     });
     const deployed = (raw.entries?.length ?? 0) > 0;
-    if (deployed) cache.set(gAddress, predictedAddress);
+    if (deployed) deploymentCache.set(gAddress, { smartAccountAddress: predictedAddress });
 
     return { deployed, smartAccountAddress: predictedAddress };
   } catch (error) {

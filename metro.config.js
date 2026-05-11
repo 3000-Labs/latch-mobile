@@ -12,4 +12,10 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   return context.resolveRequest(context, moduleName, platform);
 };
 
+config.transformer.minifierConfig = {
+  compress: {
+    drop_console: true, // removes console.log in production
+  },
+};
+
 module.exports = config;
