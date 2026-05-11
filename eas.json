@@ -11,7 +11,10 @@
     },
     "preview": {
       "distribution": "internal",
-      "environment": "preview"
+      "environment": "preview",
+      "ios": {
+        "appleTeamId": "P5QF5H77W5"
+      }
     },
     "production": {
       "autoIncrement": true,
