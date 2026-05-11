@@ -3,7 +3,7 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
-    "postinstall": "rn-nodeify --install \"url,events,https,http,util,stream,crypto,buffer,assert,os,path,querystring\" --hack && patch-package",
+    "postinstall": "rn-nodeify --install \"url,events,https,http,util,stream,crypto,buffer,assert,os,path,querystring\" --hack && patch-package && npx install-skia",
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo run:android",
