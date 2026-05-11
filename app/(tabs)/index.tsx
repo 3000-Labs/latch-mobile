@@ -2,7 +2,7 @@ import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
 import TransactionItem from '@/src/components/shared/TransactionItem';
-import { BASE_RESERVE, BASE_RESERVE_MIN_COUNT, HORIZON_URL } from '@/src/constants/config';
+import { STELLAR_NETWORK_PASSPHRASE, STELLAR_RPC_URL } from '@/src/constants/config';
 import { useDrawer } from '@/src/context/drawer-context';
 import { useStellarTransactions } from '@/src/hooks/use-stellar-transactions';
 import { useWalletStore } from '@/src/store/wallet';
@@ -10,7 +10,7 @@ import { Theme } from '@/src/theme/theme';
 import { useAppTheme } from '@/src/theme/ThemeContext';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
-import { Horizon } from '@stellar/stellar-sdk';
+import { Address, Asset, scValToNative, xdr } from '@stellar/stellar-sdk';
 import { useQuery } from '@tanstack/react-query';
 import { ImageBackground } from 'expo-image';
 import { router } from 'expo-router';
@@ -27,6 +27,69 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+/**
+ * Read the native XLM balance of a Soroban smart account (C-address) directly
+ * from the Stellar Asset Contract (SAC) ledger entries via Soroban RPC.
+ *
+ * Horizon's /accounts/{id} only works for classic G-addresses. For C-addresses
+ * the balance lives in the native SAC's contract storage under the key:
+ *   ContractData { contract: nativeSac, key: Vec([Symbol("Balance"), Address(cAddress)]) }
+ *
+ * The stored ScVal is a map { amount: i128 (stroops), authorized: bool, clawback: bool }.
+ * Uses XMLHttpRequest to avoid the Axios Android TLS failure on Soroban JSON-RPC calls.
+ */
+function fetchNativeSacBalance(cAddress: string): Promise<string> {
+  const nativeSacId = Asset.native().contractId(STELLAR_NETWORK_PASSPHRASE);
+
+  const balanceKey = xdr.LedgerKey.contractData(
+    new xdr.LedgerKeyContractData({
+      contract: new Address(nativeSacId).toScAddress(),
+      key: xdr.ScVal.scvVec([xdr.ScVal.scvSymbol('Balance'), new Address(cAddress).toScVal()]),
+      durability: xdr.ContractDataDurability.persistent(),
+    }),
+  );
+
+  // btoa byte-loop — avoids Buffer polyfill issues in React Native
+  const bytes = new Uint8Array(balanceKey.toXDR());
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  const keyB64 = btoa(binary);
+
+  return new Promise((resolve) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', STELLAR_RPC_URL, true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.setRequestHeader('Accept', 'application/json');
+    xhr.timeout = 15000;
+    xhr.onload = () => {
+      try {
+        const json = JSON.parse(xhr.responseText);
+        const entries: any[] = json.result?.entries ?? [];
+        if (entries.length === 0) {
+          resolve('0');
+          return;
+        }
+        const entryData = xdr.LedgerEntryData.fromXDR(entries[0].xdr, 'base64');
+        const val = entryData.contractData().val();
+        const parsed = scValToNative(val) as { amount: bigint };
+        resolve((Number(parsed.amount) / 10_000_000).toFixed(7));
+      } catch {
+        resolve('0');
+      }
+    };
+    xhr.onerror = () => resolve('0');
+    xhr.ontimeout = () => resolve('0');
+    xhr.send(
+      JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'getLedgerEntries',
+        params: { keys: [keyB64] },
+      }),
+    );
+  });
+}
 
 function RaysBackgroundInner() {
   return (
@@ -73,16 +136,13 @@ const Home = () => {
   const { openDrawer } = useDrawer();
 
   const {
-    data: account,
+    data: xlmBalance,
     isLoading: balanceLoading,
     refetch: refetchBalance,
     isRefetching: isRefetchingBalance,
   } = useQuery({
-    queryKey: ['stellar-account', smartAccountAddress],
-    queryFn: async () => {
-      const server = new Horizon.Server(HORIZON_URL);
-      return server.accounts().accountId(smartAccountAddress!).call();
-    },
+    queryKey: ['stellar-balance', smartAccountAddress],
+    queryFn: () => fetchNativeSacBalance(smartAccountAddress!),
     enabled: !!smartAccountAddress,
     staleTime: 30_000,
   });
@@ -94,18 +154,9 @@ const Home = () => {
     isRefetching: isRefetchingTx,
   } = useStellarTransactions(smartAccountAddress);
 
-  const xlmBalance = account?.balances?.find((b) => b.asset_type === 'native')?.balance ?? '0.00';
-
-  // Minimum reserve the account must keep per Stellar protocol.
-  // Formula: (2 + subentry_count + num_sponsoring - num_sponsored) × 0.5 XLM
-  const minReserve = account
-    ? (BASE_RESERVE_MIN_COUNT +
-        account.subentry_count +
-        account.num_sponsoring -
-        account.num_sponsored) *
-      BASE_RESERVE
-    : 0;
-  const spendableXlm = Math.max(0, Number(xlmBalance) - minReserve);
+  // Soroban contract accounts don't have classic Stellar subentries or sponsorship,
+  // so the full balance is spendable (no minimum reserve deduction).
+  const spendableXlm = Number(xlmBalance ?? '0');
 
   const handleRefresh = () => {
     refetchBalance();
@@ -213,16 +264,17 @@ const Home = () => {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
                   })}`
-              : '••••••••'}
+              : '•••'}
           </Text>
 
           <Box flexDirection="row" alignItems="center" gap="s" mt="xs">
             <Text variant="p7" color="textSecondary" fontWeight="600">
-              {spendableXlm.toLocaleString(undefined, {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 7,
-              })}{' '}
-              XLM
+              {showBalance
+                ? `${spendableXlm.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 7,
+                  })} XLM`
+                : '••••'}
             </Text>
             <Box
               backgroundColor={isDark ? 'gray900' : 'gray100'}
@@ -359,7 +411,6 @@ const Home = () => {
           )}
         </Box>
       </ScrollView>
-
     </Box>
   );
 };

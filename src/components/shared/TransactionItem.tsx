@@ -7,6 +7,7 @@ import Text from './Text';
 interface TransactionItemProps {
   tx: {
     id: string;
+    type?: string;
     from: string;
     amount: string;
     assetCode?: string;
@@ -49,7 +50,8 @@ function formatTokenAmount(amount: string, assetCode?: string): string {
 const TransactionItem = ({ tx, walletAddress }: TransactionItemProps) => {
   const { isDark } = useAppTheme();
 
-  const isSent = tx.from === walletAddress;
+  const isSoroban = tx.type === 'invoke_host_function';
+  const isSent = !isSoroban && tx.from === walletAddress;
 
   return (
     <Box
@@ -92,12 +94,12 @@ const TransactionItem = ({ tx, walletAddress }: TransactionItemProps) => {
           {tx.assetCode || 'XLM'}
         </Text>
         <Text variant="p8" color="textSecondary" fontWeight="600" mt="xs">
-          {isSent ? 'Sent' : 'Received'}
+          {isSoroban ? 'Contract Call' : isSent ? 'Sent' : 'Received'}
         </Text>
       </Box>
       <Box alignItems="flex-end">
         <Text variant="h11" color="textPrimary" fontWeight="700">
-          {isSent ? '-' : '+'}{formatTokenAmount(tx.amount, tx.assetCode)}
+          {isSoroban ? '—' : `${isSent ? '-' : '+'}${formatTokenAmount(tx.amount, tx.assetCode)}`}
         </Text>
         <Text variant="p8" color="textSecondary" fontWeight="600" mt="xs">
           {formatRelativeTime(tx.createdAt)}
