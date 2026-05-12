@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useRef, useState } from 'react';
 import { Dimensions, FlatList, Image } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 // const ONBOARDING_KEY = 'latch_onboarding_complete';
@@ -40,6 +41,7 @@ const Onboarding = () => {
   const [activeIndex, setActiveIndex] = useState(0);
   const flatListRef = useRef<FlatList>(null);
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   // const completeOnboarding = async () => {
   //   try {
@@ -69,9 +71,7 @@ const Onboarding = () => {
         justifyContent="space-between"
         alignItems="center"
         paddingHorizontal="xl"
-        paddingTop="xl"
-        mt={'xxl'}
-        style={{ zIndex: 10 }}
+        style={{ paddingTop: insets.top + 20, zIndex: 10 }}
       >
         <Box />
         {/* <TouchableOpacity onPress={completeOnboarding}>
@@ -113,7 +113,7 @@ const Onboarding = () => {
       />
 
       {/* Footer */}
-      <Box paddingHorizontal="xl" paddingBottom="xl" alignItems="center" gap="m">
+      <Box paddingHorizontal="xl" style={{ paddingBottom: insets.bottom + 20 }} alignItems="center" gap="m">
         <ProgressPagination total={3} activeIndex={activeIndex} />
 
         <Box width="100%" gap="s">

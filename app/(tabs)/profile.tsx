@@ -1,151 +1,206 @@
-import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
-import Switch from '@/src/components/shared/Switch';
+import AccountSwitcherSheet from '@/src/components/account/AccountSwitcherSheet';
+import LogoutItem from '@/src/components/profile/LogoutItem';
+import ProfileCard from '@/src/components/profile/ProfileCard';
+import SettingItem from '@/src/components/profile/SettingItem';
 import Box from '@/src/components/shared/Box';
+import Switch from '@/src/components/shared/Switch';
 import Text from '@/src/components/shared/Text';
+import { useDrawer } from '@/src/context/drawer-context';
+import { useWalletStore } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '@shopify/restyle';
+import * as Clipboard from 'expo-clipboard';
+import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useState } from 'react';
-import { ScrollView } from 'react-native';
-
-const NOTIF_PUSH_KEY = '@latch_notif_push';
-const NOTIF_PRICE_KEY = '@latch_notif_price';
-const NOTIF_TX_KEY = '@latch_notif_tx';
-
-type NotificationSetting = {
-  key: string;
-  label: string;
-  description: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  stateKey: 'push' | 'price' | 'tx';
-};
-
-const NOTIFICATION_SETTINGS: NotificationSetting[] = [
-  {
-    key: NOTIF_PUSH_KEY,
-    label: 'Push Notifications',
-    description: 'Receive alerts directly on your device',
-    icon: 'notifications-outline',
-    stateKey: 'push',
-  },
-  {
-    key: NOTIF_PRICE_KEY,
-    label: 'Price Alerts',
-    description: 'Get notified on significant price movements',
-    icon: 'trending-up-outline',
-    stateKey: 'price',
-  },
-  {
-    key: NOTIF_TX_KEY,
-    label: 'Transaction Updates',
-    description: 'Know when funds arrive or leave your wallet',
-    icon: 'swap-horizontal-outline',
-    stateKey: 'tx',
-  },
-];
+import React, { useState } from 'react';
+import { Alert, ScrollView, TouchableOpacity } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BIOMETRIC_ENABLED_KEY } from '../(auth)/biometric';
 
 const Profile = () => {
   const theme = useTheme<Theme>();
-  const statusBarStyle = useStatusBarStyle();
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { clearAll, accounts, activeAccountIndex } = useWalletStore();
+  const { closeDrawer } = useDrawer();
+  const [biometricsEnabled, setBiometricsEnabled] = useState(false);
+  const [switcherVisible, setSwitcherVisible] = useState(false);
 
-  const [settings, setSettings] = useState({ push: false, price: false, tx: false });
-  const [loaded, setLoaded] = useState(false);
+  const activeAccount = accounts[activeAccountIndex];
 
-  useEffect(() => {
-    const loadSettings = async () => {
-      const [push, price, tx] = await Promise.all([
-        AsyncStorage.getItem(NOTIF_PUSH_KEY),
-        AsyncStorage.getItem(NOTIF_PRICE_KEY),
-        AsyncStorage.getItem(NOTIF_TX_KEY),
-      ]);
-      setSettings({
-        push: push === 'true',
-        price: price === 'true',
-        tx: tx === 'true',
-      });
-      setLoaded(true);
-    };
-    loadSettings();
-  }, []);
-
-  const handleToggle = async (stateKey: 'push' | 'price' | 'tx', storageKey: string, value: boolean) => {
-    setSettings((prev) => ({ ...prev, [stateKey]: value }));
-    await AsyncStorage.setItem(storageKey, value ? 'true' : 'false');
+  const handleLogout = () => {
+    Alert.alert('Log Out', 'Are you sure you want to log out?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Log Out',
+        style: 'destructive',
+        onPress: async () => {
+          await clearAll();
+          await AsyncStorage.multiRemove([BIOMETRIC_ENABLED_KEY, 'latch_onboarding_complete']);
+          router.replace('/onboarding');
+        },
+      },
+    ]);
   };
 
-  if (!loaded) return null;
-
   return (
-    <Box flex={1} backgroundColor="mainBackground">
-      <StatusBar style={statusBarStyle} />
+    <Box flex={1} backgroundColor="cardbg" style={{ paddingTop: insets.top }}>
+      <StatusBar style="light" />
+
       <ScrollView
-        bounces={false}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{
-          paddingHorizontal: theme.spacing.m,
-          paddingTop: 60,
-          paddingBottom: 40,
-        }}
+        contentContainerStyle={{ paddingBottom: 100 }}
       >
-        {/* Page Title */}
-        <Box mb="xl">
-          <Text variant="h7" fontSize={28} fontWeight="700" color="textPrimary">
-            Settings
-          </Text>
+        <Box height={56} justifyContent="center" alignItems="flex-end" paddingHorizontal="m">
+          <TouchableOpacity onPress={closeDrawer}>
+            <Ionicons name="close" size={28} color={theme.colors.textPrimary} />
+          </TouchableOpacity>
         </Box>
+        <ProfileCard
+          name={activeAccount?.name}
+          address={activeAccount?.smartAccountAddress || activeAccount?.gAddress}
+          onCopyAddress={async () => {
+            // COPY ADDRESS
+            if (activeAccount?.smartAccountAddress) {
+              await Clipboard.setStringAsync(activeAccount?.smartAccountAddress);
+            }
+          }}
+          onPress={() => setSwitcherVisible(true)}
+        />
 
-        {/* Notifications Section */}
-        <Text variant="body" fontWeight="700" color="textSecondary" mb="m" style={{ textTransform: 'uppercase', letterSpacing: 1 }}>
-          Notifications
-        </Text>
+        {/* ── Account Switcher Row ─────────────────────────────────── */}
+        {/* <Box paddingHorizontal="m" mb="l">
+          <Text variant="p7" color="textSecondary" mb="s" style={{ marginLeft: 4 }}>
+            My Accounts
+          </Text>
 
-        <Box
-          backgroundColor={statusBarStyle !== 'light' ? 'text50' : 'gray900'}
-          borderRadius={16}
-          borderWidth={1}
-          borderColor="gray800"
-          overflow="hidden"
-          mb="xl"
-        >
-          {NOTIFICATION_SETTINGS.map((item, index) => (
-            <Box key={item.key}>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => setSwitcherVisible(true)}>
+            <Box
+              flexDirection="row"
+              alignItems="center"
+              gap="m"
+              paddingVertical="s"
+              paddingHorizontal="s"
+              borderRadius={12}
+              style={{
+                backgroundColor: isDark ? theme.colors.gray800 : theme.colors.primary700 + '14',
+              }}
+            >
               <Box
-                flexDirection="row"
+                width={40}
+                height={40}
+                borderRadius={20}
+                backgroundColor="primary700"
+                justifyContent="center"
                 alignItems="center"
-                paddingHorizontal="m"
-                paddingVertical="m"
-                gap="m"
               >
-                <Box
-                  width={40}
-                  height={40}
-                  borderRadius={10}
-                  backgroundColor="bg800"
-                  justifyContent="center"
-                  alignItems="center"
-                >
-                  <Ionicons name={item.icon} size={20} color={theme.colors.primary700} />
-                </Box>
-                <Box flex={1}>
-                  <Text variant="body" fontWeight="600" color="textPrimary">
-                    {item.label}
-                  </Text>
-                  <Text variant="body" color="textSecondary" fontSize={13} mt="xs">
-                    {item.description}
-                  </Text>
-                </Box>
-                <Switch
-                  value={settings[item.stateKey]}
-                  onValueChange={(val) => handleToggle(item.stateKey, item.key, val)}
-                />
+                <Text variant="p7" color="textWhite" fontWeight="700">
+                  {activeAccount?.name.charAt(0) ?? 'A'}
+                </Text>
               </Box>
-              {index < NOTIFICATION_SETTINGS.length - 1 && (
-                <Box height={1} backgroundColor="gray800" marginHorizontal="m" />
-              )}
+              <Box flex={1}>
+                <Text variant="h11" color="textPrimary" fontWeight="700">
+                  {activeAccount?.name ?? 'Account 1'}
+                </Text>
+                <Text variant="p7" color="textSecondary">
+                  {activeAccount?.smartAccountAddress
+                    ? shortenAddress(activeAccount.smartAccountAddress)
+                    : activeAccount?.gAddress
+                      ? shortenAddress(activeAccount.gAddress)
+                      : 'Passkey account'}
+                </Text>
+              </Box>
+              <Ionicons name="chevron-forward" size={18} color={theme.colors.textSecondary} />
             </Box>
-          ))}
+          </TouchableOpacity>
+        </Box> */}
+
+        <AccountSwitcherSheet visible={switcherVisible} onClose={() => setSwitcherVisible(false)} />
+
+        <Box paddingHorizontal="m">
+          {/* Account Section */}
+          <Box mb="l">
+            <Text variant="p7" color="textSecondary" mb="s" style={{ marginLeft: 4 }}>
+              Account
+            </Text>
+            <SettingItem
+              icon="book-outline"
+              label="Address Book"
+              onPress={() => {
+                closeDrawer();
+                router.push('/address-book');
+              }}
+            />
+            <SettingItem icon="key-outline" label="Recovery Phrase" />
+          </Box>
+
+          {/* Security Section */}
+          <Box mb="l">
+            <Text variant="p7" color="textSecondary" mb="s" style={{ marginLeft: 4 }}>
+              Security
+            </Text>
+            <SettingItem
+              icon="finger-print-outline"
+              label="Biometrics Authentication"
+              showChevron={false}
+              rightElement={
+                <Switch value={biometricsEnabled} onValueChange={setBiometricsEnabled} />
+              }
+            />
+            <SettingItem icon="lock-closed-outline" label="Passcode" />
+          </Box>
+
+          {/* Preferences Section */}
+          <Box mb="l">
+            <Text variant="p7" color="textSecondary" mb="s" style={{ marginLeft: 4 }}>
+              Preferences
+            </Text>
+            <SettingItem
+              icon="globe-outline"
+              label="Network"
+              value="Public"
+              onPress={() => {
+                closeDrawer();
+                router.push('/network-settings');
+              }}
+            />
+            <SettingItem
+              icon="notifications-outline"
+              label="Notifications"
+              onPress={() => {
+                closeDrawer();
+                router.push('/notification');
+              }}
+            />
+          </Box>
+
+          {/* Support Section */}
+          <Box mb="l">
+            <Text variant="p7" color="textSecondary" mb="s" style={{ marginLeft: 4 }}>
+              Support
+            </Text>
+            <SettingItem
+              icon="help-circle-outline"
+              label="Help & Support"
+              onPress={() => {
+                closeDrawer();
+                router.push('/help-support');
+              }}
+            />
+            <SettingItem
+              icon="information-circle-outline"
+              label="About Latch"
+              value="v1.0.0"
+              onPress={() => {
+                closeDrawer();
+                router.push('/about');
+              }}
+            />
+          </Box>
+
+          <LogoutItem onPress={handleLogout} bottomInset={insets.bottom} />
         </Box>
       </ScrollView>
     </Box>

@@ -10,7 +10,7 @@ import Button from '@/src/components/shared/Button';
 import Text from '@/src/components/shared/Text';
 import { Theme } from '@/src/theme/theme';
 
-type OptionType = 'new-account' | 'seed-phrase' | 'existing-wallet';
+type OptionType = 'new-account' | 'seed-phrase' | 'existing-wallet' | 'recover';
 
 const GetStarted = () => {
   const theme = useTheme<Theme>();
@@ -34,6 +34,11 @@ const GetStarted = () => {
       title: 'Connect Existing Stellar Wallet',
       description: 'Link your existing stellar wallet to this smart account',
     },
+    {
+      id: 'recover' as OptionType,
+      title: 'Recover Account',
+      description: 'Restore your wallet using your recovery email',
+    },
   ];
 
   const handleContinue = () => {
@@ -47,6 +52,9 @@ const GetStarted = () => {
         break;
       case 'existing-wallet':
         router.push('/(onboarding)/connect-wallet');
+        break;
+      case 'recover':
+        router.push({ pathname: '/(onboarding)/collect-email', params: { mode: 'recovery' } });
         break;
       default:
         router.push('/onboarding');

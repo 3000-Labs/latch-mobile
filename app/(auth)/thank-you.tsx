@@ -6,6 +6,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useState } from 'react';
 import { Dimensions, Image, TouchableOpacity } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import Box from '@/src/components/shared/Box';
 import Button from '@/src/components/shared/Button';
@@ -19,6 +20,7 @@ const ThankYou = () => {
   const router = useRouter();
   const theme = useTheme<Theme>();
   const statusBarStyle = useStatusBarStyle();
+  const insets = useSafeAreaInsets();
   const [copied, setCopied] = useState(false);
 
   const params = useLocalSearchParams<{
@@ -40,7 +42,7 @@ const ThankYou = () => {
     if (params.buttonFunction) {
       router.push(params.buttonFunction as any);
     } else {
-      router.replace('/(tabs)/home');
+      router.replace('/(tabs)');
     }
   };
 
@@ -71,7 +73,7 @@ const ThankYou = () => {
       flex={1}
       backgroundColor="mainBackground"
       px="m"
-      style={{ paddingTop: 60, paddingBottom: 40 }}
+      style={{ paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }}
     >
       <StatusBar style={statusBarStyle} />
 

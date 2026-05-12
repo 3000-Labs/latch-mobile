@@ -9,7 +9,8 @@ const appName = env.APP_NAME;
 
 export default {
   expo: {
-    name: 'latch-mobile',
+    owner: 'frankiepower',
+    name: appName === 'Latch' ? 'Latch' : 'Latch QA',
     slug: 'latch-mobile',
     version: buildVersion,
     orientation: 'portrait',
@@ -24,21 +25,42 @@ export default {
     ios: {
       supportsTablet: true,
       bundleIdentifier: appName === 'Latch' ? 'co.getlatch.latchapp' : 'qa.getlatch.app',
+      appleTeamId: 'P5QF5H77W5',
       buildNumber,
       infoPlist: {
+        ITSAppUsesNonExemptEncryption: false,
         NSFaceIDUsageDescription: 'Allow $(PRODUCT_NAME) to use FaceID for secure access.',
+        // Allow outbound HTTPS to Stellar RPC + Horizon endpoints.
+        // ATS by default requires forward-secrecy ciphers; some Stellar infrastructure
+        // doesn't advertise them, causing xhr.onerror at the TLS handshake stage.
+        NSAppTransportSecurity: {
+          NSExceptionDomains: {
+            'stellar.org': {
+              NSIncludesSubdomains: true,
+              NSExceptionAllowsInsecureHTTPLoads: false,
+              NSExceptionRequiresForwardSecrecy: false,
+              NSExceptionMinimumTLSVersion: 'TLSv1.2',
+            },
+          },
+        },
       },
     },
     android: {
       versionCode,
+      usescleartexttraffic: true, // Allow outbound HTTP to local dev servers; testnet RPCs should be HTTPS and won't be affected.
       package: appName === 'Latch' ? 'app.getlatch.app' : 'qa.getlatch.app',
       adaptiveIcon: {
-        backgroundColor: '#000',
+        backgroundColor: '#000000',
         foregroundImage: './assets/images/android-icon-foreground.png',
         backgroundImage: './assets/images/android-icon-background.png',
         monochromeImage: './assets/images/android-icon-monochrome.png',
       },
       predictiveBackGestureEnabled: false,
+      permissions: [
+        'android.permission.USE_BIOMETRIC',
+        'android.permission.USE_FINGERPRINT',
+        'android.permission.CAMERA',
+      ],
     },
     web: {
       output: 'static',
@@ -51,6 +73,8 @@ export default {
     },
     plugins: [
       'expo-router',
+      '@react-native-community/datetimepicker',
+      'expo-image',
       [
         'expo-splash-screen',
         {
@@ -71,21 +95,50 @@ export default {
             './assets/fonts/SFPRO-Thin.ttf',
             './assets/fonts/SFPRO-Regular.ttf',
             './assets/fonts/SFPRO-Medium.ttf',
-            './assets/fonts/SFPRO-Bold.ttf',
+            './assets/fonts/SFPRO-bold.ttf',
             './assets/fonts/SFPRO-Semibolditalic.otf',
           ],
         },
       ],
+      // [
+      //   '@hot-updater/react-native',
+      //   {
+      //     channel: env.EXPO_PUBLIC_APP_ENV,
+      //   },
+      // ],
       [
-        '@hot-updater/react-native',
+        'expo-build-properties',
         {
-          channel: env.EXPO_PUBLIC_APP_ENV,
+          android: {
+            compileSdkVersion: 36,
+            targetSdkVersion: 35,
+            buildToolsVersion: '36.0.0',
+            gradlePluginVersion: '8.9.1',
+            ndk: '27.1.12297006',
+            networkInspector: false,
+          },
         },
       ],
+      // Injects network_security_config.xml into the Android build so OkHttp
+      // trusts the system CA store.  Without this, Android 7+ (API 24+) throws:
+      //   CertPathValidatorException: Trust anchor for certification path not found
+      // './trust-local-certs.js',
+      // ['react-native-quick-crypto', { sodiumEnabled: true }], // Optional configuration
     ],
+    updates: {
+      url: 'https://u.expo.dev/8b122713-0d94-4940-a71c-58da86f923ad',
+    },
+    runtimeVersion: {
+      policy: 'appVersion',
+    },
     experiments: {
       typedRoutes: true,
       reactCompiler: true,
+    },
+    extra: {
+      eas: {
+        projectId: '8b122713-0d94-4940-a71c-58da86f923ad',
+      },
     },
   },
 };
