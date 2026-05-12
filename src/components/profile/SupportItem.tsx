@@ -1,12 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
 import React from 'react';
-import { ImageSourcePropType, TouchableOpacity } from 'react-native';
+import { Image, ImageSourcePropType, TouchableOpacity } from 'react-native';
 
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
 import { Theme } from '@/src/theme/theme';
-import { Image } from 'react-native';
 
 interface SupportItemProps {
   title: string;

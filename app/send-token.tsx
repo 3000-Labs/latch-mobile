@@ -23,7 +23,7 @@ const SendToken = () => {
   const theme = useTheme<Theme>();
   const [selectedToken, setSelectedToken] = React.useState<null | Token>(null);
   const [selectedWallet, setSelectedWallet] = React.useState<null | Wallet>(null);
-  const [isSymbolMode, setIsSymbolMode] = React.useState(false);
+  const [isSymbolMode] = React.useState(false);
   const [amount, setAmount] = React.useState('0');
   const [status, setStatus] = React.useState<SendStatus>('initial');
 

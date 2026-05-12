@@ -56,9 +56,6 @@ function txToBase64(tx: { toEnvelope(): { toXDR(): Uint8Array } }): string {
   return toBase64(new Uint8Array(tx.toEnvelope().toXDR()));
 }
 
-function ledgerKeyToBase64(key: xdr.LedgerKey): string {
-  return toBase64(new Uint8Array(key.toXDR()));
-}
 
 // ─── XMLHttpRequest-based JSON-RPC ───────────────────────────────────────────
 // Matches the sorobanCall in smart-account.ts which is known to work on Android.

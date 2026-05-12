@@ -39,7 +39,7 @@ const KEYPAD_ROWS = [
 const SetPin = () => {
   const theme = useTheme<Theme>();
   const statusBarStyle = useStatusBarStyle();
-  const { from, accountAddress } = useLocalSearchParams();
+  const { from } = useLocalSearchParams();
   const router = useRouter();
   const { pendingWallet, clearPendingWallet } = useWalletStore();
 

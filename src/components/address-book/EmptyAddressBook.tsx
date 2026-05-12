@@ -1,9 +1,8 @@
 import React from 'react';
-import { TouchableOpacity } from 'react-native';
+import { Image, TouchableOpacity } from 'react-native';
 
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
-import { Image } from 'react-native';
 
 interface EmptyAddressBookProps {
   onAdd: () => void;
@@ -22,7 +21,7 @@ const EmptyAddressBook = ({ onAdd }: EmptyAddressBookProps) => {
         Empty Address Book
       </Text>
       <Text variant="p6" color="textPrimary" textAlign="center" lineHeight={24}>
-        Tap the "Add Address" button to start saving your frequently used addresses.
+        Tap the &quot;Add Address&quot; button to start saving your frequently used addresses.
       </Text>
       <Box position="absolute" bottom={40} width="100%">
         <TouchableOpacity activeOpacity={0.8} onPress={onAdd}>

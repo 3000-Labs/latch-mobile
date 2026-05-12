@@ -5,6 +5,7 @@ import TransactionItem from '@/src/components/shared/TransactionItem';
 import { STELLAR_NETWORK_PASSPHRASE, STELLAR_RPC_URL } from '@/src/constants/config';
 import { useDrawer } from '@/src/context/drawer-context';
 import { useStellarTransactions } from '@/src/hooks/use-stellar-transactions';
+// import { discoverMigration } from '@/src/lib/migration';
 import { useWalletStore } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
 import { useAppTheme } from '@/src/theme/ThemeContext';
@@ -126,7 +127,12 @@ const Home = () => {
   const statusBarStyle = useStatusBarStyle();
   const insets = useSafeAreaInsets();
 
-  const { smartAccountAddress, accounts, activeAccountIndex } = useWalletStore();
+  const {
+    smartAccountAddress,
+    accounts,
+    activeAccountIndex,
+    // , mnemonic
+  } = useWalletStore();
   const [showBalance, setShowBalance] = useState(true);
   const [bannerIndex, setBannerIndex] = useState(0);
 
@@ -149,7 +155,6 @@ const Home = () => {
 
   const {
     data: transactions,
-    isLoading: txLoading,
     refetch: refetchTx,
     isRefetching: isRefetchingTx,
   } = useStellarTransactions(smartAccountAddress);
@@ -162,6 +167,13 @@ const Home = () => {
     refetchBalance();
     refetchTx();
   };
+
+  // const { data: migrationState } = useQuery({
+  //   queryKey: ['migration-state', smartAccountAddress, activeAccount?.gAddress],
+  //   queryFn: () => discoverMigration(activeAccount!),
+  //   enabled: !!activeAccount?.gAddress && !!smartAccountAddress && !!mnemonic,
+  //   staleTime: 60_000,
+  // });
 
   const recentTx = transactions?.slice(0, 5) ?? [];
   const XLM_PRICE = 0.16; // TODO: Fetch real-time price from API
@@ -379,6 +391,50 @@ const Home = () => {
             ))}
           </Box>
         </Box>
+
+        {/* Migration banner — shown when G-address has assets to sweep */}
+        {/* {migrationState?.state === 'not_started' && (
+          <Box paddingHorizontal="m" mb="m">
+            <TouchableOpacity activeOpacity={0.85} onPress={() => router.push('/(migration)')}>
+              <Box
+                borderRadius={16}
+                padding="m"
+                flexDirection="row"
+                alignItems="center"
+                gap="m"
+                style={{
+                  backgroundColor: isDark ? '#2C2000' : '#FFFBEB',
+                  borderWidth: 1,
+                  borderColor: isDark ? '#4A3800' : '#FFE58F',
+                }}
+              >
+                <Box
+                  width={40}
+                  height={40}
+                  borderRadius={20}
+                  backgroundColor="primary700"
+                  justifyContent="center"
+                  alignItems="center"
+                >
+                  <Ionicons name="swap-horizontal" size={20} color="#000" />
+                </Box>
+                <Box flex={1}>
+                  <Text variant="h11" fontWeight="700" style={{ color: isDark ? '#FFD666' : '#874D00' }}>
+                    Assets on classic account
+                  </Text>
+                  <Text variant="p8" style={{ color: isDark ? '#B8860B' : '#AD6800' }} mt="xs">
+                    Tap to migrate them to your smart account
+                  </Text>
+                </Box>
+                <Ionicons
+                  name="chevron-forward"
+                  size={16}
+                  color={isDark ? '#B8860B' : '#AD6800'}
+                />
+              </Box>
+            </TouchableOpacity>
+          </Box>
+        )} */}
 
         {/* Recent Activity */}
         <Box paddingHorizontal="m">

@@ -8,7 +8,6 @@ import Text from '@/src/components/shared/Text';
 import { useDrawer } from '@/src/context/drawer-context';
 import { useWalletStore } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
-import { useAppTheme } from '@/src/theme/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '@shopify/restyle';
@@ -22,7 +21,6 @@ import { BIOMETRIC_ENABLED_KEY } from '../(auth)/biometric';
 
 const Profile = () => {
   const theme = useTheme<Theme>();
-  const { isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { clearAll, accounts, activeAccountIndex } = useWalletStore();

@@ -79,7 +79,6 @@ const Explore = () => {
   const { isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
   const [search, setSearch] = useState('');
-  const [showBalance, setShowBalance] = useState(true);
   const [bannerIndex, setBannerIndex] = useState(0);
 
   return (

@@ -11,7 +11,6 @@ import React, { useState } from 'react';
 import { SectionList, StyleSheet, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const FILTERS = ['All', 'Sent', 'Received', 'Deposit', 'Swaps'];
 
 const TRANSACTIONS = [
   {
