@@ -5,7 +5,7 @@ import { ScrollView, StyleSheet, TextInput, TouchableOpacity } from 'react-nativ
 import Box from '../shared/Box';
 import Text from '../shared/Text';
 
-const FILTERS = ['All', 'Sent', 'Received', 'Deposit', 'Swaps'];
+const FILTERS = ['All', 'Sent', 'Received', 'Contract'];
 
 const SearchHeader = ({
   search,
@@ -59,12 +59,12 @@ const SearchHeader = ({
           style={[
             styles.filterChip,
             activeFilter === filter && {
-              borderColor: theme.colors.primary,
+              borderColor: theme.colors.primary700,
               backgroundColor: 'transparent',
             },
           ]}
         >
-          <Text variant="p8" color={activeFilter === filter ? 'primary' : 'textSecondary'}>
+          <Text variant="p8" color={activeFilter === filter ? 'primary700' : 'textSecondary'}>
             {filter}
           </Text>
         </TouchableOpacity>

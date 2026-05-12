@@ -6,13 +6,17 @@ const reactotron = Reactotron.setAsyncStorageHandler(AsyncStorage) // AsyncStora
     name: 'latch',
   })
   .useReactNative({
-    asyncStorage: true,
+    asyncStorage: false,
     editor: false,
+
+    // there are more options to editor
     errors: { veto: () => false },
+    // there are more options to the async storage.
     networking: {
+      // optionally, you can turn it off with false.
       ignoreUrls: /symbolicate/,
-    },
-    overlay: false,
+    }, // or turn it off with false
+    overlay: false, // just turning off overlay
   })
   .connect();
 

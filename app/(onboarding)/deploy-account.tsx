@@ -12,6 +12,7 @@ import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import { uploadBackup } from '@/src/api/latch-auth';
 import { deploySmartAccount as deploySmartAccountPasskey } from '@/src/api/passkey';
 import { deploySmartAccount as deploySmartAccountEd25519 } from '@/src/api/smart-account';
+import { discoverMigration } from '@/src/lib/migration';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import Box from '@/src/components/shared/Box';
@@ -19,7 +20,7 @@ import Button from '@/src/components/shared/Button';
 import Text from '@/src/components/shared/Text';
 import { createPasskeyCredential, storePasskeyCredential } from '@/src/lib/passkey-webauthn';
 import { restoreStellarWallet } from '@/src/lib/seed-wallet';
-import { SECURE_KEYS, useWalletStore, WalletAccount } from '@/src/store/wallet';
+import { SECURE_KEYS, useWalletStore, type WalletAccount } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
 import { useTheme } from '@shopify/restyle';
 import * as LocalAuthentication from 'expo-local-authentication';
@@ -224,7 +225,31 @@ const DeployAccount = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [retryCount]);
 
-  const goToDashboard = (address: string) => {
+  const goToDashboard = async (address: string) => {
+    // Mnemonic users: check if their G-address has assets to sweep before going to dashboard.
+    if (isMnemonicPath) {
+      try {
+        const storedMnemonic = await SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC);
+        if (storedMnemonic) {
+          const wallet = restoreStellarWallet(storedMnemonic);
+          const account = {
+            index: 0,
+            name: 'Account 1',
+            gAddress: wallet.gAddress,
+            publicKeyHex: wallet.publicKeyHex,
+            smartAccountAddress: address,
+          };
+          const discovery = await discoverMigration(account as WalletAccount);
+          if (discovery.state === 'not_started') {
+            router.replace('/(migration)');
+            return;
+          }
+        }
+      } catch {
+        // If discovery fails, proceed normally — migration banner will show on home
+      }
+    }
+
     router.replace({
       pathname: '/(auth)/thank-you',
       params: {

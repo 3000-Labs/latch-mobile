@@ -40,13 +40,13 @@ import QuickCrypto from 'react-native-quick-crypto';
 // Using XMLHttpRequest directly routes through OkHttp and respects the
 // network_security_config.xml trust anchors.
 
-function toBase64(bytes: Uint8Array): string {
+export function toBase64(bytes: Uint8Array): string {
   let binary = '';
   for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
   return btoa(binary);
 }
 
-function txToBase64(tx: { toEnvelope(): { toXDR(): Uint8Array } }): string {
+export function txToBase64(tx: { toEnvelope(): { toXDR(): Uint8Array } }): string {
   return toBase64(new Uint8Array(tx.toEnvelope().toXDR()));
 }
 
@@ -54,7 +54,7 @@ function ledgerKeyToBase64(key: xdr.LedgerKey): string {
   return toBase64(new Uint8Array(key.toXDR()));
 }
 
-function sorobanCall(rpcUrl: string, method: string, params: object): Promise<any> {
+export function sorobanCall(rpcUrl: string, method: string, params: object): Promise<any> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', rpcUrl, true);
@@ -97,7 +97,7 @@ function extractAddressFromMeta(resultMetaXdr: string): string | undefined {
   return undefined;
 }
 
-function parseSimResult(raw: any): rpc.Api.SimulateTransactionSuccessResponse {
+export function parseSimResult(raw: any): rpc.Api.SimulateTransactionSuccessResponse {
   return {
     id: String(raw.id ?? '1'),
     latestLedger: raw.latestLedger,

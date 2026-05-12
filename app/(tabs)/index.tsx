@@ -2,16 +2,16 @@ import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
 import TransactionItem from '@/src/components/shared/TransactionItem';
-import { STELLAR_NETWORK_PASSPHRASE, STELLAR_RPC_URL } from '@/src/constants/config';
 import { useDrawer } from '@/src/context/drawer-context';
 import { useStellarTransactions } from '@/src/hooks/use-stellar-transactions';
-// import { discoverMigration } from '@/src/lib/migration';
+import { usePortfolio, type TokenBalance } from '@/src/hooks/use-portfolio';
+import { useTrackedTokens } from '@/src/hooks/use-tracked-tokens';
+import { discoverMigration } from '@/src/lib/migration';
 import { useWalletStore } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
 import { useAppTheme } from '@/src/theme/ThemeContext';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
-import { Address, Asset, scValToNative, xdr } from '@stellar/stellar-sdk';
 import { useQuery } from '@tanstack/react-query';
 import { ImageBackground } from 'expo-image';
 import { router } from 'expo-router';
@@ -29,110 +29,112 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-/**
- * Read the native XLM balance of a Soroban smart account (C-address) directly
- * from the Stellar Asset Contract (SAC) ledger entries via Soroban RPC.
- *
- * Horizon's /accounts/{id} only works for classic G-addresses. For C-addresses
- * the balance lives in the native SAC's contract storage under the key:
- *   ContractData { contract: nativeSac, key: Vec([Symbol("Balance"), Address(cAddress)]) }
- *
- * The stored ScVal is a map { amount: i128 (stroops), authorized: bool, clawback: bool }.
- * Uses XMLHttpRequest to avoid the Axios Android TLS failure on Soroban JSON-RPC calls.
- */
-function fetchNativeSacBalance(cAddress: string): Promise<string> {
-  const nativeSacId = Asset.native().contractId(STELLAR_NETWORK_PASSPHRASE);
-
-  const balanceKey = xdr.LedgerKey.contractData(
-    new xdr.LedgerKeyContractData({
-      contract: new Address(nativeSacId).toScAddress(),
-      key: xdr.ScVal.scvVec([xdr.ScVal.scvSymbol('Balance'), new Address(cAddress).toScVal()]),
-      durability: xdr.ContractDataDurability.persistent(),
-    }),
-  );
-
-  // btoa byte-loop — avoids Buffer polyfill issues in React Native
-  const bytes = new Uint8Array(balanceKey.toXDR());
-  let binary = '';
-  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-  const keyB64 = btoa(binary);
-
-  return new Promise((resolve) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', STELLAR_RPC_URL, true);
-    xhr.setRequestHeader('Content-Type', 'application/json');
-    xhr.setRequestHeader('Accept', 'application/json');
-    xhr.timeout = 15000;
-    xhr.onload = () => {
-      try {
-        const json = JSON.parse(xhr.responseText);
-        const entries: any[] = json.result?.entries ?? [];
-        if (entries.length === 0) {
-          resolve('0');
-          return;
-        }
-        const entryData = xdr.LedgerEntryData.fromXDR(entries[0].xdr, 'base64');
-        const val = entryData.contractData().val();
-        const parsed = scValToNative(val) as { amount: bigint };
-        resolve((Number(parsed.amount) / 10_000_000).toFixed(7));
-      } catch {
-        resolve('0');
-      }
-    };
-    xhr.onerror = () => resolve('0');
-    xhr.ontimeout = () => resolve('0');
-    xhr.send(
-      JSON.stringify({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'getLedgerEntries',
-        params: { keys: [keyB64] },
-      }),
-    );
-  });
-}
+const TOKEN_ICONS: Record<string, ReturnType<typeof require>> = {
+  ETH: require('@/src/assets/token/eth.png'),
+  USDT: require('@/src/assets/token/usdt.png'),
+  USDC: require('@/src/assets/token/usdt.png'), // reuse USDT icon until USDC asset is added
+};
+const DEFAULT_TOKEN_ICON = require('@/src/assets/token/stellar.png');
+const getTokenIcon = (code: string) => TOKEN_ICONS[code?.toUpperCase()] ?? DEFAULT_TOKEN_ICON;
 
 function RaysBackgroundInner() {
   return (
     <Box position="absolute" style={{ top: 0, left: '28%' }}>
       <ImageBackground
         source={require('@/src/assets/icon/Circle.png')}
-        style={{
-          position: 'absolute',
-          width: 182,
-          height: 182,
-        }}
+        style={{ position: 'absolute', width: 182, height: 182 }}
       />
     </Box>
   );
 }
 const RaysBackground = memo(RaysBackgroundInner);
+
 const banners = [
-  {
-    id: 1,
-    image: require('@/src/assets/icon/Container.png'),
-  },
-  {
-    id: 2,
-    image: require('@/src/assets/icon/Container.png'),
-  },
-  {
-    id: 3,
-    image: require('@/src/assets/icon/Container.png'),
-  },
+  { id: 1, image: require('@/src/assets/icon/Container.png') },
+  { id: 2, image: require('@/src/assets/icon/Container.png') },
+  { id: 3, image: require('@/src/assets/icon/Container.png') },
 ];
+
+function TokenRow({ token, showBalance, isDark, theme }: {
+  token: TokenBalance;
+  showBalance: boolean;
+  isDark: boolean;
+  theme: Theme;
+}) {
+  const amount = parseFloat(token.amount);
+  const formattedAmount = amount.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: token.code === 'XLM' ? 7 : 2,
+  });
+  const formattedUsd = token.usdValue.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+  return (
+    <Box
+      flexDirection="row"
+      alignItems="center"
+      backgroundColor={isDark ? 'gray900' : 'white'}
+      padding="m"
+      borderRadius={20}
+      mb="s"
+      style={
+        !isDark
+          ? {
+              borderWidth: 1,
+              borderColor: '#F5F5F5',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.05,
+              shadowRadius: 4,
+              elevation: 2,
+            }
+          : {}
+      }
+    >
+      <Box
+        width={48}
+        height={48}
+        borderRadius={24}
+        backgroundColor={isDark ? 'black' : 'text400'}
+        justifyContent="center"
+        alignItems="center"
+        mr="m"
+      >
+        <Image
+          source={getTokenIcon(token.code)}
+          style={{ width: '100%', height: '100%' }}
+          resizeMode="contain"
+        />
+      </Box>
+      <Box flex={1}>
+        <Text variant="h11" color="textPrimary" fontWeight="700">
+          {token.code}
+        </Text>
+        <Text variant="p8" color="textSecondary" mt="xs">
+          {token.code === 'XLM' ? 'Stellar Lumens' : token.code}
+        </Text>
+      </Box>
+      <Box alignItems="flex-end">
+        <Text variant="h11" color="textPrimary" fontWeight="700">
+          {showBalance ? `${formattedAmount} ${token.code}` : '••••'}
+        </Text>
+        <Text variant="p8" color="textSecondary" mt="xs">
+          {showBalance ? `$${formattedUsd}` : '••••'}
+        </Text>
+      </Box>
+    </Box>
+  );
+}
+
 const Home = () => {
   const theme = useTheme<Theme>();
   const { isDark } = useAppTheme();
   const statusBarStyle = useStatusBarStyle();
   const insets = useSafeAreaInsets();
 
-  const {
-    smartAccountAddress,
-    accounts,
-    activeAccountIndex,
-    // , mnemonic
-  } = useWalletStore();
+  const { smartAccountAddress, accounts, activeAccountIndex, mnemonic } = useWalletStore();
   const [showBalance, setShowBalance] = useState(true);
   const [bannerIndex, setBannerIndex] = useState(0);
 
@@ -141,17 +143,14 @@ const Home = () => {
 
   const { openDrawer } = useDrawer();
 
+  const { tokens: trackedTokens } = useTrackedTokens();
+
   const {
-    data: xlmBalance,
-    isLoading: balanceLoading,
-    refetch: refetchBalance,
-    isRefetching: isRefetchingBalance,
-  } = useQuery({
-    queryKey: ['stellar-balance', smartAccountAddress],
-    queryFn: () => fetchNativeSacBalance(smartAccountAddress!),
-    enabled: !!smartAccountAddress,
-    staleTime: 30_000,
-  });
+    data: portfolio,
+    isLoading: portfolioLoading,
+    refetch: refetchPortfolio,
+    isRefetching: isRefetchingPortfolio,
+  } = usePortfolio(smartAccountAddress, activeAccount?.gAddress, trackedTokens);
 
   const {
     data: transactions,
@@ -159,25 +158,22 @@ const Home = () => {
     isRefetching: isRefetchingTx,
   } = useStellarTransactions(smartAccountAddress);
 
-  // Soroban contract accounts don't have classic Stellar subentries or sponsorship,
-  // so the full balance is spendable (no minimum reserve deduction).
-  const spendableXlm = Number(xlmBalance ?? '0');
+  const { data: migrationState } = useQuery({
+    queryKey: ['migration-state', smartAccountAddress, activeAccount?.gAddress],
+    queryFn: () => discoverMigration(activeAccount!),
+    enabled: !!activeAccount?.gAddress && !!smartAccountAddress && !!mnemonic,
+    staleTime: 60_000,
+  });
 
   const handleRefresh = () => {
-    refetchBalance();
+    refetchPortfolio();
     refetchTx();
   };
 
-  // const { data: migrationState } = useQuery({
-  //   queryKey: ['migration-state', smartAccountAddress, activeAccount?.gAddress],
-  //   queryFn: () => discoverMigration(activeAccount!),
-  //   enabled: !!activeAccount?.gAddress && !!smartAccountAddress && !!mnemonic,
-  //   staleTime: 60_000,
-  // });
-
+  const totalUsd = (portfolio ?? []).reduce((sum, t) => sum + t.usdValue, 0);
+  const xlmToken = portfolio?.find((t) => t.code === 'XLM');
+  const spendableXlm = parseFloat(xlmToken?.amount ?? '0');
   const recentTx = transactions?.slice(0, 5) ?? [];
-  const XLM_PRICE = 0.16; // TODO: Fetch real-time price from API
-  const usdBalance = spendableXlm * XLM_PRICE;
 
   return (
     <Box flex={1} backgroundColor="mainBackground">
@@ -244,7 +240,7 @@ const Home = () => {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={isRefetchingBalance || isRefetchingTx}
+            refreshing={isRefetchingPortfolio || isRefetchingTx}
             onRefresh={handleRefresh}
             tintColor={theme.colors.primary700}
           />
@@ -270,9 +266,9 @@ const Home = () => {
 
           <Text variant="h5" color="textPrimary" style={{ fontWeight: '700', letterSpacing: -1 }}>
             {showBalance
-              ? balanceLoading
+              ? portfolioLoading
                 ? '...'
-                : `$${Number(usdBalance).toLocaleString(undefined, {
+                : `$${totalUsd.toLocaleString(undefined, {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
                   })}`
@@ -351,6 +347,31 @@ const Home = () => {
           ))}
         </Box>
 
+        {/* Your Assets */}
+        {(portfolio ?? []).length > 0 && (
+          <Box paddingHorizontal="m" mb="xl">
+            <Box flexDirection="row" justifyContent="space-between" alignItems="center" mb="m">
+              <Text variant="h9" color="textPrimary" fontWeight="700">
+                Your Assets
+              </Text>
+              <TouchableOpacity onPress={() => router.push('/add-token')}>
+                <Text variant="p7" color="primary700" fontWeight="700">
+                  Manage
+                </Text>
+              </TouchableOpacity>
+            </Box>
+            {(portfolio ?? []).map((token) => (
+              <TokenRow
+                key={token.code + (token.issuer ?? '')}
+                token={token}
+                showBalance={showBalance}
+                isDark={isDark}
+                theme={theme}
+              />
+            ))}
+          </Box>
+        )}
+
         {/* Banner Carousel */}
         <Box mb="xl">
           <FlatList
@@ -369,10 +390,7 @@ const Home = () => {
                 <Box width={SCREEN_WIDTH - 32} height={101} overflow={'hidden'} borderRadius={12}>
                   <Image
                     source={item.image}
-                    style={{
-                      height: '100%',
-                      width: '100%',
-                    }}
+                    style={{ height: '100%', width: '100%' }}
                     resizeMode="cover"
                   />
                 </Box>
@@ -392,8 +410,8 @@ const Home = () => {
           </Box>
         </Box>
 
-        {/* Migration banner — shown when G-address has assets to sweep */}
-        {/* {migrationState?.state === 'not_started' && (
+        {/* Migration banner */}
+        {migrationState?.state === 'not_started' && (
           <Box paddingHorizontal="m" mb="m">
             <TouchableOpacity activeOpacity={0.85} onPress={() => router.push('/(migration)')}>
               <Box
@@ -419,22 +437,22 @@ const Home = () => {
                   <Ionicons name="swap-horizontal" size={20} color="#000" />
                 </Box>
                 <Box flex={1}>
-                  <Text variant="h11" fontWeight="700" style={{ color: isDark ? '#FFD666' : '#874D00' }}>
+                  <Text
+                    variant="h11"
+                    fontWeight="700"
+                    style={{ color: isDark ? '#FFD666' : '#874D00' }}
+                  >
                     Assets on classic account
                   </Text>
                   <Text variant="p8" style={{ color: isDark ? '#B8860B' : '#AD6800' }} mt="xs">
                     Tap to migrate them to your smart account
                   </Text>
                 </Box>
-                <Ionicons
-                  name="chevron-forward"
-                  size={16}
-                  color={isDark ? '#B8860B' : '#AD6800'}
-                />
+                <Ionicons name="chevron-forward" size={16} color={isDark ? '#B8860B' : '#AD6800'} />
               </Box>
             </TouchableOpacity>
           </Box>
-        )} */}
+        )}
 
         {/* Recent Activity */}
         <Box paddingHorizontal="m">
@@ -442,7 +460,7 @@ const Home = () => {
             <Text variant="h9" color="textPrimary" fontWeight="700">
               Recent Activity
             </Text>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/history')}>
               <Text variant="p7" color="primary700" fontWeight="700">
                 View All
               </Text>

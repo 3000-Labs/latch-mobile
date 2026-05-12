@@ -1,6 +1,7 @@
-import { Address, Asset, Horizon, scValToNative, xdr } from '@stellar/stellar-sdk';
+import { Address, Asset, scValToNative, xdr } from '@stellar/stellar-sdk';
 import { useQuery } from '@tanstack/react-query';
 import { HORIZON_URL, STELLAR_NETWORK_PASSPHRASE, STELLAR_RPC_URL } from '../constants/config';
+import { useWalletStore } from '../store/wallet';
 
 export interface StellarPayment {
   id: string;
@@ -14,33 +15,23 @@ export interface StellarPayment {
   createdAt: string;
 }
 
-/**
- * Horizon returns HTTP 504 on transaction submission timeouts.
- * Per Stellar docs the correct behaviour is to keep retrying the same call.
- * https://developers.stellar.org/api/errors/http-status-codes/horizon-specific/timeout
- */
-async function withHorizon504Retry<T>(fn: () => Promise<T>): Promise<T> {
-  while (true) {
-    try {
-      return await fn();
-    } catch (e: unknown) {
-      const status =
-        e != null &&
-        typeof e === 'object' &&
-        'response' in e &&
-        (e as { response?: { status?: number } }).response?.status;
-      if (status === 504) continue;
-      throw e;
-    }
-  }
+// ─── Shared XHR helpers ──────────────────────────────────────────────────────
+
+/** XHR GET — used for Horizon REST calls. Returns parsed JSON or null on failure. */
+function horizonGet(url: string): Promise<any> {
+  return new Promise((resolve) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', url, true);
+    xhr.setRequestHeader('Accept', 'application/json');
+    xhr.timeout = 12000;
+    xhr.onload = () => { try { resolve(JSON.parse(xhr.responseText)); } catch { resolve(null); } };
+    xhr.onerror = () => resolve(null);
+    xhr.ontimeout = () => resolve(null);
+    xhr.send();
+  });
 }
 
-/**
- * XHR-based Soroban JSON-RPC call.
- * Uses XMLHttpRequest instead of Axios/fetch because the Stellar SDK's Axios transport
- * fails on Android with "Network Error". XHR routes through OkHttp and respects the
- * platform TLS stack (same pattern as smart-account.ts and passkey.ts).
- */
+/** XHR POST — used for Soroban JSON-RPC calls (avoids Android Axios TLS issue). */
 function sorobanRpc(method: string, params: object): Promise<any> {
   return new Promise((resolve) => {
     const xhr = new XMLHttpRequest();
@@ -48,20 +39,13 @@ function sorobanRpc(method: string, params: object): Promise<any> {
     xhr.setRequestHeader('Content-Type', 'application/json');
     xhr.setRequestHeader('Accept', 'application/json');
     xhr.timeout = 15000;
-    xhr.onload = () => {
-      try {
-        resolve(JSON.parse(xhr.responseText));
-      } catch {
-        resolve({});
-      }
-    };
+    xhr.onload = () => { try { resolve(JSON.parse(xhr.responseText)); } catch { resolve({}); } };
     xhr.onerror = () => resolve({});
     xhr.ontimeout = () => resolve({});
     xhr.send(JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }));
   });
 }
 
-/** Encode an ScVal to base64 XDR using a byte-loop (avoids Buffer polyfill issues). */
 function scValB64(val: xdr.ScVal): string {
   const bytes = new Uint8Array(val.toXDR());
   let s = '';
@@ -69,87 +53,125 @@ function scValB64(val: xdr.ScVal): string {
   return btoa(s);
 }
 
-/**
- * Query native SAC transfer events for a C-address via Soroban RPC getEvents.
- *
- * Horizon's operations().forAccount(cAddress) only indexes the SOURCE account
- * (the signer), so a SAC transfer from G→C appears under the G-address, not the C.
- * The SAC emits a `transfer` event for every XLM transfer with:
- *   topic[0]: Symbol("transfer")
- *   topic[1]: Address(from)
- *   topic[2]: Address(to)
- *   value:    Int128(amount_in_stroops)
- *
- * We make two parallel getEvents calls — one for incoming (to==cAddress),
- * one for outgoing (from==cAddress) — and merge the results.
- */
+// ─── Primary: G-address Horizon operations → per-op effects ──────────────────
+//
+// Horizon does NOT index `contract_credited` / `contract_debited` effects by
+// C-address. The `/accounts/{C-addr}/effects` endpoint returns 400, and
+// `/effects?account={C-addr}` only returns classic account effects (not Soroban
+// contract effects). Confirmed via live curl against horizon-testnet.stellar.org.
+//
+// The only reliable Horizon approach: query the G-address's `invoke_host_function`
+// operations (Horizon archives forever), then fetch effects per-operation to find
+// `contract_credited` / `contract_debited` entries that match the C-address.
+
+async function fetchGAddressHistory(gAddress: string, cAddress: string): Promise<StellarPayment[]> {
+  const resp = await horizonGet(
+    `${HORIZON_URL}/accounts/${encodeURIComponent(gAddress)}/operations?limit=50&order=desc`,
+  );
+
+  const allOps = (resp?._embedded?.records ?? []) as any[];
+  const invokeOps = allOps.filter((r) => r.type === 'invoke_host_function');
+
+  if (__DEV__) {
+    console.log('[G-addr history] total ops:', allOps.length, '| invoke_host_function:', invokeOps.length);
+  }
+
+  if (invokeOps.length === 0) return [];
+
+  // Fetch effects for each invoke op in parallel
+  const effectsBatch = await Promise.all(
+    invokeOps.map((op: any) =>
+      horizonGet(`${HORIZON_URL}/operations/${op.id}/effects`)
+        .then((r) => r?._embedded?.records ?? []),
+    ),
+  );
+
+  if (__DEV__) {
+    const sampleEffects = effectsBatch.find((e) => e.length > 0);
+    if (sampleEffects) {
+      console.log('[G-addr history] sample effects:', JSON.stringify(sampleEffects.slice(0, 2).map((e: any) => ({
+        type: e.type, account: e.account, amount: e.amount, asset: e.asset_code ?? e.asset_type,
+      }))));
+    }
+  }
+
+  const results: StellarPayment[] = [];
+  for (let i = 0; i < invokeOps.length; i++) {
+    const op = invokeOps[i] as any;
+    const effects: any[] = effectsBatch[i];
+
+    // Find the effect that credits or debits the C-address specifically
+    const creditEffect = effects.find(
+      (e) => e.type === 'contract_credited' && e.account === cAddress,
+    );
+    const debitEffect = effects.find(
+      (e) => e.type === 'contract_debited' && e.account === cAddress,
+    );
+
+    if (!creditEffect && !debitEffect) continue;
+
+    const isIncoming = !!creditEffect;
+    const effect = (creditEffect ?? debitEffect) as any;
+
+    results.push({
+      id: op.id,
+      transactionHash: op.transaction_hash ?? '',
+      type: 'invoke_host_function',
+      from: isIncoming ? op.source_account : cAddress,
+      to: isIncoming ? cAddress : op.source_account,
+      amount: effect.amount ?? '0',
+      assetType: effect.asset_type === 'native' ? 'native' : 'credit_alphanum4',
+      assetCode: effect.asset_code,
+      createdAt: op.created_at ?? '',
+    });
+  }
+
+  if (__DEV__) {
+    console.log('[G-addr history] matched transactions:', results.length);
+  }
+
+  return results;
+}
+
+// ─── Secondary: Soroban RPC SAC transfer events (last ~7 days) ───────────────
+//
+// Supplements the G-address Horizon history with recent events that provide
+// exact from/to contract addresses. Also the only source for passkey wallets
+// (no G-address) — limited to the RPC retention window (~7 days / ~100k ledgers).
+
 async function fetchSacTransferEvents(cAddress: string): Promise<StellarPayment[]> {
   const nativeSacId = Asset.native().contractId(STELLAR_NETWORK_PASSPHRASE);
 
-  // Get the latest ledger to anchor a ~7-day look-back window
   const latestLedgerResp = await sorobanRpc('getLatestLedger', {});
   const latestLedger: number = latestLedgerResp?.result?.sequence ?? 0;
-  // If getLatestLedger fails (XHR resolves as {} → sequence undefined), use a conservative
-  // fallback rather than bailing — this keeps event queries alive even if the first RPC call fails.
   const startLedger = latestLedger > 0 ? Math.max(1, latestLedger - 100_000) : 1;
+
   if (__DEV__) {
-    console.log('[SAC events] nativeSacId:', nativeSacId);
-    console.log('[SAC events] cAddress:', cAddress);
-    console.log('[SAC events] latestLedger:', latestLedger, 'startLedger:', startLedger);
+    console.log('[SAC events] latestLedger:', latestLedger, '→ startLedger:', startLedger);
   }
 
   const transferSym = scValB64(xdr.ScVal.scvSymbol('transfer'));
   const cAddressVal = scValB64(new Address(cAddress).toScVal());
   const wildcard = '*';
 
-  // Native SAC transfer events emit 4 topics: [Symbol("transfer"), Address(from), Address(to), String("native")]
-  // Confirmed from on-chain explorer. Stellar RPC getEvents uses fixed-length topic matching —
-  // filter must have the same number of positions as the emitted event.
-  const makeFilter = (senderFilter: string, recipientFilter: string) => ({
+  const makeFilter = (sender: string, recipient: string) => ({
     startLedger,
-    filters: [
-      {
-        type: 'contract',
-        contractIds: [nativeSacId],
-        topics: [
-          [transferSym], // topic[0] = Symbol("transfer")
-          [senderFilter], // topic[1] = from address (or wildcard "*")
-          [recipientFilter], // topic[2] = to address (or wildcard "*")
-          [wildcard], // topic[3] = String("native") — wildcard matches any asset name
-        ],
-      },
-    ],
-    pagination: { limit: 20 },
+    filters: [{
+      type: 'contract',
+      contractIds: [nativeSacId],
+      topics: [[transferSym], [sender], [recipient], [wildcard]],
+    }],
+    pagination: { limit: 50 },
   });
 
-  // Diagnostic: fetch ANY transfer events (no address filter) to verify contract ID + startLedger
-  if (__DEV__) {
-    const diag = await sorobanRpc('getEvents', {
-      startLedger,
-      filters: [
-        {
-          type: 'contract',
-          contractIds: [nativeSacId],
-          topics: [[transferSym], [wildcard], [wildcard], [wildcard]],
-        },
-      ],
-      pagination: { limit: 3 },
-    });
-    console.log('[SAC events] diagnostic (any transfer, no addr filter):', JSON.stringify(diag));
-  }
-
   const [incomingResp, outgoingResp] = await Promise.all([
-    sorobanRpc('getEvents', makeFilter(wildcard, cAddressVal)), // incoming: to == cAddress
-    sorobanRpc('getEvents', makeFilter(cAddressVal, wildcard)), // outgoing: from == cAddress
+    sorobanRpc('getEvents', makeFilter(wildcard, cAddressVal)),
+    sorobanRpc('getEvents', makeFilter(cAddressVal, wildcard)),
   ]);
 
   if (__DEV__) {
-    console.log(
-      '[SAC events] incoming filter sent:',
-      JSON.stringify(makeFilter(wildcard, cAddressVal)),
-    );
-    console.log('[SAC events] incomingResp:', JSON.stringify(incomingResp));
-    console.log('[SAC events] outgoingResp:', JSON.stringify(outgoingResp));
+    console.log('[SAC events] incoming:', incomingResp?.result?.events?.length ?? 0,
+      'outgoing:', outgoingResp?.result?.events?.length ?? 0);
   }
 
   const mapEvent = (event: any): StellarPayment | null => {
@@ -158,14 +180,13 @@ async function fetchSacTransferEvents(cAddress: string): Promise<StellarPayment[
       const from = String(scValToNative(xdr.ScVal.fromXDR(topics[1], 'base64')));
       const to = String(scValToNative(xdr.ScVal.fromXDR(topics[2], 'base64')));
       const amountRaw = scValToNative(xdr.ScVal.fromXDR(event.value, 'base64')) as bigint;
-      const amount = (Number(amountRaw) / 10_000_000).toFixed(7);
       return {
         id: event.id ?? event.txHash,
         transactionHash: event.txHash ?? '',
         type: 'invoke_host_function',
         from,
         to,
-        amount,
+        amount: (Number(amountRaw) / 10_000_000).toFixed(7),
         assetType: 'native',
         createdAt: event.ledgerClosedAt ?? '',
       };
@@ -174,14 +195,9 @@ async function fetchSacTransferEvents(cAddress: string): Promise<StellarPayment[
     }
   };
 
-  const incoming: StellarPayment[] = (incomingResp?.result?.events ?? [])
-    .map(mapEvent)
-    .filter(Boolean) as StellarPayment[];
-  const outgoing: StellarPayment[] = (outgoingResp?.result?.events ?? [])
-    .map(mapEvent)
-    .filter(Boolean) as StellarPayment[];
+  const incoming = (incomingResp?.result?.events ?? []).map(mapEvent).filter(Boolean) as StellarPayment[];
+  const outgoing = (outgoingResp?.result?.events ?? []).map(mapEvent).filter(Boolean) as StellarPayment[];
 
-  // Deduplicate between the two calls (an event that is both from and to the same address)
   const seen = new Set<string>();
   return [...incoming, ...outgoing].filter((tx) => {
     if (seen.has(tx.transactionHash)) return false;
@@ -190,73 +206,33 @@ async function fetchSacTransferEvents(cAddress: string): Promise<StellarPayment[
   });
 }
 
-/** Fetch classic Stellar operations (payments, create_account) via Horizon. */
-async function fetchHorizonOperations(address: string): Promise<StellarPayment[]> {
-  const server = new Horizon.Server(HORIZON_URL);
-  const response = await withHorizon504Retry(() =>
-    server.operations().forAccount(address).limit(20).order('desc').call(),
-  );
+// ─── Merge ───────────────────────────────────────────────────────────────────
 
-  return response.records.map((record: any) => {
-    if (record.type === 'create_account') {
-      return {
-        id: record.id,
-        transactionHash: record.transaction_hash,
-        type: record.type,
-        from: record.funder,
-        to: record.account,
-        amount: record.starting_balance,
-        assetType: 'native',
-        assetCode: undefined,
-        createdAt: record.created_at,
-      };
-    }
-
-    if (
-      record.type === 'payment' ||
-      record.type === 'path_payment_strict_receive' ||
-      record.type === 'path_payment_strict_send'
-    ) {
-      return {
-        id: record.id,
-        transactionHash: record.transaction_hash,
-        type: record.type,
-        from: record.from,
-        to: record.to,
-        amount: record.amount ?? '0',
-        assetType: record.asset_type ?? 'native',
-        assetCode: record.asset_code,
-        createdAt: record.created_at,
-      };
-    }
-
-    // Other op types (invoke_host_function surfaced via Horizon) — best effort
-    return {
-      id: record.id,
-      transactionHash: record.transaction_hash,
-      type: record.type,
-      from: record.source_account ?? address,
-      to: address,
-      amount: '0',
-      assetType: 'native',
-      assetCode: undefined,
-      createdAt: record.created_at,
-    };
-  });
-}
-
-export async function fetchStellarPayments(address: string): Promise<StellarPayment[]> {
-  const [horizonResult, sacResult] = await Promise.allSettled([
-    fetchHorizonOperations(address),
-    fetchSacTransferEvents(address),
+export async function fetchStellarPayments(
+  cAddress: string,
+  gAddress?: string | null,
+): Promise<StellarPayment[]> {
+  // Run both sources in parallel
+  const [gAddrResult, sacResult] = await Promise.allSettled([
+    gAddress ? fetchGAddressHistory(gAddress, cAddress) : Promise.resolve([]),
+    fetchSacTransferEvents(cAddress),
   ]);
 
-  const horizon = horizonResult.status === 'fulfilled' ? horizonResult.value : [];
+  if (__DEV__) {
+    if (gAddrResult.status === 'rejected')
+      console.log('[G-addr history] ERROR:', (gAddrResult.reason as any)?.message ?? gAddrResult.reason);
+    if (sacResult.status === 'rejected')
+      console.log('[SAC events] ERROR:', (sacResult.reason as any)?.message ?? sacResult.reason);
+    if (!gAddress)
+      console.log('[tx history] No G-address — using RPC events only (7-day window)');
+  }
+
+  const horizonTxs = gAddrResult.status === 'fulfilled' ? gAddrResult.value : [];
   const sacEvents = sacResult.status === 'fulfilled' ? sacResult.value : [];
-  // console.log({ horizonResult, sacResult });
-  // Merge, deduplicate by transactionHash, sort newest first
+
+  // SAC events take dedup priority (exact from/to); Horizon fills historical gaps
   const seen = new Set<string>();
-  const merged = [...sacEvents, ...horizon].filter((tx) => {
+  const merged = [...sacEvents, ...horizonTxs].filter((tx) => {
     if (!tx.transactionHash || seen.has(tx.transactionHash)) return false;
     seen.add(tx.transactionHash);
     return true;
@@ -265,11 +241,20 @@ export async function fetchStellarPayments(address: string): Promise<StellarPaym
   return merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
-export function useStellarTransactions(address: string | null) {
+/**
+ * G-address is read from the wallet store so callers only need to pass cAddress.
+ * Both sources run in parallel:
+ *  1. G-address Horizon ops → per-op effects (full history, requires G-address)
+ *  2. Soroban RPC SAC transfer events (recent ~7 days, works for any C-address)
+ */
+export function useStellarTransactions(cAddress: string | null) {
+  const { accounts, activeAccountIndex } = useWalletStore();
+  const gAddress = accounts[activeAccountIndex]?.gAddress || null;
+
   return useQuery({
-    queryKey: ['stellar-transactions', address],
-    queryFn: () => fetchStellarPayments(address!),
-    enabled: !!address,
+    queryKey: ['stellar-transactions', cAddress, gAddress],
+    queryFn: () => fetchStellarPayments(cAddress!, gAddress),
+    enabled: !!cAddress,
     staleTime: 30_000,
     retry: 1,
   });
