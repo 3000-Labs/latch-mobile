@@ -10,6 +10,7 @@ import Text from './Text';
 interface Props {
   visible?: boolean;
   text?: string;
+  subText?: string;
   intensity?: number; // blur intensity
   tint?: 'light' | 'dark' | 'default';
   onPress?: () => void; // optional handler if tapping overlay should do something
@@ -18,6 +19,7 @@ interface Props {
 const LoadingBlur: React.FC<Props> = ({
   visible = true,
   text = 'Connecting to wallet...',
+  subText,
   intensity = 30,
   tint = 'dark',
   onPress,
@@ -43,6 +45,11 @@ const LoadingBlur: React.FC<Props> = ({
           <Text variant="h10" color={'textWhite'}>
             {text}
           </Text>
+          {subText && (
+            <Text variant="h10" color={'textWhite'} textAlign="center">
+              {subText}
+            </Text>
+          )}
         </Box>
       </View>
     </View>

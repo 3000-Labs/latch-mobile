@@ -9,7 +9,15 @@ import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
-import { Dimensions, Image, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import {
+  Dimensions,
+  Image,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
 import Box from '@/src/components/shared/Box';
 import Button from '@/src/components/shared/Button';
@@ -112,7 +120,7 @@ const RecoveryPhrase = () => {
           <Box mb="xxl">
             <View style={{ position: 'relative', borderRadius: 16 }}>
               {/* Recovery Words Grid - 3 columns */}
-              <Box flexDirection="row" flexWrap="wrap" gap="m">
+              <Box flexDirection="row" flexWrap="wrap" gap="s">
                 {recoveryPhrase.map((word, index) => (
                   <Box
                     key={index}
@@ -173,14 +181,29 @@ const RecoveryPhrase = () => {
                     },
                   ]}
                 >
-                  <BlurView intensity={30} tint={'dark'} style={StyleSheet.absoluteFill} />
+                  <BlurView
+                    intensity={100}
+                    tint={statusBarStyle !== 'light' ? 'light' : 'dark'}
+                    style={[
+                      StyleSheet.absoluteFill,
+                      {
+                        borderRadius: 12,
+                        backgroundColor: Platform.OS === 'android' ? 'rgba(0,0,0,0.9)' : undefined,
+                      },
+                    ]}
+                  />
                   <Box justifyContent="center" alignItems="center">
                     <Image
                       source={require('@/src/assets/images/shieldLoader.png')}
                       style={{ width: 100, height: 100 }}
                       resizeMode="contain"
                     />
-                    <Text variant="p5" color="textPrimary" fontWeight="600" textAlign="center">
+                    <Text
+                      variant="p5"
+                      color={statusBarStyle === 'light' ? 'textPrimary' : 'black'}
+                      fontWeight="600"
+                      textAlign="center"
+                    >
                       Tap to reveal
                     </Text>
                   </Box>
@@ -195,7 +218,9 @@ const RecoveryPhrase = () => {
           <Button
             label="Continue"
             variant={isRevealed && !isGenerating ? 'primary' : 'disabled'}
-            onPress={() => isRevealed && !isGenerating && router.push('/(onboarding)/verify-phrase')}
+            onPress={() =>
+              isRevealed && !isGenerating && router.push('/(onboarding)/verify-phrase')
+            }
             bg={isRevealed && !isGenerating ? 'primary700' : 'btnDisabled'}
             labelColor={isRevealed && !isGenerating ? 'black' : 'gray600'}
             disabled={!isRevealed || isGenerating}

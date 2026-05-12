@@ -42,15 +42,15 @@ app/
 └── (tabs)/                # Authenticated shell with custom bottom tab bar
 ```
 
-Navigation entry logic: splash screen reads `@latch_onboarding_complete` from AsyncStorage; if absent, routes to onboarding; if present, routes to `/(tabs)/`.
+Navigation entry logic: splash screen reads `SECURE_KEYS.SMART_ACCOUNT` from SecureStore; if present, routes to `/(auth)/biometric` with `mode: 'unlock'`; if absent, routes to `/onboarding`.
 
 ### State Management
 
 - **Local state** (`useState`) for ephemeral UI state
-- **AsyncStorage** for persisted non-sensitive state (onboarding flag, theme preference)
-- **expo-secure-store** for sensitive data (`ACCESS_TOKEN_KEY`, `REFRESH_TOKEN_KEY`)
+- **AsyncStorage** for persisted non-sensitive state (theme preference)
+- **expo-secure-store** for all sensitive data — see `SECURE_KEYS` in `src/store/wallet.ts` for the full key inventory
 - **React Query** (@tanstack/react-query) for server state/caching
-- **Zustand** is installed but not yet used — available for global state when needed
+- **Zustand** (`useWalletStore` in `src/store/wallet.ts`) — primary global state for the active wallet, accounts list, mnemonic, and smart account address. Handles multi-account derivation, rehydration from SecureStore on launch, and full reset on logout.
 
 ### API Layer
 
@@ -65,6 +65,19 @@ Navigation entry logic: splash screen reads `@latch_onboarding_complete` from As
 - `@stellar/freighter-api` — connect existing Freighter wallet
 - `stellar-hd-wallet` — BIP-39/SEP-0005 mnemonic wallet generation
 - `src/lib/seed-wallet.ts` — helpers for generating and restoring Stellar keypairs from mnemonics
+- `src/api/smart-account.ts` — deploys Soroban smart accounts via the factory contract (Ed25519 and G-address paths)
+- `src/api/passkey.ts` — deploys smart accounts for passkey (P-256 / WebAuthn) users
+- `src/lib/passkey-webauthn.ts` — custom WebAuthn implementation using `react-native-quick-crypto` and `expo-secure-store` with biometric access control (no browser APIs)
+
+**Network switching:** `ACTIVE_NETWORK` in `src/constants/config.ts` is the single constant that moves the whole app between testnet and mainnet.
+
+**Android XHR workaround:** All Soroban RPC calls use raw `XMLHttpRequest` instead of Axios. The Stellar SDK's Axios transport fails on Android because it bypasses the platform TLS stack. Using XHR routes through OkHttp and respects `network_security_config.xml`.
+
+**Wallet account model** (`WalletAccount` in `src/store/wallet.ts`):
+- Mnemonic users: BIP-44 index ≥ 0, `gAddress` and `publicKeyHex` populated
+- Passkey users: index = -1 (first account) or negative, `gAddress` is empty, `credentialId` identifies the P-256 key in SecureStore
+
+**Smart account factory:** requires `EXPO_PUBLIC_FACTORY_ADDRESS` and `EXPO_PUBLIC_BUNDLER_SECRET`. The bundler signs deployment transactions — move server-side before production (see security note in `smart-account.ts`).
 
 ### Theme & UI
 
@@ -82,6 +95,11 @@ Navigation entry logic: splash screen reads `@latch_onboarding_complete` from As
 - `EXPO_PUBLIC_HOT_UPDATER_*` — Supabase config for OTA updates
 
 `app.config.js` reads from `env.js` and conditionally applies staging vs production icons, bundle IDs, and app names.
+
+Additional required vars:
+- `EXPO_PUBLIC_SOROBAN_RPC_URL` — Soroban JSON-RPC endpoint (separate from Horizon)
+- `EXPO_PUBLIC_FACTORY_ADDRESS` — on-chain smart account factory contract address
+- `EXPO_PUBLIC_BUNDLER_SECRET` — Stellar secret key for the bundler account that funds + signs deployments (testnet only; must move server-side for production)
 
 ### Path Aliases
 

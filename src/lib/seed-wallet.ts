@@ -25,30 +25,38 @@ function childKey(parent: { key: Uint8Array; chainCode: Uint8Array }, index: num
   return { key: I.slice(0, 32), chainCode: I.slice(32) };
 }
 
-// m/44'/148'/0' — SEP-0005 Stellar path
-function deriveKeypair(seed: Uint8Array): Keypair {
+// m/44'/148'/{accountIndex}' — SEP-0005 Stellar path, hardened account index
+function deriveKeypairAtIndex(seed: Uint8Array, accountIndex: number): Keypair {
   let node = masterKey(seed);
   node = childKey(node, 44);
   node = childKey(node, 148);
-  node = childKey(node, 0);
+  node = childKey(node, accountIndex);
   return Keypair.fromRawEd25519Seed(Buffer.from(node.key));
 }
 
-function walletFromMnemonic(mnemonic: string): StellarWallet {
+function walletFromMnemonic(mnemonic: string, accountIndex = 0): StellarWallet {
   const seed = mnemonicToSeedSync(mnemonic);
-  const keypair = deriveKeypair(seed);
-
+  const keypair = deriveKeypairAtIndex(seed, accountIndex);
   const publicKeyHex = Buffer.from(keypair.rawPublicKey()).toString('hex');
   const gAddress = keypair.publicKey();
-
   return { mnemonic, publicKeyHex, gAddress, keypair };
 }
 
 export function generateStellarWallet(): StellarWallet {
   const mnemonic = generateMnemonic(wordlist, 128); // 128 bits = 12 words
-  return walletFromMnemonic(mnemonic);
+  return walletFromMnemonic(mnemonic, 0);
 }
 
+/** Restore account 0 from a mnemonic (backward-compatible default). */
 export function restoreStellarWallet(mnemonic: string): StellarWallet {
-  return walletFromMnemonic(mnemonic);
+  return walletFromMnemonic(mnemonic, 0);
+}
+
+/**
+ * Derive the Stellar wallet at a specific BIP-44 account index.
+ * Each index produces a unique Ed25519 keypair from the same seed.
+ * Path: m/44'/148'/{accountIndex}'
+ */
+export function deriveWalletAtIndex(mnemonic: string, accountIndex: number): StellarWallet {
+  return walletFromMnemonic(mnemonic, accountIndex);
 }

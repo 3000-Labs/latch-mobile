@@ -3,7 +3,7 @@ const { z } = require('zod');
 
 const runtimeEnv = z
   .object({
-    EXPO_PUBLIC_API_BASE_URL: z.string().url(),
+    // EXPO_PUBLIC_API_BASE_URL: z.string().url(),
     // EXPO_PUBLIC_LOGIN_EMAIL: z.string(),
     // EXPO_PUBLIC_LOGIN_PASSWORD: z.string(),
     // EXPO_PUBLIC_DOJAH_KEY: z.string(),
@@ -17,6 +17,17 @@ const runtimeEnv = z
     // EXPO_PUBLIC_META_CLIENT_TOKEN: z.string(),
     EXPO_PUBLIC_APP_PROFILE: z.string().default('staging'),
     // EXPO_PUBLIC_CLOUDFLARE_WORKER_URL: z.string().url(),
+    EXPO_PUBLIC_HORIZON_TESTNET_URL: z.string(),
+    EXPO_PUBLIC_EXPLORER_URL: z.string(),
+
+    ///////
+    EXPO_PUBLIC_NETWORK: z.string(),
+    EXPO_PUBLIC_RPC_URL: z.string(),
+    EXPO_PUBLIC_NETWORK_PASSPHRASE: z.string(),
+    EXPO_PUBLIC_VERIFIER_ADDRESS: z.string(),
+    EXPO_PUBLIC_COUNTER_ADDRESS: z.string(),
+    EXPO_PUBLIC_SMART_ACCOUNT_WASM_HASH: z.string(),
+    EXPO_PUBLIC_FACTORY_ADDRESS: z.string(),
   })
   .partial();
 
@@ -41,7 +52,7 @@ const envSchema =
  * @type {Record<keyof z.TypeOf<typeof runtimeEnv>, string | undefined>}
  */
 const envObject = {
-  EXPO_PUBLIC_API_BASE_URL: process.env.EXPO_PUBLIC_API_BASE_URL,
+  // EXPO_PUBLIC_API_BASE_URL: process.env.EXPO_PUBLIC_API_BASE_URL,
   //   EXPO_PUBLIC_LOGIN_EMAIL: process.env.EXPO_PUBLIC_LOGIN_EMAIL,
   //   EXPO_PUBLIC_LOGIN_PASSWORD: process.env.EXPO_PUBLIC_LOGIN_PASSWORD,
   //   EXPO_PUBLIC_DOJAH_KEY: process.env.EXPO_PUBLIC_DOJAH_KEY,
@@ -56,5 +67,16 @@ const envObject = {
   //   EXPO_PUBLIC_META_CLIENT_TOKEN: process.env.EXPO_PUBLIC_META_CLIENT_TOKEN,
   EXPO_PUBLIC_APP_PROFILE: process.env.EXPO_PUBLIC_APP_PROFILE,
   //   EXPO_PUBLIC_CLOUDFLARE_WORKER_URL: process.env.EXPO_PUBLIC_CLOUDFLARE_WORKER_URL,
+  EXPO_PUBLIC_HORIZON_TESTNET_URL: process.env.EXPO_PUBLIC_HORIZON_TESTNET_URL,
+  EXPO_PUBLIC_EXPLORER_URL: process.env.EXPO_PUBLIC_EXPLORER_URL,
+  //
+  EXPO_PUBLIC_NETWORK: process.env.EXPO_PUBLIC_NETWORK,
+  EXPO_PUBLIC_RPC_URL: process.env.EXPO_PUBLIC_RPC_URL,
+  EXPO_PUBLIC_NETWORK_PASSPHRASE: process.env.EXPO_PUBLIC_NETWORK_PASSPHRASE,
+  EXPO_PUBLIC_VERIFIER_ADDRESS: process.env.EXPO_PUBLIC_VERIFIER_ADDRESS,
+  EXPO_PUBLIC_COUNTER_ADDRESS: process.env.EXPO_PUBLIC_COUNTER_ADDRESS,
+  EXPO_PUBLIC_SMART_ACCOUNT_WASM_HASH: process.env.EXPO_PUBLIC_SMART_ACCOUNT_WASM_HASH,
+  EXPO_PUBLIC_FACTORY_ADDRESS: process.env.EXPO_PUBLIC_FACTORY_ADDRESS,
 };
+
 module.exports = envSchema.parse({ ...process.env, ...envObject });
