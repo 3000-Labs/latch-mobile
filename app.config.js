@@ -44,6 +44,11 @@ export default {
       output: 'static',
       favicon: './assets/images/favicon.png',
     },
+    extra: {
+      eas: {
+        projectId: '8b122713-0d94-4940-a71c-58da86f923ad',
+      },
+    },
     plugins: [
       'expo-router',
       [
