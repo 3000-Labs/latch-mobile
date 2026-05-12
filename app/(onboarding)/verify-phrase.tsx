@@ -1,12 +1,11 @@
 import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
-import { PENDING_MNEMONIC_KEY } from '@/app/(onboarding)/recovery-phrase';
-import { useWalletStore } from '@/src/store/wallet';
+import { SECURE_KEYS, useWalletStore } from '@/src/store/wallet';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Dimensions, Image, ScrollView, TouchableOpacity, Vibration, View } from 'react-native';
 
 import Box from '@/src/components/shared/Box';
@@ -16,7 +15,6 @@ import Text from '@/src/components/shared/Text';
 import { Theme } from '@/src/theme/theme';
 
 const { width } = Dimensions.get('window');
-const MNEMONIC_KEY = 'latch_mnemonic';
 
 const VerifyPhrase = () => {
   const theme = useTheme<Theme>();
@@ -24,7 +22,10 @@ const VerifyPhrase = () => {
   const router = useRouter();
 
   const { pendingWallet, clearPendingWallet } = useWalletStore();
-  const recoveryPhrase = pendingWallet?.mnemonic.split(' ') ?? [];
+  const recoveryPhrase = useMemo(
+    () => pendingWallet?.mnemonic.split(' ') ?? [],
+    [pendingWallet?.mnemonic],
+  );
 
   const [missingIndices, setMissingIndices] = useState<number[]>([]);
   const [shuffledBank, setShuffledBank] = useState<string[]>([]);
@@ -73,19 +74,12 @@ const VerifyPhrase = () => {
     if (isCorrect) {
       setIsSaving(true);
       try {
-        await SecureStore.setItemAsync(MNEMONIC_KEY, pendingWallet.mnemonic);
-        await SecureStore.deleteItemAsync(PENDING_MNEMONIC_KEY);
+        // Persist mnemonic to SecureStore before clearing in-memory wallet.
+        // deploy-account reads from SecureStore directly — no route params needed.
+        await SecureStore.setItemAsync(SECURE_KEYS.MNEMONIC, pendingWallet.mnemonic);
+        await SecureStore.deleteItemAsync(SECURE_KEYS.PENDING_MNEMONIC);
         clearPendingWallet();
-        router.navigate({
-          pathname: '/(auth)/thank-you',
-          params: {
-            title: 'Your Smart Account is Ready',
-            subtext: 'Start using your secure Stellar wallet today',
-            buttonLabel: 'Go to Dashboard',
-            imageSource: 'success',
-            accountAddress: pendingWallet.gAddress,
-          },
-        });
+        router.navigate('/(onboarding)/deploy-account');
       } catch {
         setIsSaving(false);
       }

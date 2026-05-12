@@ -1,5 +1,8 @@
 import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
-import { useWalletStore } from '@/src/store/wallet';
+import Box from '@/src/components/shared/Box';
+import Text from '@/src/components/shared/Text';
+import { SECURE_KEYS, useWalletStore } from '@/src/store/wallet';
+import { Theme } from '@/src/theme/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -15,10 +18,11 @@ import {
   Vibration,
   View,
 } from 'react-native';
+import QuickCrypto from 'react-native-quick-crypto';
 
-import Box from '@/src/components/shared/Box';
-import Text from '@/src/components/shared/Text';
-import { Theme } from '@/src/theme/theme';
+function hashPin(pin: string): string {
+  return QuickCrypto.createHash('sha256').update(pin).digest('hex') as unknown as string;
+}
 
 const { width } = Dimensions.get('window');
 
@@ -35,7 +39,7 @@ const KEYPAD_ROWS = [
 const SetPin = () => {
   const theme = useTheme<Theme>();
   const statusBarStyle = useStatusBarStyle();
-  const { from, accountAddress } = useLocalSearchParams();
+  const { from } = useLocalSearchParams();
   const router = useRouter();
   const { pendingWallet, clearPendingWallet } = useWalletStore();
 
@@ -72,26 +76,23 @@ const SetPin = () => {
         if (next.length === PIN_LENGTH) {
           setTimeout(async () => {
             if (next === pin) {
-              await SecureStore.setItemAsync(PIN_KEY, pin);
+              await SecureStore.setItemAsync(PIN_KEY, hashPin(pin));
 
               if (from === 'import-phrase') {
                 if (pendingWallet) {
-                  await SecureStore.setItemAsync('latch_mnemonic', pendingWallet.mnemonic);
+                  await SecureStore.setItemAsync(SECURE_KEYS.MNEMONIC, pendingWallet.mnemonic);
                   clearPendingWallet();
                 }
-                router.push({
-                  pathname: '/(auth)/thank-you',
-                  params: {
-                    title: 'Your Smart Account is Ready',
-                    subtext: 'Start using your secure Stellar wallet today',
-                    buttonLabel: 'Go to Dashboard',
-                    imageSource: 'success',
-                    accountAddress: accountAddress,
-                  },
-                });
-              } else {
-                router.push('/(onboarding)/recovery-phrase');
               }
+
+              if (from === 'recovery') {
+                // Credentials already restored from backup — skip deploy, go straight to app.
+                router.replace('/(tabs)');
+                return;
+              }
+
+              // Collect email for recovery backup before deploying
+              router.push('/(onboarding)/collect-email');
             } else {
               Vibration.vibrate(400);
               setError(true);
@@ -101,7 +102,7 @@ const SetPin = () => {
         }
       }
     },
-    [currentPin, phase, pin, router, from, accountAddress, pendingWallet, clearPendingWallet],
+    [currentPin, phase, pin, router, from, pendingWallet, clearPendingWallet],
   );
 
   const handleBack = () => {

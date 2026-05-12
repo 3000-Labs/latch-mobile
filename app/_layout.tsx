@@ -3,7 +3,6 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { IconRegistry } from '@ui-kitten/components';
 import { EvaIconsPack } from '@ui-kitten/eva-icons';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
@@ -14,16 +13,21 @@ import Toast from 'react-native-toast-message';
 import '../shim';
 // Now you can import libraries that need crypto
 import { Buffer } from 'buffer';
+import { Stack } from 'expo-router';
+import { install } from 'react-native-quick-crypto';
 import { queryClient } from '../src/api/client';
 import { AppThemeProvider, useAppTheme } from '../src/theme/ThemeContext';
+
+install();
 global.Buffer = Buffer;
 
 SplashScreen.preventAutoHideAsync();
 
 if (__DEV__) {
-  void import('../ReactotronConfig.js');
+  // void import('../ReactotronConfig.js');
 }
-LogBox.ignoreAllLogs();
+
+LogBox.ignoreAllLogs(true);
 
 function RootLayoutContent() {
   const { isDark } = useAppTheme();
@@ -32,6 +36,14 @@ function RootLayoutContent() {
     <>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="send-token" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="receive-token" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="address-book" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="network-settings" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="notification" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="help-support" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="about" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="qrcode-scan" options={{ headerShown: false }} />
       </Stack>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <Toast />

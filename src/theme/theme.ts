@@ -3,6 +3,7 @@ import { createTheme } from '@shopify/restyle';
 const palette = {
   black: '#000000',
   white: '#FFFFFF',
+  cardbg: '#1c1c1c',
 
   gray100: '#F2F2F7',
   gray200: '#E5E5EA',
@@ -25,6 +26,8 @@ const palette = {
   primary700: '#FFAD00',
   primary800: '#C16C04',
   primary900: '#754101',
+  primaryOrange: '#FF8C00',
+  primaryIndigo: '#6366F1',
 
   // Primary Dark Mode Scale (Light to Dark)
   primaryDark50: '#FADAB4',
@@ -176,6 +179,7 @@ const sharedColors = {
   btnHover: '#6D3E04',
 
   black: palette.black,
+  cardbg: palette.cardbg,
   textWhite: palette.white,
   white: palette.white,
   inputError: palette.inputError,
@@ -200,6 +204,8 @@ const sharedColors = {
   primary700: palette.primary700,
   primary800: palette.primary800,
   primary900: palette.primary900,
+  primaryOrange: palette.primaryOrange,
+  primaryIndigo: palette.primaryIndigo,
 
   primaryDark50: palette.primaryDark50,
   primaryDark100: palette.primaryDark100,
@@ -386,8 +392,8 @@ const darkTheme = createTheme({
 
     display: { fontSize: 48, lineHeight: 61, letterSpacing: -1.44, fontFamily: 'SFproBold' },
     displayItalic: {
-      fontSize: 80,
-      lineHeight: 89,
+      fontSize: 60,
+      lineHeight: 69,
       letterSpacing: 1.5,
       fontFamily: 'SFproSemiboldItalic',
     },

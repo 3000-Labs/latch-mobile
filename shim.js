@@ -1,7 +1,7 @@
 module.exports = {
   assert: '^1.1.1',
   'browserify-zlib': '~0.1.4',
-  buffer: '^4.9.1',
+  buffer: '^6.0.3',
   inherits: '^2.0.1',
   'console-browserify': '^1.1.0',
   'constants-browserify': '^1.0.0',
