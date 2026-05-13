@@ -95,6 +95,13 @@ export default {
           ],
         },
       ],
+      [
+        'expo-camera',
+        {
+          cameraPermission: 'Allow $(PRODUCT_NAME) to access your camera',
+          barcodeScannerEnabled: true,
+        },
+      ],
       // [
       //   '@hot-updater/react-native',
       //   {
@@ -114,11 +121,6 @@ export default {
           },
         },
       ],
-      // Injects network_security_config.xml into the Android build so OkHttp
-      // trusts the system CA store.  Without this, Android 7+ (API 24+) throws:
-      //   CertPathValidatorException: Trust anchor for certification path not found
-      // './trust-local-certs.js',
-      // ['react-native-quick-crypto', { sodiumEnabled: true }], // Optional configuration
     ],
     updates: {
       url: 'https://u.expo.dev/8b122713-0d94-4940-a71c-58da86f923ad',
