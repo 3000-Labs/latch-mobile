@@ -70,8 +70,8 @@ export async function buildAndSubmitSacTransfer(
       const nativeBal = balances.find((b) => b.asset_type === 'native');
       // Stellar minimum balance: (2 + subentries) × 0.5 XLM
       const minBalanceXLM = (2 + (accountData.subentry_count ?? 0)) * 0.5;
-      // Fee buffer matches the declared tx fee: 1_500_000 stroops = 0.15 XLM
-      const feeBufferXLM = 1_500_000 / 10_000_000;
+      // 0.05 XLM covers declared fee (200k stroops) + up to 300k stroops resource fee
+      const feeBufferXLM = 0.05;
       const freshTransferable = nativeBal
         ? Math.max(0, parseFloat(nativeBal.balance) - minBalanceXLM - feeBufferXLM)
         : 0;
@@ -83,7 +83,7 @@ export async function buildAndSubmitSacTransfer(
       // Skip non-native token if the G-address lacks enough XLM above the 1 XLM reserve to pay the fee.
       const nativeBalForFee = balances.find((b) => b.asset_type === 'native');
       const xlmBalance = nativeBalForFee ? parseFloat(nativeBalForFee.balance) : 0;
-      const feeNeeded = 1_500_000 / 10_000_000;
+      const feeNeeded = 0.05;
       if (xlmBalance - 1.0 < feeNeeded) {
         return { success: true };
       }
@@ -110,7 +110,7 @@ export async function buildAndSubmitSacTransfer(
     // 3. Build the SAC transfer invocation
     const contract = new Contract(sacContractId);
     const tx = new TransactionBuilder(sourceAccount, {
-      fee: '1500000',
+      fee: '200000',
       networkPassphrase,
     })
       .addOperation(

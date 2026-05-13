@@ -1,7 +1,10 @@
 import { buildAndSubmitSacTransfer } from '@/src/api/migration-tx';
+import { useQueryClient } from '@tanstack/react-query';
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
+import TokenIcon from '@/src/components/shared/TokenIcon';
 import { HORIZON_URL, STELLAR_NETWORK_PASSPHRASE, STELLAR_RPC_URL } from '@/src/constants/config';
+import { useTokenIcon } from '@/src/hooks/use-token-list';
 import {
   discoverMigration,
   type MigrableAsset,
@@ -12,7 +15,6 @@ import { Theme } from '@/src/theme/theme';
 import { useAppTheme } from '@/src/theme/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
-import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef, useState } from 'react';
@@ -21,18 +23,109 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type AssetStatus = 'idle' | 'pending' | 'done' | 'failed';
 
-const TOKEN_ICONS: Record<string, ReturnType<typeof require>> = {
-  ETH: require('@/src/assets/token/eth.png'),
-  USDT: require('@/src/assets/token/usdt.png'),
-};
-const DEFAULT_TOKEN_ICON = require('@/src/assets/token/stellar.png');
-const getTokenIcon = (code: string) => TOKEN_ICONS[code?.toUpperCase()] ?? DEFAULT_TOKEN_ICON;
+function AssetRow({
+  asset,
+  status,
+  error,
+  isRunning,
+  isDark,
+  theme,
+  onMigrate,
+}: {
+  asset: MigrableAsset;
+  status: AssetStatus;
+  error?: string;
+  isRunning: boolean;
+  isDark: boolean;
+  theme: Theme;
+  onMigrate: () => void;
+}) {
+  const iconUrl = useTokenIcon(asset.code, asset.issuer);
+
+  return (
+    <Box
+      flexDirection="row"
+      alignItems="center"
+      backgroundColor={isDark ? 'gray900' : 'white'}
+      padding="m"
+      borderRadius={16}
+      mb="s"
+      style={
+        !isDark
+          ? {
+              borderWidth: 1,
+              borderColor: '#F5F5F5',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.04,
+              shadowRadius: 4,
+              elevation: 2,
+            }
+          : {}
+      }
+    >
+      <Box backgroundColor={isDark ? 'black' : 'text400'} borderRadius={22} mr="m">
+        <TokenIcon iconUrl={iconUrl} size={44} />
+      </Box>
+
+      <Box flex={1}>
+        <Text variant="h11" color="textPrimary" fontWeight="700">
+          {asset.code}
+        </Text>
+        <Text variant="p8" color="textSecondary" mt="xs">
+          {parseFloat(asset.amount).toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 7,
+          })}{' '}
+          {asset.code}
+        </Text>
+        {error ? (
+          <Text variant="p8" color="danger900" mt="xs" numberOfLines={2}>
+            {error}
+          </Text>
+        ) : null}
+      </Box>
+
+      <Box alignItems="center" justifyContent="center">
+        {status === 'idle' && !isRunning && (
+          <TouchableOpacity onPress={onMigrate} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Box
+              backgroundColor="primary700"
+              borderRadius={20}
+              paddingVertical="xs"
+              paddingHorizontal="s"
+            >
+              <Text variant="p8" color="black" fontWeight="700">
+                Migrate
+              </Text>
+            </Box>
+          </TouchableOpacity>
+        )}
+        {status === 'pending' && (
+          <ActivityIndicator size="small" color={theme.colors.primary700} />
+        )}
+        {status === 'done' && (
+          <Ionicons name="checkmark-circle" size={22} color={theme.colors.primary700} />
+        )}
+        {status === 'failed' && !isRunning && (
+          <TouchableOpacity onPress={onMigrate} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="refresh-circle" size={22} color={theme.colors.danger900} />
+          </TouchableOpacity>
+        )}
+        {status === 'failed' && isRunning && (
+          <Ionicons name="close-circle" size={22} color={theme.colors.danger900} />
+        )}
+      </Box>
+    </Box>
+  );
+}
 
 export default function MigrationSweep() {
   const theme = useTheme<Theme>();
   const { isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
   const { activeWallet, smartAccountAddress } = useWalletStore();
+  const queryClient = useQueryClient();
 
   const [discovery, setDiscovery] = useState<MigrationDiscovery | null>(null);
   const [statuses, setStatuses] = useState<Record<string, AssetStatus>>({});
@@ -125,7 +218,9 @@ export default function MigrationSweep() {
     if (!isMounted.current) return;
     setIsRunning(false);
 
-    // If all assets in this run succeeded, check on-chain and navigate to success
+    queryClient.invalidateQueries({ queryKey: ['portfolio'] });
+    queryClient.invalidateQueries({ queryKey: ['stellar-transactions'] });
+
     const anyFailed = assetsToRun.some((a) => !results[a.code]);
     if (!anyFailed) {
       router.replace('/(migration)/success');
@@ -134,7 +229,11 @@ export default function MigrationSweep() {
 
   const handleMigrate = () => {
     if (!discovery) return;
-    runMigration(discovery.assets);
+    runMigration(discovery.assets.filter((a) => statuses[a.code] === 'idle'));
+  };
+
+  const handleMigrateOne = (asset: MigrableAsset) => {
+    runMigration([asset]);
   };
 
   const handleRetryFailed = () => {
@@ -158,7 +257,7 @@ export default function MigrationSweep() {
   if (!discovery) return null;
 
   const hasFailures = Object.values(statuses).some((s) => s === 'failed');
-  const noneStarted = discovery.assets.every((a) => statuses[a.code] === 'idle');
+  const hasIdle = discovery.assets.some((a) => statuses[a.code] === 'idle');
 
   return (
     <Box flex={1} backgroundColor="mainBackground" style={{ paddingTop: insets.top }}>
@@ -201,85 +300,18 @@ export default function MigrationSweep() {
         </Box>
 
         {/* Asset rows */}
-        {discovery.assets.map((asset) => {
-          const status = statuses[asset.code] ?? 'idle';
-          const err = errors[asset.code];
-          console.log({ err });
-
-          return (
-            <Box
-              key={asset.code}
-              flexDirection="row"
-              alignItems="center"
-              backgroundColor={isDark ? 'gray900' : 'white'}
-              padding="m"
-              borderRadius={16}
-              mb="s"
-              style={
-                !isDark
-                  ? {
-                      borderWidth: 1,
-                      borderColor: '#F5F5F5',
-                      shadowColor: '#000',
-                      shadowOffset: { width: 0, height: 2 },
-                      shadowOpacity: 0.04,
-                      shadowRadius: 4,
-                      elevation: 2,
-                    }
-                  : {}
-              }
-            >
-              {/* Token icon */}
-              <Box
-                width={44}
-                height={44}
-                borderRadius={22}
-                backgroundColor={isDark ? 'black' : 'text400'}
-                justifyContent="center"
-                alignItems="center"
-                mr="m"
-              >
-                <Image
-                  source={getTokenIcon(asset.code)}
-                  style={{ width: '100%', height: '100%' }}
-                  contentFit="contain"
-                />
-              </Box>
-
-              {/* Code + amount */}
-              <Box flex={1}>
-                <Text variant="h11" color="textPrimary" fontWeight="700">
-                  {asset.code}
-                </Text>
-                <Text variant="p8" color="textSecondary" mt="xs">
-                  {parseFloat(asset.amount).toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 7,
-                  })}{' '}
-                  {asset.code}
-                </Text>
-                {err ? (
-                  <Text variant="p8" color="danger900" mt="xs" numberOfLines={2}>
-                    {err}
-                  </Text>
-                ) : null}
-              </Box>
-
-              {/* Status indicator */}
-              <Box width={28} alignItems="center">
-                {status === 'pending' && (
-                  <ActivityIndicator size="small" color={theme.colors.primary700} />
-                )}
-                {status === 'done' && (
-                  <Ionicons name="checkmark-circle" size={22} color={theme.colors.primary700} />
-                )}
-                {status === 'failed' && (
-                  <Ionicons name="close-circle" size={22} color={theme.colors.danger900} />
-                )}
-              </Box>
-            </Box>
-          );
-        })}
+        {discovery.assets.map((asset) => (
+          <AssetRow
+            key={asset.code}
+            asset={asset}
+            status={statuses[asset.code] ?? 'idle'}
+            error={errors[asset.code]}
+            isRunning={isRunning}
+            isDark={isDark}
+            theme={theme}
+            onMigrate={() => handleMigrateOne(asset)}
+          />
+        ))}
 
         {/* Base reserve notice */}
         <Box flexDirection="row" alignItems="center" mt="s" mb="xl" gap="xs">
@@ -307,8 +339,8 @@ export default function MigrationSweep() {
           backgroundColor: isDark ? theme.colors.mainBackground : theme.colors.mainBackground,
         }}
       >
-        {noneStarted && (
-          <TouchableOpacity activeOpacity={0.85} onPress={handleMigrate} disabled={isRunning}>
+        {hasIdle && !isRunning && (
+          <TouchableOpacity activeOpacity={0.85} onPress={handleMigrate}>
             <Box
               backgroundColor="primary700"
               borderRadius={16}
@@ -316,13 +348,13 @@ export default function MigrationSweep() {
               alignItems="center"
             >
               <Text variant="h11" color="black" fontWeight="700">
-                Migrate Assets
+                Migrate All
               </Text>
             </Box>
           </TouchableOpacity>
         )}
 
-        {isRunning && !noneStarted && (
+        {isRunning && (
           <Box
             backgroundColor={isDark ? 'gray900' : 'gray100'}
             borderRadius={16}
@@ -335,7 +367,7 @@ export default function MigrationSweep() {
           </Box>
         )}
 
-        {hasFailures && !isRunning && (
+        {hasFailures && !isRunning && !hasIdle && (
           <TouchableOpacity activeOpacity={0.85} onPress={handleRetryFailed}>
             <Box
               backgroundColor="primary700"

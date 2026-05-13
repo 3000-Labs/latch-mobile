@@ -1,10 +1,12 @@
 import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
+import HistoryItem from '@/src/components/history/HistoryItem';
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
-import TransactionItem from '@/src/components/shared/TransactionItem';
+import TokenIcon from '@/src/components/shared/TokenIcon';
 import { useDrawer } from '@/src/context/drawer-context';
-import { useStellarTransactions } from '@/src/hooks/use-stellar-transactions';
 import { usePortfolio, type TokenBalance } from '@/src/hooks/use-portfolio';
+import { StellarPayment, useStellarTransactions } from '@/src/hooks/use-stellar-transactions';
+import { useTokenIcon } from '@/src/hooks/use-token-list';
 import { useTrackedTokens } from '@/src/hooks/use-tracked-tokens';
 import { discoverMigration } from '@/src/lib/migration';
 import { useWalletStore } from '@/src/store/wallet';
@@ -29,14 +31,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-const TOKEN_ICONS: Record<string, ReturnType<typeof require>> = {
-  ETH: require('@/src/assets/token/eth.png'),
-  USDT: require('@/src/assets/token/usdt.png'),
-  USDC: require('@/src/assets/token/usdt.png'), // reuse USDT icon until USDC asset is added
-};
-const DEFAULT_TOKEN_ICON = require('@/src/assets/token/stellar.png');
-const getTokenIcon = (code: string) => TOKEN_ICONS[code?.toUpperCase()] ?? DEFAULT_TOKEN_ICON;
-
 function RaysBackgroundInner() {
   return (
     <Box position="absolute" style={{ top: 0, left: '28%' }}>
@@ -55,12 +49,18 @@ const banners = [
   { id: 3, image: require('@/src/assets/icon/Container.png') },
 ];
 
-function TokenRow({ token, showBalance, isDark, theme }: {
+function TokenRow({
+  token,
+  showBalance,
+  isDark,
+  theme,
+}: {
   token: TokenBalance;
   showBalance: boolean;
   isDark: boolean;
   theme: Theme;
 }) {
+  const iconUrl = useTokenIcon(token.code, token.issuer);
   const amount = parseFloat(token.amount);
   const formattedAmount = amount.toLocaleString(undefined, {
     minimumFractionDigits: 2,
@@ -93,20 +93,8 @@ function TokenRow({ token, showBalance, isDark, theme }: {
           : {}
       }
     >
-      <Box
-        width={48}
-        height={48}
-        borderRadius={24}
-        backgroundColor={isDark ? 'black' : 'text400'}
-        justifyContent="center"
-        alignItems="center"
-        mr="m"
-      >
-        <Image
-          source={getTokenIcon(token.code)}
-          style={{ width: '100%', height: '100%' }}
-          resizeMode="contain"
-        />
+      <Box backgroundColor={isDark ? 'black' : 'text400'} borderRadius={24} mr="m">
+        <TokenIcon iconUrl={iconUrl} size={48} />
       </Box>
       <Box flex={1}>
         <Text variant="h11" color="textPrimary" fontWeight="700">
@@ -173,7 +161,29 @@ const Home = () => {
   const totalUsd = (portfolio ?? []).reduce((sum, t) => sum + t.usdValue, 0);
   const xlmToken = portfolio?.find((t) => t.code === 'XLM');
   const spendableXlm = parseFloat(xlmToken?.amount ?? '0');
-  const recentTx = transactions?.slice(0, 5) ?? [];
+  const recentTx = transactions?.slice(0, 3) ?? [];
+
+  const handleRowPress = (tx: StellarPayment) => {
+    const isSent = tx.from === smartAccountAddress;
+    const direction = isSent ? 'sent' : 'received';
+
+    router.push({
+      pathname: '/transaction/[id]',
+      params: {
+        id: tx.id,
+        hash: tx.transactionHash,
+        type: tx.type,
+        from: tx.from,
+        to: tx.to,
+        amount: tx.amount,
+        assetType: tx.assetType,
+        assetCode: tx.assetCode ?? 'XLM',
+        createdAt: tx.createdAt,
+        direction,
+        gAddress: tx.from,
+      },
+    });
+  };
 
   return (
     <Box flex={1} backgroundColor="mainBackground">
@@ -480,7 +490,12 @@ const Home = () => {
             </Box>
           ) : (
             recentTx.map((tx) => (
-              <TransactionItem key={tx.id} tx={tx} walletAddress={smartAccountAddress} />
+              <HistoryItem
+                key={tx.id}
+                item={tx}
+                smartAccountAddress={smartAccountAddress}
+                handleRowPress={handleRowPress}
+              />
             ))
           )}
         </Box>

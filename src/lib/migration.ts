@@ -54,10 +54,16 @@ export async function discoverMigration(account: WalletAccount): Promise<Migrati
   const balances: any[] = data.balances ?? [];
   const assets: MigrableAsset[] = [];
 
+  const nativeBal = balances.find((b: any) => b.asset_type === 'native');
+  const xlmTotal = nativeBal ? parseFloat(nativeBal.balance) : 0;
+  // Mirror the exact formula used in buildAndSubmitSacTransfer so displayed amount === transferred amount
+  const minBalanceXLM = (2 + (data.subentry_count ?? 0)) * 0.5;
+  const feeNeeded = 0.05; // 0.05 XLM per tx (declared 200k stroops + resource fee buffer)
+  const xlmAvailableForFees = xlmTotal - minBalanceXLM;
+
   for (const b of balances) {
     if (b.asset_type === 'native') {
-      const total = parseFloat(b.balance);
-      const transferable = total - 1.0; // keep 1 XLM as base reserve
+      const transferable = xlmTotal - minBalanceXLM - feeNeeded;
       if (transferable > 0.0001) {
         assets.push({
           type: 'native',
@@ -68,7 +74,7 @@ export async function discoverMigration(account: WalletAccount): Promise<Migrati
       }
     } else if (b.asset_type === 'credit_alphanum4' || b.asset_type === 'credit_alphanum12') {
       const amount = parseFloat(b.balance);
-      if (amount > 0) {
+      if (amount > 0 && xlmAvailableForFees >= feeNeeded) {
         assets.push({
           type: 'token',
           code: b.asset_code,
