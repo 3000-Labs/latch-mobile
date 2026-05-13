@@ -12,13 +12,14 @@
 import {
   Account,
   Address,
+  Asset,
   Contract,
   Keypair,
   nativeToScVal,
   rpc,
   TransactionBuilder,
 } from '@stellar/stellar-sdk';
-import { parseSimResult, sorobanCall, txToBase64 } from './smart-account';
+import { sorobanCall, txToBase64 } from './smart-account';
 
 export interface SacTransferParams {
   sacContractId: string;
@@ -60,8 +61,51 @@ export async function buildAndSubmitSacTransfer(
     const accountData = await accountResp.json();
     const sourceAccount = new Account(fromGAddress, accountData.sequence);
 
-    // 2. Convert human-readable amount to raw integer (stroops / base units)
-    const amountRaw = BigInt(Math.round(parseFloat(amountHuman) * 10 ** decimals));
+    // 2. Derive the transfer amount from the fresh Horizon fetch, not the discovery snapshot.
+    // Balances can drift between discovery and sweep; a stale (too-large) amount fails simulation.
+    let effectiveAmount = amountHuman;
+    const balances: any[] = accountData.balances ?? [];
+    const nativeXlmSacId = Asset.native().contractId(networkPassphrase);
+    if (sacContractId === nativeXlmSacId) {
+      const nativeBal = balances.find((b) => b.asset_type === 'native');
+      // Stellar minimum balance: (2 + subentries) × 0.5 XLM
+      const minBalanceXLM = (2 + (accountData.subentry_count ?? 0)) * 0.5;
+      // Fee buffer matches the declared tx fee: 1_500_000 stroops = 0.15 XLM
+      const feeBufferXLM = 1_500_000 / 10_000_000;
+      const freshTransferable = nativeBal
+        ? Math.max(0, parseFloat(nativeBal.balance) - minBalanceXLM - feeBufferXLM)
+        : 0;
+      if (freshTransferable < 0.0001) {
+        return { success: false, error: 'Insufficient XLM balance (base reserve + fees required)' };
+      }
+      effectiveAmount = freshTransferable.toFixed(7);
+    } else {
+      // Skip non-native token if the G-address lacks enough XLM above the 1 XLM reserve to pay the fee.
+      const nativeBalForFee = balances.find((b) => b.asset_type === 'native');
+      const xlmBalance = nativeBalForFee ? parseFloat(nativeBalForFee.balance) : 0;
+      const feeNeeded = 1_500_000 / 10_000_000;
+      if (xlmBalance - 1.0 < feeNeeded) {
+        return { success: true };
+      }
+
+      // Non-native token: find the matching trustline by computing each entry's SAC contract ID.
+      const tokenBal = balances.find((b) => {
+        if (b.asset_type !== 'credit_alphanum4' && b.asset_type !== 'credit_alphanum12') return false;
+        try {
+          return new Asset(b.asset_code, b.asset_issuer).contractId(networkPassphrase) === sacContractId;
+        } catch {
+          return false;
+        }
+      });
+      if (tokenBal) {
+        if (parseFloat(tokenBal.balance) < 0.0000001) {
+          return { success: false, error: `No ${tokenBal.asset_code} balance to migrate` };
+        }
+        effectiveAmount = tokenBal.balance;
+      }
+    }
+
+    const amountRaw = BigInt(Math.round(parseFloat(effectiveAmount) * 10 ** decimals));
 
     // 3. Build the SAC transfer invocation
     const contract = new Contract(sacContractId);
@@ -85,8 +129,26 @@ export async function buildAndSubmitSacTransfer(
       transaction: txToBase64(tx),
     });
 
-    // 5. Assemble: attach auth + replace fee with resource fee from simulation
-    const assembled = rpc.assembleTransaction(tx, parseSimResult(rawSim)).build();
+    if (rawSim.error) {
+      const msg = String(rawSim.error);
+      // Contract error #10 = "resulting balance is not within the allowed range"
+      // This means the account balance changed since discovery — stale amount.
+      if (msg.includes('Error(Contract, #10)') || msg.toLowerCase().includes('resulting balance')) {
+        throw new Error('Insufficient balance — amounts may have changed. Go back and try again.');
+      }
+      throw new Error(`Simulation failed: ${msg}`);
+    }
+
+    // Soroban RPC omits transactionData when the SAC doesn't exist on this network.
+    if (typeof rawSim.transactionData !== 'string') {
+      throw new Error('Token SAC does not exist on this network — cannot transfer this asset.');
+    }
+
+    // 5. Assemble: attach auth + replace fee with resource fee from simulation.
+    // Pass rawSim directly — assembleTransaction calls parseRawSimulation internally,
+    // which requires auth entries to still be base64 strings. Pre-parsing them causes
+    // a double-parse that corrupts the XDR (Buffer.from(object) type error).
+    const assembled = rpc.assembleTransaction(tx, rawSim).build();
 
     // 6. Sign with the G-address Ed25519 keypair
     assembled.sign(keypair);

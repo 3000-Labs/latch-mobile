@@ -1,11 +1,15 @@
+import { buildAndSubmitSacTransfer } from '@/src/api/migration-tx';
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
-import { buildAndSubmitSacTransfer } from '@/src/api/migration-tx';
-import { discoverMigration, type MigrableAsset, type MigrationDiscovery } from '@/src/lib/migration';
+import { HORIZON_URL, STELLAR_NETWORK_PASSPHRASE, STELLAR_RPC_URL } from '@/src/constants/config';
+import {
+  discoverMigration,
+  type MigrableAsset,
+  type MigrationDiscovery,
+} from '@/src/lib/migration';
 import { useWalletStore, type WalletAccount } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
 import { useAppTheme } from '@/src/theme/ThemeContext';
-import { HORIZON_URL, STELLAR_NETWORK_PASSPHRASE, STELLAR_RPC_URL } from '@/src/constants/config';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
 import { Image } from 'expo-image';
@@ -37,14 +41,26 @@ export default function MigrationSweep() {
   const [isLoading, setIsLoading] = useState(true);
 
   const isMounted = useRef(true);
-  useEffect(() => () => { isMounted.current = false; }, []);
+  useEffect(
+    () => () => {
+      isMounted.current = false;
+    },
+    [],
+  );
 
   // Discover assets on mount
   useEffect(() => {
     const run = async () => {
-      const account = (activeWallet && smartAccountAddress)
-        ? { index: 0, name: '', gAddress: activeWallet.gAddress, publicKeyHex: activeWallet.publicKeyHex, smartAccountAddress }
-        : null;
+      const account =
+        activeWallet && smartAccountAddress
+          ? {
+              index: 0,
+              name: '',
+              gAddress: activeWallet.gAddress,
+              publicKeyHex: activeWallet.publicKeyHex,
+              smartAccountAddress,
+            }
+          : null;
 
       if (!account) {
         router.replace('/(tabs)');
@@ -60,13 +76,15 @@ export default function MigrationSweep() {
       }
 
       const initialStatuses: Record<string, AssetStatus> = {};
-      result.assets.forEach((a) => { initialStatuses[a.code] = 'idle'; });
+      result.assets.forEach((a) => {
+        initialStatuses[a.code] = 'idle';
+      });
       setDiscovery(result);
       setStatuses(initialStatuses);
       setIsLoading(false);
     };
     run();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const setStatus = (code: string, status: AssetStatus) => {
@@ -130,7 +148,9 @@ export default function MigrationSweep() {
       <Box flex={1} backgroundColor="mainBackground" justifyContent="center" alignItems="center">
         <StatusBar style={isDark ? 'light' : 'dark'} />
         <ActivityIndicator size="large" color={theme.colors.primary700} />
-        <Text variant="p7" color="textSecondary" mt="m">Loading assets…</Text>
+        <Text variant="p7" color="textSecondary" mt="m">
+          Loading assets…
+        </Text>
       </Box>
     );
   }
@@ -147,7 +167,10 @@ export default function MigrationSweep() {
       {/* Header */}
       <Box flexDirection="row" alignItems="center" paddingHorizontal="m" height={56}>
         {!isRunning && (
-          <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
             <Ionicons name="arrow-back" size={24} color={theme.colors.textPrimary} />
           </TouchableOpacity>
         )}
@@ -181,6 +204,7 @@ export default function MigrationSweep() {
         {discovery.assets.map((asset) => {
           const status = statuses[asset.code] ?? 'idle';
           const err = errors[asset.code];
+          console.log({ err });
 
           return (
             <Box
@@ -191,7 +215,19 @@ export default function MigrationSweep() {
               padding="m"
               borderRadius={16}
               mb="s"
-              style={!isDark ? { borderWidth: 1, borderColor: '#F5F5F5', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 2 } : {}}
+              style={
+                !isDark
+                  ? {
+                      borderWidth: 1,
+                      borderColor: '#F5F5F5',
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.04,
+                      shadowRadius: 4,
+                      elevation: 2,
+                    }
+                  : {}
+              }
             >
               {/* Token icon */}
               <Box
@@ -212,12 +248,20 @@ export default function MigrationSweep() {
 
               {/* Code + amount */}
               <Box flex={1}>
-                <Text variant="h11" color="textPrimary" fontWeight="700">{asset.code}</Text>
+                <Text variant="h11" color="textPrimary" fontWeight="700">
+                  {asset.code}
+                </Text>
                 <Text variant="p8" color="textSecondary" mt="xs">
-                  {parseFloat(asset.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 7 })} {asset.code}
+                  {parseFloat(asset.amount).toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 7,
+                  })}{' '}
+                  {asset.code}
                 </Text>
                 {err ? (
-                  <Text variant="p8" color="danger900" mt="xs" numberOfLines={2}>{err}</Text>
+                  <Text variant="p8" color="danger900" mt="xs" numberOfLines={2}>
+                    {err}
+                  </Text>
                 ) : null}
               </Box>
 
@@ -239,7 +283,11 @@ export default function MigrationSweep() {
 
         {/* Base reserve notice */}
         <Box flexDirection="row" alignItems="center" mt="s" mb="xl" gap="xs">
-          <Ionicons name="information-circle-outline" size={14} color={theme.colors.textSecondary} />
+          <Ionicons
+            name="information-circle-outline"
+            size={14}
+            color={theme.colors.textSecondary}
+          />
           <Text variant="p8" color="textSecondary">
             1 XLM will remain in your classic account as base reserve.
           </Text>
@@ -253,21 +301,23 @@ export default function MigrationSweep() {
         left={0}
         right={0}
         paddingHorizontal="m"
-        style={{ paddingBottom: insets.bottom + 16, paddingTop: 16, backgroundColor: isDark ? theme.colors.mainBackground : theme.colors.mainBackground }}
+        style={{
+          paddingBottom: insets.bottom + 16,
+          paddingTop: 16,
+          backgroundColor: isDark ? theme.colors.mainBackground : theme.colors.mainBackground,
+        }}
       >
         {noneStarted && (
-          <TouchableOpacity
-            activeOpacity={0.85}
-            onPress={handleMigrate}
-            disabled={isRunning}
-          >
+          <TouchableOpacity activeOpacity={0.85} onPress={handleMigrate} disabled={isRunning}>
             <Box
               backgroundColor="primary700"
               borderRadius={16}
               paddingVertical="m"
               alignItems="center"
             >
-              <Text variant="h11" color="black" fontWeight="700">Migrate Assets</Text>
+              <Text variant="h11" color="black" fontWeight="700">
+                Migrate Assets
+              </Text>
             </Box>
           </TouchableOpacity>
         )}
@@ -279,14 +329,23 @@ export default function MigrationSweep() {
             paddingVertical="m"
             alignItems="center"
           >
-            <Text variant="h11" color="textSecondary" fontWeight="700">Migrating…</Text>
+            <Text variant="h11" color="textSecondary" fontWeight="700">
+              Migrating…
+            </Text>
           </Box>
         )}
 
         {hasFailures && !isRunning && (
           <TouchableOpacity activeOpacity={0.85} onPress={handleRetryFailed}>
-            <Box backgroundColor="primary700" borderRadius={16} paddingVertical="m" alignItems="center">
-              <Text variant="h11" color="black" fontWeight="700">Retry Failed</Text>
+            <Box
+              backgroundColor="primary700"
+              borderRadius={16}
+              paddingVertical="m"
+              alignItems="center"
+            >
+              <Text variant="h11" color="black" fontWeight="700">
+                Retry Failed
+              </Text>
             </Box>
           </TouchableOpacity>
         )}

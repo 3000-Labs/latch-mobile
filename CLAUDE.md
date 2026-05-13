@@ -133,6 +133,7 @@ Additional required vars:
 - For anything touching Stellar/Soroban: check `src/constants/config.ts` for network (testnet vs mainnet) context first
 - For UI: confirm the component uses `Box`/`Text` from `@shopify/restyle`, not `View`/`Text` from `react-native`
 - Check `src/components/shared/` before creating a new component — the shared one likely exists
+- If you spot pre-existing dead code or style issues outside your change scope, leave them — only remove code your specific change renders obsolete
 
 ### Mandatory Patterns (never deviate)
 
@@ -144,10 +145,11 @@ Additional required vars:
 
 ### Task Execution Order
 
+0. **Define success criteria** — state what "done" looks like before touching code. If the request is ambiguous, surface interpretations and confirm; don't choose silently.
 1. Read all files relevant to the task
 2. Make the minimal change that satisfies the requirement — no refactoring beyond scope
 3. Run `bun run lint` to catch issues
-4. Report: what changed and what's next (one or two sentences)
+4. If lint passes and the criteria from step 0 are met, stop. Report: what changed and what's next (one or two sentences)
 
 ### Common Pitfalls to Avoid
 
@@ -183,4 +185,4 @@ The `reference/` folder contains three projects to consult for testnet/mainnet a
 
 ### Rule
 
-For any task involving testnet, mainnet, Soroban RPC, transaction building, asset transfers, or network switching — read the relevant reference file(s) above **before** writing code.
+For any task involving testnet, mainnet, Soroban RPC, transaction building, asset transfers, or network switching — read `reference/LATCH_REFERENCE.md` first (quick-reference tables + Latch-specific patterns). Fall back to the individual files in the table above for deeper detail.

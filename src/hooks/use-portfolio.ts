@@ -1,7 +1,7 @@
 import { Address, Asset, scValToNative, xdr } from '@stellar/stellar-sdk';
 import { useQuery } from '@tanstack/react-query';
 import { HORIZON_URL, STELLAR_NETWORK_PASSPHRASE, STELLAR_RPC_URL } from '../constants/config';
-import type { TokenConfig } from '../constants/known-tokens';
+import { WELL_KNOWN_TOKENS, type TokenConfig } from '../constants/known-tokens';
 
 export interface TokenBalance {
   code: string;
@@ -54,12 +54,16 @@ function fetchSacBalance(cAddress: string, sacContractId: string): Promise<strin
       try {
         const json = JSON.parse(xhr.responseText);
         const entries: any[] = json.result?.entries ?? [];
+        if (__DEV__) console.log('[portfolio] sacId:', sacContractId, 'entries:', entries.length, 'error:', json.error ?? null);
         if (entries.length === 0) { resolve('0'); return; }
         const entryData = xdr.LedgerEntryData.fromXDR(entries[0].xdr, 'base64');
         const val = entryData.contractData().val();
         const parsed = scValToNative(val) as { amount: bigint };
-        resolve((Number(parsed.amount) / 10_000_000).toFixed(7));
-      } catch {
+        const human = (Number(parsed.amount) / 10_000_000).toFixed(7);
+        if (__DEV__) console.log('[portfolio] sacId:', sacContractId, '→ amount:', human);
+        resolve(human);
+      } catch (e) {
+        if (__DEV__) console.log('[portfolio] sacId:', sacContractId, 'parse error:', e);
         resolve('0');
       }
     };
@@ -77,10 +81,11 @@ function fetchSacBalance(cAddress: string, sacContractId: string): Promise<strin
 /**
  * Fetch all token balances for a smart account (C-address).
  *
- * Token discovery strategy (union of all three, deduplicated by code+issuer):
+ * Token discovery strategy (union of all, deduplicated by code+issuer):
  *  1. XLM — always included (native SAC).
- *  2. Tracked tokens — the user's persisted list (passed in; managed via useTrackedTokens).
- *  3. G-address trustlines — any additional assets held by the classic G-address.
+ *  2. Well-known tokens — auto-checked; zero-balance ones are filtered out.
+ *  3. Tracked tokens — the user's persisted list (managed via useTrackedTokens).
+ *  4. G-address trustlines — any additional assets held by the classic G-address.
  *
  * All SAC balance fetches run in parallel. Tokens with zero balance are hidden
  * (except XLM which is always shown).
@@ -92,17 +97,23 @@ async function fetchPortfolio(
 ): Promise<TokenBalance[]> {
   const nativeSacId = Asset.native().contractId(STELLAR_NETWORK_PASSPHRASE);
 
-  // Build deduplicated list of non-native tokens to check (tracked + G-address trustlines)
+  // Build deduplicated list of non-native tokens to check (well-known + tracked + G-address trustlines)
   // Key is sacContractId when available (C-address tokens), otherwise code:issuer.
   const tokenMap = new Map<string, TokenConfig>();
 
-  // 1. Tracked tokens (user-managed list)
+  // 1. Well-known tokens — auto-detected; zero-balance ones are filtered out below
+  for (const t of WELL_KNOWN_TOKENS) {
+    const key = t.sacContractId ?? `${t.code}:${t.issuer}`;
+    tokenMap.set(key, t);
+  }
+
+  // 2. Tracked tokens (user-managed list)
   for (const t of trackedTokens) {
     const key = t.sacContractId ?? `${t.code}:${t.issuer}`;
     tokenMap.set(key, t);
   }
 
-  // 2. G-address trustlines
+  // 3. G-address trustlines
   if (gAddress) {
     try {
       const account = await new Promise<any>((resolve) => {
@@ -153,7 +164,7 @@ async function fetchPortfolio(
     },
   ];
 
-  for (const { t, sacId, amount } of tokenAmounts as Array<{ t: TokenConfig; sacId: string; amount: string }>) {
+  for (const { t, sacId, amount } of tokenAmounts as { t: TokenConfig; sacId: string; amount: string }[]) {
     if (parseFloat(amount) <= 0) continue; // hide zero-balance tokens
     results.push({
       code: t.code,

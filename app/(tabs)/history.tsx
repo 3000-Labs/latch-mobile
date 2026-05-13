@@ -78,6 +78,7 @@ const History = () => {
     data: transactions,
     isLoading,
     isFetching,
+    isError,
     refetch,
   } = useStellarTransactions(smartAccountAddress);
 
@@ -87,13 +88,9 @@ const History = () => {
     let result = all;
 
     if (activeFilter === 'Sent') {
-      result = result.filter(
-        (tx) => tx.type !== 'invoke_host_function' && tx.from === smartAccountAddress,
-      );
+      result = result.filter((tx) => tx.from === smartAccountAddress);
     } else if (activeFilter === 'Received') {
-      result = result.filter(
-        (tx) => tx.type !== 'invoke_host_function' && tx.to === smartAccountAddress,
-      );
+      result = result.filter((tx) => tx.to === smartAccountAddress);
     } else if (activeFilter === 'Contract') {
       result = result.filter((tx) => tx.type === 'invoke_host_function');
     }
@@ -114,9 +111,8 @@ const History = () => {
   const sections = useMemo(() => groupByDate(filtered), [filtered]);
 
   const handleRowPress = (tx: StellarPayment) => {
-    const isSoroban = tx.type === 'invoke_host_function';
-    const isSent = !isSoroban && tx.from === smartAccountAddress;
-    const direction = isSoroban ? 'created' : isSent ? 'sent' : 'received';
+    const isSent = tx.from === smartAccountAddress;
+    const direction = isSent ? 'sent' : 'received';
 
     router.push({
       pathname: '/transaction/[id]',
@@ -137,8 +133,8 @@ const History = () => {
   };
 
   const renderItem = ({ item }: { item: StellarPayment }) => {
-    const isSoroban = item.type === 'invoke_host_function';
-    const isSent = !isSoroban && item.from === smartAccountAddress;
+    const isSent = item.from === smartAccountAddress;
+    const isReceived = item.to === smartAccountAddress;
     const code = item.assetCode ?? 'XLM';
     const amountNum = parseFloat(item.amount);
     const formattedAmount = amountNum.toLocaleString(undefined, {
@@ -179,19 +175,22 @@ const History = () => {
               alignItems="center"
               mr="m"
             >
-              <Image source={getTokenIcon(item.assetCode)} style={{ width: 28, height: 28 }} />
+              <Image
+                source={getTokenIcon(item.assetCode)}
+                style={{ width: '100%', height: '100%' }}
+              />
             </Box>
             <Box flex={1}>
               <Text variant="h10" color="textPrimary" fontWeight="700">
                 {code}
               </Text>
               <Text variant="p8" color="textSecondary">
-                {isSoroban ? 'Contract Call' : isSent ? 'Sent' : 'Received'}
+                {isSent ? 'Sent' : isReceived ? 'Received' : 'Contract Call'}
               </Text>
             </Box>
             <Box alignItems="flex-end">
               <Text variant="h10" color="textPrimary" fontWeight="700">
-                {isSoroban ? '—' : `${isSent ? '-' : '+'}${formattedAmount} ${code}`}
+                {isSent || isReceived ? `${isSent ? '-' : '+'}${formattedAmount} ${code}` : '—'}
               </Text>
               <Text variant="p8" color="textSecondary">
                 {formatRelativeTime(item.createdAt)}
@@ -238,6 +237,29 @@ const History = () => {
         setActiveFilter={setActiveFilter}
         theme={theme}
       />
+
+      {isError && !isLoading && (
+        <Box
+          flexDirection="row"
+          alignItems="center"
+          justifyContent="space-between"
+          paddingHorizontal="m"
+          paddingVertical="s"
+          backgroundColor={isDark ? 'gray900' : 'gray100'}
+          mx="m"
+          borderRadius={12}
+          mb="s"
+        >
+          <Text variant="p7" color="textSecondary">
+            Could not load transactions.
+          </Text>
+          <TouchableOpacity onPress={refetch as any}>
+            <Text variant="p7" color="primary700">
+              Retry
+            </Text>
+          </TouchableOpacity>
+        </Box>
+      )}
 
       {isLoading ? (
         <Box flex={1} justifyContent="center" alignItems="center">

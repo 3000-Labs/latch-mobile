@@ -100,13 +100,11 @@ async function fetchGAddressHistory(gAddress: string, cAddress: string): Promise
     const op = invokeOps[i] as any;
     const effects: any[] = effectsBatch[i];
 
-    // Find the effect that credits or debits the C-address specifically
-    const creditEffect = effects.find(
-      (e) => e.type === 'contract_credited' && e.account === cAddress,
-    );
-    const debitEffect = effects.find(
-      (e) => e.type === 'contract_debited' && e.account === cAddress,
-    );
+    // Find the effect that credits or debits the C-address specifically.
+    // Horizon stores the contract address in `e.contract`, not `e.account`, for SAC effects.
+    const matchesCAddress = (e: any) => e.account === cAddress || e.contract === cAddress;
+    const creditEffect = effects.find((e) => e.type === 'contract_credited' && matchesCAddress(e));
+    const debitEffect = effects.find((e) => e.type === 'contract_debited' && matchesCAddress(e));
 
     if (!creditEffect && !debitEffect) continue;
 
@@ -144,7 +142,17 @@ async function fetchSacTransferEvents(cAddress: string): Promise<StellarPayment[
 
   const latestLedgerResp = await sorobanRpc('getLatestLedger', {});
   const latestLedger: number = latestLedgerResp?.result?.sequence ?? 0;
-  const startLedger = latestLedger > 0 ? Math.max(1, latestLedger - 100_000) : 1;
+
+  if (latestLedger === 0) {
+    if (__DEV__) console.warn('[SAC events] getLatestLedger failed — skipping SAC events fetch');
+    return [];
+  }
+
+  // Use a 17,000-ledger window (~23h at 5s/ledger) — safely within any provider's
+  // retention limit. Soroban RPC returns a hard error if startLedger predates the
+  // oldest retained ledger, which previously caused silent empty results when using
+  // the prior 100,000-ledger window on mainnet providers with shorter retention.
+  const startLedger = latestLedger - 17_000;
 
   if (__DEV__) {
     console.log('[SAC events] latestLedger:', latestLedger, '→ startLedger:', startLedger);
@@ -164,10 +172,23 @@ async function fetchSacTransferEvents(cAddress: string): Promise<StellarPayment[
     pagination: { limit: 50 },
   });
 
-  const [incomingResp, outgoingResp] = await Promise.all([
+  let [incomingResp, outgoingResp] = await Promise.all([
     sorobanRpc('getEvents', makeFilter(wildcard, cAddressVal)),
     sorobanRpc('getEvents', makeFilter(cAddressVal, wildcard)),
   ]);
+
+  // If startLedger is still outside the node's retention window, retry with a
+  // tighter 4,320-ledger window (~6h) before giving up.
+  if (incomingResp?.error || outgoingResp?.error) {
+    if (__DEV__)
+      console.warn('[SAC events] getEvents error — retrying with 4,320-ledger window:',
+        incomingResp?.error ?? outgoingResp?.error);
+    const fallbackFilter = (s: string, r: string) => ({ ...makeFilter(s, r), startLedger: latestLedger - 4_320 });
+    [incomingResp, outgoingResp] = await Promise.all([
+      sorobanRpc('getEvents', fallbackFilter(wildcard, cAddressVal)),
+      sorobanRpc('getEvents', fallbackFilter(cAddressVal, wildcard)),
+    ]);
+  }
 
   if (__DEV__) {
     console.log('[SAC events] incoming:', incomingResp?.result?.events?.length ?? 0,
