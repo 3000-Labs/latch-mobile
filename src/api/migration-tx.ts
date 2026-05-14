@@ -80,14 +80,6 @@ export async function buildAndSubmitSacTransfer(
       }
       effectiveAmount = freshTransferable.toFixed(7);
     } else {
-      // Skip non-native token if the G-address lacks enough XLM above the 1 XLM reserve to pay the fee.
-      const nativeBalForFee = balances.find((b) => b.asset_type === 'native');
-      const xlmBalance = nativeBalForFee ? parseFloat(nativeBalForFee.balance) : 0;
-      const feeNeeded = 0.05;
-      if (xlmBalance - 1.0 < feeNeeded) {
-        return { success: true };
-      }
-
       // Non-native token: find the matching trustline by computing each entry's SAC contract ID.
       const tokenBal = balances.find((b) => {
         if (b.asset_type !== 'credit_alphanum4' && b.asset_type !== 'credit_alphanum12') return false;

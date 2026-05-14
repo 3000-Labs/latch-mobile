@@ -12,8 +12,8 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const DRAWER_WIDTH = SCREEN_WIDTH * 0.85;
 
 interface ProfileCardProps {
-  name: string;
-  address: string;
+  name?: string;
+  address?: string;
   onCopyAddress?: () => void;
   onPress?: () => void;
 }
@@ -42,15 +42,15 @@ const ProfileCard = ({ name, address, onCopyAddress, onPress }: ProfileCardProps
             mb="xs"
           >
             <Text variant="p7" color="textWhite" fontWeight="700">
-              {name.charAt(0) ?? 'A'}
+              {name?.[0] ?? 'A'}
             </Text>
           </Box>
           <Text variant="h10" color="textPrimary">
-            {name}
+            {name ?? ''}
           </Text>
           <Box flexDirection="row" alignItems="center">
             <Text variant="p7" color="textSecondary" mr="xs">
-              {shortenAddress(address)}
+              {address ? shortenAddress(address) : ''}
             </Text>
             <TouchableOpacity
               onPress={(e) => {

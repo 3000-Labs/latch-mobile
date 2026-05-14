@@ -53,7 +53,7 @@ const Biometrics = () => {
   const statusBarStyle = useStatusBarStyle();
   const insets = useSafeAreaInsets();
 
-  const { mode } = useLocalSearchParams<{ mode?: string }>();
+  const { mode, from } = useLocalSearchParams<{ mode?: string; from?: string }>();
   const isUnlockMode = mode === 'unlock';
 
   // setup mode state
@@ -239,7 +239,11 @@ const Biometrics = () => {
         const credential = createPasskeyCredential();
         await storePasskeyCredential(credential, false);
       }
-      router.replace('/(onboarding)/set-pin');
+      router.replace(
+        from
+          ? { pathname: '/(onboarding)/set-pin', params: { from } }
+          : '/(onboarding)/set-pin',
+      );
     } catch {
       Alert.alert(
         'Setup Failed',
@@ -290,7 +294,11 @@ const Biometrics = () => {
 
       // Navigate to PIN setup so biometric users have a PIN as emergency fallback.
       // set-pin will forward to deploy-account once the PIN is confirmed.
-      router.replace('/(onboarding)/set-pin');
+      router.replace(
+        from
+          ? { pathname: '/(onboarding)/set-pin', params: { from } }
+          : '/(onboarding)/set-pin',
+      );
     } catch {
       Alert.alert(
         'Setup Failed',

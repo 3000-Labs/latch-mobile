@@ -1,6 +1,7 @@
 import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import HistoryItem from '@/src/components/history/HistoryItem';
 import Box from '@/src/components/shared/Box';
+import LoadingBlur from '@/src/components/shared/LoadingBlur';
 import Text from '@/src/components/shared/Text';
 import TokenIcon from '@/src/components/shared/TokenIcon';
 import { useDrawer } from '@/src/context/drawer-context';
@@ -143,6 +144,7 @@ const Home = () => {
   const {
     data: transactions,
     refetch: refetchTx,
+    isLoading: txLoading,
     isRefetching: isRefetchingTx,
   } = useStellarTransactions(smartAccountAddress);
 
@@ -282,7 +284,7 @@ const Home = () => {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
                   })}`
-              : '•••'}
+              : '***'}
           </Text>
 
           <Box flexDirection="row" alignItems="center" gap="s" mt="xs">
@@ -292,7 +294,7 @@ const Home = () => {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 7,
                   })} XLM`
-                : '••••'}
+                : '****'}
             </Text>
             <Box
               backgroundColor={isDark ? 'gray900' : 'gray100'}
@@ -500,6 +502,7 @@ const Home = () => {
           )}
         </Box>
       </ScrollView>
+      <LoadingBlur text="Loading..." visible={portfolioLoading || txLoading} />
     </Box>
   );
 };

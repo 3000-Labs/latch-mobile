@@ -103,8 +103,8 @@ const ImportPhrase = () => {
       setPendingWallet(wallet);
 
       router.push({
-        pathname: '/(onboarding)/set-pin',
-        params: { from: 'import-phrase', accountAddress: wallet.gAddress },
+        pathname: '/(auth)/biometric',
+        params: { from: 'import-phrase' },
       });
     } catch {
       setError('Failed to restore wallet. Please try again.');

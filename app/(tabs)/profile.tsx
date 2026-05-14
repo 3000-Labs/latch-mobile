@@ -30,6 +30,8 @@ const Profile = () => {
 
   const activeAccount = accounts[activeAccountIndex];
 
+  if (!activeAccount) return null;
+
   const handleLogout = () => {
     Alert.alert('Log Out', 'Are you sure you want to log out?', [
       { text: 'Cancel', style: 'cancel' },
@@ -196,6 +198,14 @@ const Profile = () => {
               onPress={() => {
                 closeDrawer();
                 router.push('/about');
+              }}
+            />
+            <SettingItem
+              icon="document-text-outline"
+              label="Privacy Policy"
+              onPress={() => {
+                closeDrawer();
+                router.push('/privacy-policy');
               }}
             />
           </Box>

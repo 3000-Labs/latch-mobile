@@ -1,5 +1,6 @@
 import { Theme } from '@/src/theme/theme';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { ScrollView, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
 
 import Box from '../shared/Box';
@@ -42,7 +43,11 @@ const SearchHeader = ({
         />
         <Ionicons name="search-outline" size={20} color={theme.colors.textSecondary} />
       </Box>
-      <TouchableOpacity style={styles.filterButton}>
+      <TouchableOpacity
+        style={styles.filterButton}
+        onPress={() => router.push('/filter-sheet')}
+        activeOpacity={0.7}
+      >
         <Ionicons name="filter-outline" size={20} color={theme.colors.textSecondary} />
       </TouchableOpacity>
     </Box>

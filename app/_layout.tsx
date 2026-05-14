@@ -44,6 +44,7 @@ function RootLayoutContent() {
         <Stack.Screen name="help-support" options={{ presentation: 'modal' }} />
         <Stack.Screen name="about" options={{ presentation: 'modal' }} />
         <Stack.Screen name="qrcode-scan" options={{ headerShown: false }} />
+        <Stack.Screen name="filter-sheet" options={{ presentation: 'modal' }} />
       </Stack>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <Toast />

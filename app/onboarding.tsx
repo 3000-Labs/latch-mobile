@@ -92,6 +92,7 @@ const Onboarding = () => {
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
         keyExtractor={(item) => item.id.toString()}
+        style={{ flex: 1 }}
         renderItem={({ item }) => (
           <Box width={width} alignItems="center" paddingTop="xl">
             <Image
@@ -113,7 +114,13 @@ const Onboarding = () => {
       />
 
       {/* Footer */}
-      <Box paddingHorizontal="xl" style={{ paddingBottom: insets.bottom + 20 }} alignItems="center" gap="m">
+      <Box
+        paddingHorizontal="xl"
+        style={{ paddingBottom: insets.bottom + 20 }}
+        alignItems="center"
+        gap="m"
+        mt={'m'}
+      >
         <ProgressPagination total={3} activeIndex={activeIndex} />
 
         <Box width="100%" gap="s">

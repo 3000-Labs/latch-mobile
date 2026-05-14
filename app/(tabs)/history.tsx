@@ -228,7 +228,7 @@ const History = () => {
             renderSectionHeader={renderSectionHeader}
             stickySectionHeadersEnabled={false}
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 120 }}
+            contentContainerStyle={{ paddingBottom: insets.bottom + 280 }}
             refreshControl={
               <RefreshControl
                 refreshing={isFetching && !isLoading}

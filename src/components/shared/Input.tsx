@@ -1,43 +1,65 @@
+import Box from '@/src/components/shared/Box';
+import { Theme } from '@/src/theme/theme';
 import { Ionicons } from '@expo/vector-icons';
-import { Input as UKInput, InputProps as UKInputProps } from '@ui-kitten/components';
+import { useTheme } from '@shopify/restyle';
 import React, { useState } from 'react';
-import { TouchableOpacity } from 'react-native';
-import theme from '../../theme/theme';
+import { TextInput, TextInputProps, TouchableOpacity } from 'react-native';
 
-interface Props extends UKInputProps {
+interface Props extends TextInputProps {
   showPasswordToggle?: boolean;
+  status?: 'danger' | 'basic';
 }
 
-const Input: React.FC<Props> = ({ showPasswordToggle, secureTextEntry, ...props }) => {
+const Input: React.FC<Props> = ({
+  showPasswordToggle,
+  secureTextEntry,
+  status,
+  onFocus,
+  onBlur,
+  ...props
+}) => {
+  const theme = useTheme<Theme>();
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
-
-  const toggleVisibility = () => {
-    setIsPasswordVisible(!isPasswordVisible);
-  };
-
-  const renderIcon = (iconProps: any) => (
-    <TouchableOpacity onPress={toggleVisibility} style={{ paddingHorizontal: 8 }}>
-      <Ionicons
-        name={isPasswordVisible ? 'lock-open-outline' : 'lock-closed-outline'}
-        size={20}
-        color={theme.colors.gray500}
-      />
-    </TouchableOpacity>
-  );
-
-  const errorBorderColor = props.status === 'danger' ? '#EA471E' : undefined;
+  const [isFocused, setIsFocused] = useState(false);
 
   return (
-    <UKInput
-      size="large"
-      {...props}
-      secureTextEntry={secureTextEntry && !isPasswordVisible}
-      accessoryRight={secureTextEntry ? renderIcon : props.accessoryRight}
-      style={[{ borderRadius: 14, borderColor: errorBorderColor }, props.style]}
-      textStyle={{
-        color: theme.colors.white,
-      }}
-    />
+    <Box
+      flexDirection="row"
+      alignItems="center"
+      height={56}
+      borderRadius={14}
+      paddingHorizontal="m"
+      backgroundColor="bg11"
+      borderWidth={1}
+      borderColor={status === 'danger' ? 'inputError' : isFocused ? 'primary700' : 'gray800'}
+    >
+      <TextInput
+        {...props}
+        secureTextEntry={secureTextEntry && !isPasswordVisible}
+        onFocus={(e) => {
+          setIsFocused(true);
+          onFocus?.(e);
+        }}
+        onBlur={(e) => {
+          setIsFocused(false);
+          onBlur?.(e);
+        }}
+        placeholderTextColor={theme.colors.gray600}
+        style={{ flex: 1, color: theme.colors.textPrimary, fontSize: 16, padding: 0 }}
+      />
+      {showPasswordToggle && secureTextEntry && (
+        <TouchableOpacity
+          onPress={() => setIsPasswordVisible((v) => !v)}
+          style={{ paddingLeft: 8 }}
+        >
+          <Ionicons
+            name={isPasswordVisible ? 'lock-open-outline' : 'lock-closed-outline'}
+            size={20}
+            color={theme.colors.gray500}
+          />
+        </TouchableOpacity>
+      )}
+    </Box>
   );
 };
 

@@ -59,7 +59,6 @@ export async function discoverMigration(account: WalletAccount): Promise<Migrati
   // Mirror the exact formula used in buildAndSubmitSacTransfer so displayed amount === transferred amount
   const minBalanceXLM = (2 + (data.subentry_count ?? 0)) * 0.5;
   const feeNeeded = 0.05; // 0.05 XLM per tx (declared 200k stroops + resource fee buffer)
-  const xlmAvailableForFees = xlmTotal - minBalanceXLM;
 
   for (const b of balances) {
     if (b.asset_type === 'native') {
@@ -74,7 +73,7 @@ export async function discoverMigration(account: WalletAccount): Promise<Migrati
       }
     } else if (b.asset_type === 'credit_alphanum4' || b.asset_type === 'credit_alphanum12') {
       const amount = parseFloat(b.balance);
-      if (amount > 0 && xlmAvailableForFees >= feeNeeded) {
+      if (amount > 0) {
         assets.push({
           type: 'token',
           code: b.asset_code,
