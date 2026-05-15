@@ -5,6 +5,7 @@ import {
   Animated,
   Dimensions,
   Modal,
+  ScrollView,
   StyleSheet,
   TouchableOpacity,
   TouchableWithoutFeedback,
@@ -83,7 +84,7 @@ const FundWalletSheet = ({ visible, onClose, address, memo }: Props) => {
             backgroundColor: theme.colors.bg11,
             paddingBottom: Math.max(insets.bottom, 16),
             transform: [{ translateY }],
-            maxHeight: SCREEN_HEIGHT * 0.9,
+            maxHeight: SCREEN_HEIGHT,
           },
         ]}
       >
@@ -116,134 +117,135 @@ const FundWalletSheet = ({ visible, onClose, address, memo }: Props) => {
             <Ionicons name="information-circle-outline" size={20} color={theme.colors.primary} />
           </TouchableOpacity>
         </Box>
-
-        <Box paddingHorizontal="m" mt="s">
-          {/* Proxy G-Address Section */}
-          <Box mb="l">
-            <Text variant="p7" color="textPrimary" fontWeight="700" mb="s">
-              Proxy G-Address
-            </Text>
-            <Box
-              backgroundColor={isDark ? 'gray900' : 'btnDisabled'}
-              borderRadius={12}
-              padding="m"
-              flexDirection="row"
-              alignItems="center"
-              justifyContent="space-between"
-              minHeight={64}
-            >
-              <Box flex={1} marginRight="s">
-                <Text variant="p7" color="textSecondary" numberOfLines={2}>
-                  {address}
-                </Text>
-              </Box>
-              <TouchableOpacity onPress={() => copyToClipboard(address)}>
-                <Ionicons name="copy-outline" size={20} color={theme.colors.textSecondary} />
-              </TouchableOpacity>
-            </Box>
-          </Box>
-
-          {/* Memo Section */}
-          <Box mb="l">
-            <Text variant="p7" color="textPrimary" fontWeight="700" mb="s">
-              Memo (Required)
-            </Text>
-            <Box
-              backgroundColor={isDark ? 'gray900' : 'btnDisabled'}
-              borderRadius={12}
-              padding="m"
-              flexDirection="row"
-              alignItems="center"
-              justifyContent="space-between"
-              minHeight={56}
-            >
-              <Text variant="p7" color="textSecondary">
-                {memo}
+        <ScrollView style={{ flex: 1 }} bounces={false} showsVerticalScrollIndicator={false}>
+          <Box paddingHorizontal="m" mt="s">
+            {/* Proxy G-Address Section */}
+            <Box mb="l">
+              <Text variant="p7" color="textPrimary" fontWeight="700" mb="s">
+                Proxy G-Address
               </Text>
-              <TouchableOpacity onPress={() => copyToClipboard(memo)}>
-                <Ionicons name="copy-outline" size={20} color={theme.colors.textSecondary} />
-              </TouchableOpacity>
-            </Box>
-          </Box>
-
-          {/* Divider */}
-          <Box flexDirection="row" alignItems="center" mb="l">
-            <Box flex={1} height={1} backgroundColor="gray800" />
-            <Text variant="p7" color="textSecondary" mx="m">
-              OR
-            </Text>
-            <Box flex={1} height={1} backgroundColor="gray800" />
-          </Box>
-
-          {/* QR Code Section */}
-          <Box alignItems="center" mb="xl">
-            <Box
-              backgroundColor="white"
-              padding="m"
-              borderRadius={24}
-              style={{
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.1,
-                shadowRadius: 8,
-              }}
-            >
-              <QRCode
-                value={address}
-                size={160}
-                logo={require('@/src/assets/token/stellar.png')}
-                logoSize={40}
-                logoBackgroundColor="transparent"
-                logoMargin={1}
-                logoBorderRadius={20}
-              />
-            </Box>
-
-            <Text variant="p6" color="textSecondary" textAlign="center" mt="l" lineHeight={22}>
-              Use this address to fund tokens to{'\n'}your{' '}
-              <Text fontWeight="700" color="textPrimary">
-                Wallet
-              </Text>
-              .
-            </Text>
-          </Box>
-
-          {/* Action Buttons */}
-          <Box gap="m">
-            <TouchableOpacity activeOpacity={0.8} onPress={() => copyToClipboard(address)}>
               <Box
-                height={56}
-                backgroundColor="primary"
-                borderRadius={28}
+                backgroundColor={isDark ? 'gray900' : 'btnDisabled'}
+                borderRadius={12}
+                padding="m"
                 flexDirection="row"
                 alignItems="center"
-                justifyContent="center"
-                gap="s"
+                justifyContent="space-between"
+                minHeight={64}
               >
-                <Text variant="h10" color="black" fontWeight="700">
-                  Copy
-                </Text>
-                <Ionicons name="copy-outline" size={18} color="black" />
+                <Box flex={1} marginRight="s">
+                  <Text variant="p7" color="textSecondary" numberOfLines={2}>
+                    {address}
+                  </Text>
+                </Box>
+                <TouchableOpacity onPress={() => copyToClipboard(address)}>
+                  <Ionicons name="copy-outline" size={20} color={theme.colors.textSecondary} />
+                </TouchableOpacity>
               </Box>
-            </TouchableOpacity>
+            </Box>
 
-            <TouchableOpacity activeOpacity={0.8} onPress={() => setStatusVisible(true)}>
+            {/* Memo Section */}
+            <Box mb="l">
+              <Text variant="p7" color="textPrimary" fontWeight="700" mb="s">
+                Memo (Required)
+              </Text>
               <Box
-                height={56}
-                backgroundColor="bg11"
-                borderRadius={28}
-                justifyContent="center"
+                backgroundColor={isDark ? 'gray900' : 'btnDisabled'}
+                borderRadius={12}
+                padding="m"
+                flexDirection="row"
                 alignItems="center"
-                borderWidth={1}
-                borderColor="gray800"
+                justifyContent="space-between"
+                minHeight={56}
               >
-                <Text variant="p6" color="textPrimary" fontWeight="700">
-                  Check Deposit Status
+                <Text variant="p7" color="textSecondary">
+                  {memo}
                 </Text>
+                <TouchableOpacity onPress={() => copyToClipboard(memo)}>
+                  <Ionicons name="copy-outline" size={20} color={theme.colors.textSecondary} />
+                </TouchableOpacity>
               </Box>
-            </TouchableOpacity>
+            </Box>
+
+            {/* Divider */}
+            <Box flexDirection="row" alignItems="center" mb="l">
+              <Box flex={1} height={1} backgroundColor="gray800" />
+              <Text variant="p7" color="textSecondary" mx="m">
+                OR
+              </Text>
+              <Box flex={1} height={1} backgroundColor="gray800" />
+            </Box>
+
+            {/* QR Code Section */}
+            <Box alignItems="center" mb="l">
+              <Box
+                backgroundColor="white"
+                padding="m"
+                borderRadius={24}
+                style={{
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.1,
+                  shadowRadius: 8,
+                }}
+              >
+                <QRCode
+                  value={address}
+                  size={160}
+                  logo={require('@/src/assets/token/stellar.png')}
+                  logoSize={40}
+                  logoBackgroundColor="transparent"
+                  logoMargin={1}
+                  logoBorderRadius={20}
+                />
+              </Box>
+
+              <Text variant="p6" color="textSecondary" textAlign="center" mt="l" lineHeight={22}>
+                Use this address to fund tokens to{'\n'}your{' '}
+                <Text fontWeight="700" color="textPrimary">
+                  Wallet
+                </Text>
+                .
+              </Text>
+            </Box>
+
+            {/* Action Buttons */}
+            <Box gap="m">
+              <TouchableOpacity activeOpacity={0.8} onPress={() => copyToClipboard(address)}>
+                <Box
+                  height={56}
+                  backgroundColor="primary"
+                  borderRadius={28}
+                  flexDirection="row"
+                  alignItems="center"
+                  justifyContent="center"
+                  gap="s"
+                >
+                  <Text variant="h10" color="black" fontWeight="700">
+                    Copy
+                  </Text>
+                  <Ionicons name="copy-outline" size={18} color="black" />
+                </Box>
+              </TouchableOpacity>
+
+              <TouchableOpacity activeOpacity={0.8} onPress={() => setStatusVisible(true)}>
+                <Box
+                  height={56}
+                  backgroundColor="bg11"
+                  borderRadius={28}
+                  justifyContent="center"
+                  alignItems="center"
+                  borderWidth={1}
+                  borderColor="gray800"
+                >
+                  <Text variant="p6" color="textPrimary" fontWeight="700">
+                    Check Deposit Status
+                  </Text>
+                </Box>
+              </TouchableOpacity>
+            </Box>
           </Box>
-        </Box>
+        </ScrollView>
       </Animated.View>
       <FundInfoSheet visible={infoVisible} onClose={() => setInfoVisible(false)} />
       <FundingStatusSheet visible={statusVisible} onClose={() => setStatusVisible(false)} />
