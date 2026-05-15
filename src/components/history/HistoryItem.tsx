@@ -32,7 +32,7 @@ const HistoryItem = ({
     <Box>
       <TouchableOpacity activeOpacity={0.7} onPress={() => handleRowPress(item)}>
         <Box
-          backgroundColor={isDark ? 'gray900' : 'white'}
+          backgroundColor={'bg11'}
           borderRadius={18}
           padding="m"
           flexDirection="row"

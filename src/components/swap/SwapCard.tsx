@@ -1,6 +1,7 @@
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
 import { Theme } from '@/src/theme/theme';
+import { useAppTheme } from '@/src/theme/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
 import React from 'react';
@@ -40,6 +41,7 @@ const SwapCard: React.FC<SwapCardProps> = ({
   onAddFunds,
 }) => {
   const theme = useTheme<Theme>();
+  const { isDark } = useAppTheme();
   const [isFocused, setIsFocused] = React.useState(false);
 
   const formatDisplayAmount = (value: string) => {
@@ -85,7 +87,7 @@ const SwapCard: React.FC<SwapCardProps> = ({
         </Box>
       </Box>
 
-      <Box height={1} backgroundColor="bg800" marginBottom="m" />
+      <Box height={1} backgroundColor={isDark ? 'bg800' : 'btnDisabled'} marginBottom="m" />
 
       <Box flexDirection="row" alignItems="center" justifyContent="space-between">
         <TouchableOpacity onPress={onWalletSelect} activeOpacity={0.7} style={styles.walletSection}>

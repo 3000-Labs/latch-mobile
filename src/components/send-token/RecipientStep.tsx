@@ -1,21 +1,34 @@
-import React from 'react';
-import { Image, ScrollView, TextInput, TouchableOpacity } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '@shopify/restyle';
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
+import { useAddressBook } from '@/src/hooks/use-address-book';
 import { Theme } from '@/src/theme/theme';
-import { WALLETS, Wallet } from './types';
+import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '@shopify/restyle';
+import { StrKey } from '@stellar/stellar-sdk';
+import React, { useState } from 'react';
+import { Image, ScrollView, TextInput, TouchableOpacity } from 'react-native';
+import { Recipient } from './types';
 
 interface Props {
-  onSelectWallet: (wallet: Wallet) => void;
+  onSelectWallet: (recipient: Recipient) => void;
 }
 
 const RecipientStep = ({ onSelectWallet }: Props) => {
   const theme = useTheme<Theme>();
+  const [address, setAddress] = useState('');
+  const { entries } = useAddressBook();
+
+  const isValid =
+    StrKey.isValidEd25519PublicKey(address) || StrKey.isValidContract(address);
+
+  const handleSelectEntry = (entryAddress: string) => {
+    setAddress(entryAddress);
+  };
+
   return (
     <ScrollView
       showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
       contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 12, paddingBottom: 40 }}
     >
       <Text variant="h11" color="textPrimary" fontWeight="700" mb="s" style={{ fontSize: 15 }}>
@@ -30,61 +43,105 @@ const RecipientStep = ({ onSelectWallet }: Props) => {
         paddingHorizontal="m"
         height={64}
         borderWidth={1}
-        borderColor="gray900"
-        mb="l"
+        borderColor={address.length > 0 && !isValid ? 'inputError' : 'gray900'}
+        mb="s"
       >
         <TextInput
-          placeholder="G... or C ..."
-          placeholderTextColor="#505050"
+          value={address}
+          onChangeText={setAddress}
+          placeholder="G... or C..."
+          placeholderTextColor={theme.colors.textSecondary}
+          autoCapitalize="none"
+          autoCorrect={false}
           style={{
             flex: 1,
             color: theme.colors.white,
-            fontSize: 16,
+            fontSize: 15,
             fontFamily: 'SFproRegular',
           }}
         />
-        <TouchableOpacity>
-          <Ionicons name="qr-code-outline" size={24} color={theme.colors.white} />
-        </TouchableOpacity>
-      </Box>
-
-      <Box flexDirection="row" alignItems="center" mb="l" style={{ marginTop: 4 }}>
-        <Ionicons name="book-outline" size={18} color="#8E8E93" />
-        <Text variant="p7" color="textSecondary" ml="s" style={{ color: '#8E8E93', fontSize: 13 }}>
-          Address Book
-        </Text>
-      </Box>
-
-      <Box gap="l">
-        {WALLETS.map((wallet, index) => (
-          <TouchableOpacity key={index} activeOpacity={0.7} onPress={() => onSelectWallet(wallet)}>
-            <Box flexDirection="row" alignItems="center">
-              <Box
-                width={36}
-                height={36}
-                borderRadius={8}
-                backgroundColor="transparent"
-                justifyContent="center"
-                alignItems="center"
-                mr="m"
-              >
-                <Image
-                  source={require('@/src/assets/icon/yellow-user.png')}
-                  style={{ width: 36, height: 36, borderRadius: 8 }}
-                />
-              </Box>
-              <Box>
-                <Text variant="p7" color="textPrimary" fontWeight="700">
-                  {wallet.name}
-                </Text>
-                <Text variant="p8" color="textSecondary" mt="xs" style={{ color: '#8E8E93' }}>
-                  {wallet.address}
-                </Text>
-              </Box>
-            </Box>
+        {address.length > 0 && (
+          <TouchableOpacity onPress={() => setAddress('')}>
+            <Ionicons name="close-circle" size={20} color={theme.colors.gray600} />
           </TouchableOpacity>
-        ))}
+        )}
       </Box>
+
+      {address.length > 0 && !isValid && (
+        <Text variant="p8" color="inputError" mb="m">
+          Enter a valid Stellar G-address or smart account C-address
+        </Text>
+      )}
+
+      <TouchableOpacity
+        activeOpacity={isValid ? 0.8 : 1}
+        onPress={() => isValid && onSelectWallet({ address })}
+      >
+        <Box
+          height={56}
+          borderRadius={28}
+          justifyContent="center"
+          alignItems="center"
+          mt="s"
+          mb="l"
+          backgroundColor={isValid ? 'primary700' : 'btnDisabled'}
+        >
+          <Text variant="p6" color={isValid ? 'black' : 'textSecondary'} fontWeight="700">
+            Continue
+          </Text>
+        </Box>
+      </TouchableOpacity>
+
+      {entries.length > 0 && (
+        <>
+          <Box flexDirection="row" alignItems="center" mb="m">
+            <Ionicons name="book-outline" size={16} color={theme.colors.textSecondary} />
+            <Text variant="p7" color="textSecondary" ml="s">
+              Address Book
+            </Text>
+          </Box>
+
+          <Box gap="s">
+            {entries.map((entry) => (
+              <TouchableOpacity
+                key={entry.id}
+                activeOpacity={0.7}
+                onPress={() => handleSelectEntry(entry.address)}
+              >
+                <Box
+                  flexDirection="row"
+                  alignItems="center"
+                  backgroundColor="bg11"
+                  borderRadius={14}
+                  padding="m"
+                >
+                  <Box
+                    width={40}
+                    height={40}
+                    borderRadius={10}
+                    mr="m"
+                    overflow="hidden"
+                  >
+                    <Image
+                      source={require('@/src/assets/icon/yellow-user.png')}
+                      style={{ width: 40, height: 40, borderRadius: 10 }}
+                    />
+                  </Box>
+                  <Box flex={1}>
+                    <Text variant="p7" color="textPrimary" fontWeight="700">
+                      {entry.label}
+                    </Text>
+                    <Text variant="p8" color="textSecondary" mt="xs">
+                      {entry.address.slice(0, 8)}...{entry.address.slice(-4)}
+                    </Text>
+                  </Box>
+                  <Ionicons name="chevron-forward" size={16} color={theme.colors.textSecondary} />
+                </Box>
+              </TouchableOpacity>
+            ))}
+          </Box>
+        </>
+      )}
     </ScrollView>
   );
 };

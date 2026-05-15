@@ -9,6 +9,7 @@ import { useEffect } from 'react';
 import { LogBox } from 'react-native';
 import 'react-native-get-random-values';
 import 'react-native-reanimated';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Toast from 'react-native-toast-message';
 import '../shim';
 // Now you can import libraries that need crypto
@@ -77,13 +78,13 @@ export default function RootLayout() {
   }
 
   return (
-    <>
+    <GestureHandlerRootView style={{ flex: 1 }}>
       <IconRegistry icons={EvaIconsPack} />
       <AppThemeProvider>
         <QueryClientProvider client={queryClient}>
           <RootLayoutContent />
         </QueryClientProvider>
       </AppThemeProvider>
-    </>
+    </GestureHandlerRootView>
   );
 }

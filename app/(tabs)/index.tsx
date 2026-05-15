@@ -1,5 +1,6 @@
 import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import HistoryItem from '@/src/components/history/HistoryItem';
+import FundWalletSheet from '@/src/components/home/FundWalletSheet';
 import Box from '@/src/components/shared/Box';
 import LoadingBlur from '@/src/components/shared/LoadingBlur';
 import Text from '@/src/components/shared/Text';
@@ -34,7 +35,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 function RaysBackgroundInner() {
   return (
-    <Box position="absolute" style={{ top: 0, left: '28%' }}>
+    <Box position="absolute" style={{ top: -30, left: '28%' }}>
       <ImageBackground
         source={require('@/src/assets/icon/Circle.png')}
         style={{ position: 'absolute', width: 182, height: 182 }}
@@ -76,7 +77,7 @@ function TokenRow({
     <Box
       flexDirection="row"
       alignItems="center"
-      backgroundColor={isDark ? 'gray900' : 'white'}
+      backgroundColor={'bg11'}
       padding="m"
       borderRadius={20}
       mb="s"
@@ -126,9 +127,11 @@ const Home = () => {
   const { smartAccountAddress, accounts, activeAccountIndex, mnemonic } = useWalletStore();
   const [showBalance, setShowBalance] = useState(true);
   const [bannerIndex, setBannerIndex] = useState(0);
+  const [fundVisible, setFundVisible] = useState(false);
 
   const activeAccount = accounts[activeAccountIndex];
   const activeAccountName = activeAccount?.name ?? 'Account 1';
+  const activeAccountImage = activeAccount?.image;
 
   const { openDrawer } = useDrawer();
 
@@ -218,10 +221,15 @@ const Home = () => {
               backgroundColor="primary700"
               justifyContent="center"
               alignItems="center"
+              overflow={'hidden'}
             >
-              <Text variant="p7" color="textWhite" fontWeight="700">
-                {activeAccountName.charAt(0)}
-              </Text>
+              {activeAccountImage ? (
+                <Image source={{ uri: activeAccountImage }} style={{ width: 32, height: 32 }} />
+              ) : (
+                <Text variant="p7" color="textWhite" fontWeight="700">
+                  {activeAccountName.charAt(0)}
+                </Text>
+              )}
             </Box>
             <Text variant="h11" color="textPrimary" fontWeight="700">
               {activeAccountName}
@@ -260,7 +268,7 @@ const Home = () => {
         contentContainerStyle={{ paddingBottom: 120 }}
       >
         {/* Balance Section */}
-        <Box alignItems="center" pb="xl" position="relative" mt="s">
+        <Box alignItems="center" pb="xl" position="relative" mt="xl">
           {!isDark && <RaysBackground />}
           <TouchableOpacity
             onPress={() => setShowBalance(!showBalance)}
@@ -313,7 +321,7 @@ const Home = () => {
         {/* Action Buttons */}
         <Box flexDirection="row" justifyContent="space-around" paddingHorizontal="m" mb="xl" mt="m">
           {[
-            { label: 'Add', icon: require('@/src/assets/icon/plus-big.png') },
+            { label: 'Fund', icon: require('@/src/assets/icon/plus-big.png') },
             { label: 'Send', icon: require('@/src/assets/icon/ArrowUp.png'), route: '/send-token' },
             {
               label: 'Receive',
@@ -329,7 +337,9 @@ const Home = () => {
               <TouchableOpacity
                 activeOpacity={0.7}
                 onPress={() => {
-                  if ('route' in item && item.route) {
+                  if (item.label === 'Fund') {
+                    setFundVisible(true);
+                  } else if ('route' in item && item.route) {
                     router.push(item.route as any);
                   }
                 }}
@@ -421,6 +431,13 @@ const Home = () => {
             ))}
           </Box>
         </Box>
+
+        <FundWalletSheet
+          visible={fundVisible}
+          onClose={() => setFundVisible(false)}
+          address="GPROXY1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ12345"
+          memo="LATCH-USER-12345"
+        />
 
         {/* Migration banner */}
         {migrationState?.state === 'not_started' && (

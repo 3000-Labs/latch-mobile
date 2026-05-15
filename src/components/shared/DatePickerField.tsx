@@ -1,9 +1,10 @@
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
 import { Theme } from '@/src/theme/theme';
+import { useAppTheme } from '@/src/theme/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '@shopify/restyle';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { useTheme } from '@shopify/restyle';
 import { format } from 'date-fns';
 import React, { useState } from 'react';
 import { Platform, TouchableOpacity } from 'react-native';
@@ -16,6 +17,8 @@ interface DatePickerFieldProps {
 
 const DatePickerField = ({ label, date, onChange }: DatePickerFieldProps) => {
   const theme = useTheme<Theme>();
+  const { isDark } = useAppTheme();
+
   const [show, setShow] = useState(false);
 
   const handleDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
@@ -51,7 +54,7 @@ const DatePickerField = ({ label, date, onChange }: DatePickerFieldProps) => {
           height={64}
           borderRadius={24}
           borderWidth={1}
-          borderColor={show ? 'primary700' : 'gray800'}
+          borderColor={show ? 'primary700' : isDark ? 'gray800' : 'gray400'}
           backgroundColor="bg11"
         >
           <Text variant="p6" color="textPrimary">
@@ -70,7 +73,7 @@ const DatePickerField = ({ label, date, onChange }: DatePickerFieldProps) => {
           mt="s"
           borderRadius={20}
           borderWidth={1}
-          borderColor="gray800"
+          borderColor={isDark ? 'gray800' : 'gray400'}
           backgroundColor="bg11"
           overflow="hidden"
         >
@@ -85,17 +88,8 @@ const DatePickerField = ({ label, date, onChange }: DatePickerFieldProps) => {
           />
 
           {Platform.OS === 'ios' && (
-            <Box
-              flexDirection="row"
-              justifyContent="flex-end"
-              px="m"
-              pb="m"
-              pt="xs"
-            >
-              <TouchableOpacity
-                activeOpacity={0.7}
-                onPress={() => setShow(false)}
-              >
+            <Box flexDirection="row" justifyContent="flex-end" px="m" pb="m" pt="xs">
+              <TouchableOpacity activeOpacity={0.7} onPress={() => setShow(false)}>
                 <Box
                   px="l"
                   py="s"

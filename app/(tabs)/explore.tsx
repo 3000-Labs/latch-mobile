@@ -4,6 +4,7 @@ import { Theme } from '@/src/theme/theme';
 import { useAppTheme } from '@/src/theme/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
+import Input from '@/src/components/shared/Input';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -13,7 +14,6 @@ import {
   FlatList,
   ScrollView,
   StyleSheet,
-  TextInput,
   TouchableOpacity,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -109,25 +109,15 @@ const Explore = () => {
       >
         <Box paddingHorizontal="m" mt="s">
           {/* Search Bar */}
-          <Box
-            height={48}
-            backgroundColor="bg900"
-            borderRadius={12}
-            flexDirection="row"
-            alignItems="center"
-            paddingHorizontal="m"
-            borderWidth={1}
-            borderColor="bg800"
-            mb="l"
-          >
-            <TextInput
-              style={[styles.searchInput, { color: theme.colors.textPrimary }]}
+          <Box mb="l">
+            <Input
               placeholder="Search assets or dApps"
-              placeholderTextColor={theme.colors.textSecondary}
               value={search}
               onChangeText={setSearch}
+              rightElement={
+                <Ionicons name="search-outline" size={20} color={theme.colors.textSecondary} />
+              }
             />
-            <Ionicons name="search-outline" size={20} color={theme.colors.textSecondary} />
           </Box>
 
           {/* Banner */}
@@ -271,11 +261,6 @@ const styles = StyleSheet.create({
   backButton: {
     position: 'absolute',
     left: 16,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    fontFamily: 'SFproRegular',
   },
   banner: {
     height: 120,

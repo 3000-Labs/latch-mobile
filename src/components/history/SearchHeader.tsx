@@ -1,9 +1,10 @@
 import { Theme } from '@/src/theme/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { ScrollView, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
+import { ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 
 import Box from '../shared/Box';
+import Input from '../shared/Input';
 import Text from '../shared/Text';
 
 const FILTERS = ['All', 'Sent', 'Received', 'Contract'];
@@ -23,25 +24,15 @@ const SearchHeader = ({
 }) => (
   <Box paddingHorizontal="m" mt="s" backgroundColor="mainBackground">
     <Box flexDirection="row" alignItems="center" mb="m">
-      <Box
-        flex={1}
-        height={48}
-        backgroundColor="bg900"
-        borderRadius={12}
-        flexDirection="row"
-        alignItems="center"
-        paddingHorizontal="m"
-        borderWidth={1}
-        borderColor="bg800"
-      >
-        <TextInput
-          style={[styles.searchInput, { color: theme.colors.textPrimary }]}
+      <Box flex={1}>
+        <Input
           placeholder="Search for transactions ..."
-          placeholderTextColor={theme.colors.textSecondary}
           value={search}
           onChangeText={setSearch}
+          rightElement={
+            <Ionicons name="search-outline" size={20} color={theme.colors.textSecondary} />
+          }
         />
-        <Ionicons name="search-outline" size={20} color={theme.colors.textSecondary} />
       </Box>
       <TouchableOpacity
         style={styles.filterButton}
@@ -79,11 +70,6 @@ const SearchHeader = ({
 );
 
 const styles = StyleSheet.create({
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    fontFamily: 'SFproRegular',
-  },
   filterButton: {
     width: 48,
     height: 48,

@@ -35,6 +35,8 @@ export interface WalletAccount {
   publicKeyHex: string;
   /** Deployed C-address on Stellar, null if not yet deployed */
   smartAccountAddress: string | null;
+  /** Custom profile image URI, null if default */
+  image: string | null;
   /** Passkey credential ID (hex). Present only on passkey accounts added after account 0. */
   credentialId?: string;
 }
@@ -110,6 +112,9 @@ interface WalletStore {
   /** Rename an account by its list position. */
   renameAccount: (listIndex: number, name: string) => Promise<void>;
 
+  /** Set a custom image for an account. */
+  setAccountImage: (listIndex: number, imageUri: string | null) => Promise<void>;
+
   /**
    * Called after a new account is deployed on-chain. Updates its C-address
    * in both the in-memory list and SecureStore.
@@ -130,6 +135,19 @@ interface WalletStore {
 /** Persist the accounts array to SecureStore. */
 async function persistAccounts(accounts: WalletAccount[]): Promise<void> {
   await SecureStore.setItemAsync(SECURE_KEYS.ACCOUNTS, JSON.stringify(accounts));
+}
+
+// Keyed by BIP-44 account index. Mnemonic is session-immutable, so this mapping
+// is stable for the lifetime of a session. Avoids re-running PBKDF2 on every switch.
+const derivedWalletCache = new Map<number, StellarWallet>();
+
+function getCachedWallet(mnemonic: string, bip44Index: number): StellarWallet {
+  let wallet = derivedWalletCache.get(bip44Index);
+  if (!wallet) {
+    wallet = deriveWalletAtIndex(mnemonic, bip44Index);
+    derivedWalletCache.set(bip44Index, wallet);
+  }
+  return wallet;
 }
 
 export const useWalletStore = create<WalletStore>((set, get) => ({
@@ -193,7 +211,7 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
 
     // Next BIP-44 index is one beyond the highest existing index
     const nextIndex = accounts.reduce((max, a) => Math.max(max, a.index), -1) + 1;
-    const wallet = deriveWalletAtIndex(mnemonic, nextIndex);
+    const wallet = getCachedWallet(mnemonic, nextIndex);
 
     const newAccount: WalletAccount = {
       index: nextIndex,
@@ -201,6 +219,7 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
       gAddress: wallet.gAddress,
       publicKeyHex: wallet.publicKeyHex,
       smartAccountAddress: null,
+      image: null,
     };
 
     const updated = [...accounts, newAccount];
@@ -219,6 +238,7 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
       gAddress: '',
       publicKeyHex,
       smartAccountAddress: null,
+      image: null,
       credentialId,
     };
     const updated = [...accounts, newAccount];
@@ -227,33 +247,41 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
     return newAccount;
   },
 
-  switchAccount: async (listIndex) => {
+  switchAccount: (listIndex) => {
     const { mnemonic, accounts } = get();
     const account = accounts[listIndex];
-    if (!account) return;
+    if (!account) return Promise.resolve();
 
-    const activeWallet = mnemonic ? deriveWalletAtIndex(mnemonic, account.index) : null;
+    const activeWallet = mnemonic ? getCachedWallet(mnemonic, account.index) : null;
 
-    await SecureStore.setItemAsync(
-      SECURE_KEYS.ACTIVE_ACCOUNT_INDEX,
-      String(listIndex),
-    );
-
-    // Update the legacy SMART_ACCOUNT key so app/index.tsx still works
-    if (account.smartAccountAddress) {
-      await SecureStore.setItemAsync(SECURE_KEYS.SMART_ACCOUNT, account.smartAccountAddress);
-    }
-
+    // Update store first so the UI responds immediately, then persist in the background.
+    // Awaiting Keychain writes before set() was causing 3–5 s UI freezes on iOS.
     set({
       activeAccountIndex: listIndex,
       activeWallet,
       smartAccountAddress: account.smartAccountAddress,
     });
+
+    const writes: Promise<void>[] = [
+      SecureStore.setItemAsync(SECURE_KEYS.ACTIVE_ACCOUNT_INDEX, String(listIndex)),
+    ];
+    if (account.smartAccountAddress) {
+      // Update the legacy SMART_ACCOUNT key so app/index.tsx still works
+      writes.push(SecureStore.setItemAsync(SECURE_KEYS.SMART_ACCOUNT, account.smartAccountAddress));
+    }
+    return Promise.all(writes).then(() => {});
   },
 
   renameAccount: async (listIndex, name) => {
     const { accounts } = get();
     const updated = accounts.map((a, i) => (i === listIndex ? { ...a, name } : a));
+    await persistAccounts(updated);
+    set({ accounts: updated });
+  },
+
+  setAccountImage: async (listIndex, imageUri) => {
+    const { accounts } = get();
+    const updated = accounts.map((a, i) => (i === listIndex ? { ...a, image: imageUri } : a));
     await persistAccounts(updated);
     set({ accounts: updated });
   },
@@ -316,6 +344,7 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
               gAddress: wallet.gAddress,
               publicKeyHex: wallet.publicKeyHex,
               smartAccountAddress: legacySmartAccount ?? null,
+              image: null,
             },
           ];
         } else {
@@ -327,6 +356,7 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
               gAddress: '',
               publicKeyHex: '',
               smartAccountAddress: legacySmartAccount ?? null,
+              image: null,
             },
           ];
         }
@@ -338,7 +368,7 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
       const activeAccount = accounts[activeAccountIndex] ?? accounts[0];
       const activeWallet =
         mnemonic && activeAccount.index >= 0
-          ? deriveWalletAtIndex(mnemonic, activeAccount.index)
+          ? getCachedWallet(mnemonic, activeAccount.index)
           : null;
 
       set({
@@ -358,6 +388,7 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
   // ─── Full reset ────────────────────────────────────────────────────────────
 
   clearAll: async () => {
+    derivedWalletCache.clear();
     const { accounts } = get();
 
     // Delete indexed passkey keys for accounts beyond account 0

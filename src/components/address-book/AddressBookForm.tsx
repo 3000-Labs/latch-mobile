@@ -7,6 +7,7 @@ import { Image, TextInput, TouchableOpacity } from 'react-native';
 import * as Yup from 'yup';
 
 import Box from '@/src/components/shared/Box';
+import Input from '@/src/components/shared/Input';
 import Text from '@/src/components/shared/Text';
 import { Theme } from '@/src/theme/theme';
 import NetworkSelectSheet from './NetworkSelectSheet';
@@ -76,28 +77,12 @@ const AddressBookForm = ({ onSubmit }: AddressBookFormProps) => {
               <Text variant="p7" color="textPrimary" fontWeight="600" mb="s">
                 Label
               </Text>
-              <Box
-                backgroundColor="bg900"
-                borderRadius={12}
-                paddingHorizontal="m"
-                height={56}
-                borderWidth={1}
-                borderColor="gray900"
-                justifyContent="center"
-              >
-                <TextInput
-                  placeholder="Label your address"
-                  placeholderTextColor={theme.colors.textSecondary}
-                  onChangeText={handleChange('label')}
-                  onBlur={handleBlur('label')}
-                  value={values.label}
-                  style={{
-                    color: theme.colors.textPrimary,
-                    fontSize: 16,
-                    fontFamily: 'SFproRegular',
-                  }}
-                />
-              </Box>
+              <Input
+                placeholder="Label your address"
+                onChangeText={handleChange('label')}
+                onBlur={handleBlur('label')}
+                value={values.label}
+              />
             </Box>
 
             <Box mb="l">

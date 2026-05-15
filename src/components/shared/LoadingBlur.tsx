@@ -42,11 +42,11 @@ const LoadingBlur: React.FC<Props> = ({
             style={{ width: 72, height: 72, tintColor: theme.colors.primary700 }}
             resizeMode="contain"
           />
-          <Text variant="h10" color={'textWhite'}>
+          <Text variant="h9" color={'textWhite'}>
             {text}
           </Text>
           {subText && (
-            <Text variant="h10" color={'textWhite'} textAlign="center">
+            <Text variant="h11" color={'textWhite'} textAlign="center">
               {subText}
             </Text>
           )}

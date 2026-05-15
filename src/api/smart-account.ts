@@ -252,7 +252,10 @@ export interface LookupResult {
  *
  * @param publicKeyHex  64-char hex string — the raw Ed25519 public key
  */
-export async function deploySmartAccount(publicKeyHex: string): Promise<DeployResult> {
+export async function deploySmartAccount(
+  publicKeyHex: string,
+  { skipFunding = false }: { skipFunding?: boolean } = {},
+): Promise<DeployResult> {
   try {
     const userGAddress = deriveGAddressFromPubkey(publicKeyHex);
 
@@ -265,7 +268,7 @@ export async function deploySmartAccount(publicKeyHex: string): Promise<DeployRe
       };
     }
 
-    await fundAccountIfNeeded(userGAddress);
+    if (!skipFunding) await fundAccountIfNeeded(userGAddress);
 
     if (__DEV__) console.log(`Deploying smart account for pubkey: ${publicKeyHex}`);
 

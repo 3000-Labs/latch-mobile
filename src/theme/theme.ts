@@ -29,6 +29,8 @@ const palette = {
   primaryOrange: '#FF8C00',
   primaryIndigo: '#6366F1',
 
+  labelBg: 'rgba(255, 184, 0, 0.1)',
+
   // Primary Dark Mode Scale (Light to Dark)
   primaryDark50: '#FADAB4',
   primaryDark100: '#F6CD9B',
@@ -177,12 +179,14 @@ const sharedColors = {
   secondary: palette.primary600,
 
   btnHover: '#6D3E04',
+  mainColorHover: '#A67100',
 
   black: palette.black,
   cardbg: palette.cardbg,
   textWhite: palette.white,
   white: palette.white,
   inputError: palette.inputError,
+  labelBg: palette.labelBg,
 
   gray100: palette.gray100,
   gray200: palette.gray200,
@@ -523,6 +527,9 @@ export const lightTheme: typeof darkTheme = {
     textSecondary: palette.gray700,
     textTertiary: palette.gray600,
     btnDisabled: palette.gray200,
+    cardbg: palette.white,
+    bg11: palette.gray100,
+    bg900: palette.gray200,
   },
 };
 
