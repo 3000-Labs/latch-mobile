@@ -19,6 +19,7 @@ import BottomSheetHandle from '@/src/components/shared/BottomSheetHandle';
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
 import { Theme } from '@/src/theme/theme';
+import { useAppTheme } from '@/src/theme/ThemeContext';
 import * as Clipboard from 'expo-clipboard';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -32,6 +33,7 @@ interface Props {
 
 const FundWalletSheet = ({ visible, onClose, address, memo }: Props) => {
   const theme = useTheme<Theme>();
+  const { isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const [infoVisible, setInfoVisible] = useState(false);
@@ -122,7 +124,7 @@ const FundWalletSheet = ({ visible, onClose, address, memo }: Props) => {
               Proxy G-Address
             </Text>
             <Box
-              backgroundColor="gray900"
+              backgroundColor={isDark ? 'gray900' : 'btnDisabled'}
               borderRadius={12}
               padding="m"
               flexDirection="row"
@@ -147,7 +149,7 @@ const FundWalletSheet = ({ visible, onClose, address, memo }: Props) => {
               Memo (Required)
             </Text>
             <Box
-              backgroundColor="gray900"
+              backgroundColor={isDark ? 'gray900' : 'btnDisabled'}
               borderRadius={12}
               padding="m"
               flexDirection="row"
