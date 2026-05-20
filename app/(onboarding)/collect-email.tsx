@@ -165,15 +165,15 @@ const CollectEmail = () => {
       : `We sent a verification code to ${email}`;
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    <Box
+      flex={1}
+      backgroundColor="mainBackground"
+      paddingHorizontal="m"
+      style={{ paddingTop: insets.top }}
     >
-      <Box
-        flex={1}
-        backgroundColor="mainBackground"
-        paddingHorizontal="m"
-        style={{ paddingTop: insets.top }}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <StatusBar style={statusBarStyle} />
 
@@ -333,8 +333,8 @@ const CollectEmail = () => {
             </TouchableOpacity>
           </Box>
         )}
-      </Box>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </Box>
   );
 };
 
