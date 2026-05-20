@@ -28,6 +28,7 @@ import {
   Networks,
   rpc,
   scValToNative,
+  SorobanDataBuilder,
   StrKey,
   TransactionBuilder,
   xdr,
@@ -99,26 +100,30 @@ function extractAddressFromMeta(resultMetaXdr: string): string | undefined {
 
 export function parseSimResult(raw: any): rpc.Api.SimulateTransactionSuccessResponse {
   return {
+    // _parsed: true tells rpc.assembleTransaction's internal parseRawSimulation to skip
+    // re-parsing. Without it, the SDK calls fromXDR(xdrObject, 'base64') on already-decoded
+    // auth entries, which passes a plain object to Buffer.from and throws "Received type object".
+    _parsed: true,
     id: String(raw.id ?? '1'),
     latestLedger: raw.latestLedger,
     minResourceFee: raw.minResourceFee,
-    transactionData: xdr.SorobanTransactionData.fromXDR(raw.transactionData, 'base64'),
+    // assembleTransaction calls success.transactionData.build(), so this must be a
+    // SorobanDataBuilder, not a raw xdr.SorobanTransactionData.
+    transactionData: new SorobanDataBuilder(raw.transactionData),
     cost: raw.cost ?? { cpuInsns: '0', memBytes: '0' },
     events: [],
-    results: [
-      {
-        auth: (raw.results?.[0]?.auth ?? []).map((a: string) =>
-          xdr.SorobanAuthorizationEntry.fromXDR(a, 'base64'),
-        ),
-        retval: (() => {
-          try {
-            return xdr.ScVal.fromXDR(raw.results?.[0]?.retval || 'AAAAAA==', 'base64');
-          } catch {
-            return xdr.ScVal.scvVoid();
-          }
-        })(),
-      },
-    ],
+    result: {
+      auth: (raw.results?.[0]?.auth ?? []).map((a: string) =>
+        xdr.SorobanAuthorizationEntry.fromXDR(a, 'base64'),
+      ),
+      retval: (() => {
+        try {
+          return xdr.ScVal.fromXDR(raw.results?.[0]?.retval || 'AAAAAA==', 'base64');
+        } catch {
+          return xdr.ScVal.scvVoid();
+        }
+      })(),
+    },
   } as unknown as rpc.Api.SimulateTransactionSuccessResponse;
 }
 

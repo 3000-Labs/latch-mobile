@@ -14,10 +14,16 @@ export const SECURE_KEYS = {
   KEY_DATA_HEX: 'latch_key_data_hex',
   PASSKEY_PRIVATE_KEY: 'latch_passkey_private_key',
   PASSKEY_REQUIRES_BIOMETRIC: 'latch_passkey_requires_biometric',
+  // Fingerprint of the keyDataHex used when the smart account was last deployed.
+  // If this differs from the current KEY_DATA_HEX, the account must be re-deployed.
+  DEPLOYED_KEY_DATA: 'latch_deployed_key_data',
   // Latch backend auth tokens
   ACCESS_TOKEN: 'latch_access_token',
   REFRESH_TOKEN: 'latch_refresh_token',
   USER_EMAIL: 'latch_user_email',
+  // Temporary session key — holds recovery password during onboarding only.
+  // Deleted immediately after the first successful backup upload.
+  RECOVERY_PASSWORD_SESSION: 'latch_recovery_password_session',
 } as const;
 
 /**

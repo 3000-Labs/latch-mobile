@@ -1,6 +1,7 @@
 import { Address, Asset, scValToNative, xdr } from '@stellar/stellar-sdk';
 import { useQuery } from '@tanstack/react-query';
 import { HORIZON_URL, STELLAR_NETWORK_PASSPHRASE, STELLAR_RPC_URL } from '../constants/config';
+import { WELL_KNOWN_TOKENS } from '../constants/known-tokens';
 import { useWalletStore } from '../store/wallet';
 
 export interface StellarPayment {
@@ -135,11 +136,36 @@ async function fetchGAddressHistory(gAddress: string, cAddress: string): Promise
 //
 // Supplements the G-address Horizon history with recent events that provide
 // exact from/to contract addresses. Also the only source for passkey wallets
-// (no G-address) — limited to the RPC retention window (~7 days / ~100k ledgers).
+// (no G-address) and for smart account sends via the bundler (the bundler is
+// the outer tx source, so those ops don't appear in the user's G-address history).
+//
+// Queries ALL well-known SAC contracts (native XLM + WELL_KNOWN_TOKENS) in
+// parallel so USDC, EURC, and other token transfers appear alongside XLM.
+//
+// Limited to the RPC retention window (~7 days / ~17,000 ledgers).
+
+function chunkArray<T>(arr: T[], size: number): T[][] {
+  const result: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) result.push(arr.slice(i, i + size));
+  return result;
+}
+
+// Pre-compute once per network — SAC contract IDs are deterministic from code+issuer+passphrase.
+const SAC_CONTRACT_INFO: Map<string, { code: string; assetType: string }> = (() => {
+  const m = new Map<string, { code: string; assetType: string }>();
+  m.set(Asset.native().contractId(STELLAR_NETWORK_PASSPHRASE), { code: 'XLM', assetType: 'native' });
+  for (const t of WELL_KNOWN_TOKENS) {
+    try {
+      const id = t.sacContractId ?? new Asset(t.code, t.issuer!).contractId(STELLAR_NETWORK_PASSPHRASE);
+      m.set(id, { code: t.code, assetType: 'credit_alphanum4' });
+    } catch {}
+  }
+  return m;
+})();
+
+const ALL_SAC_IDS = [...SAC_CONTRACT_INFO.keys()];
 
 async function fetchSacTransferEvents(cAddress: string): Promise<StellarPayment[]> {
-  const nativeSacId = Asset.native().contractId(STELLAR_NETWORK_PASSPHRASE);
-
   const latestLedgerResp = await sorobanRpc('getLatestLedger', {});
   const latestLedger: number = latestLedgerResp?.result?.sequence ?? 0;
 
@@ -148,51 +174,51 @@ async function fetchSacTransferEvents(cAddress: string): Promise<StellarPayment[
     return [];
   }
 
-  // Use a 17,000-ledger window (~23h at 5s/ledger) — safely within any provider's
-  // retention limit. Soroban RPC returns a hard error if startLedger predates the
-  // oldest retained ledger, which previously caused silent empty results when using
-  // the prior 100,000-ledger window on mainnet providers with shorter retention.
+  // 17,000-ledger window (~23h at 5s/ledger) — within any provider's retention limit.
   const startLedger = latestLedger - 17_000;
 
   if (__DEV__) {
-    console.log('[SAC events] latestLedger:', latestLedger, '→ startLedger:', startLedger);
+    console.log('[SAC events] latestLedger:', latestLedger, '→ startLedger:', startLedger,
+      '| querying', ALL_SAC_IDS.length, 'SAC contracts');
   }
 
   const transferSym = scValB64(xdr.ScVal.scvSymbol('transfer'));
   const cAddressVal = scValB64(new Address(cAddress).toScVal());
   const wildcard = '*';
 
-  const makeFilter = (sender: string, recipient: string) => ({
-    startLedger,
-    filters: [{
+  // Build params for one request: up to 5 filters × 5 contractIds = 25 SAC IDs per call.
+  const buildParams = (sacBatch: string[], sender: string, recipient: string, start: number) => ({
+    startLedger: start,
+    filters: chunkArray(sacBatch, 5).map((group) => ({
       type: 'contract',
-      contractIds: [nativeSacId],
+      contractIds: group,
       topics: [[transferSym], [sender], [recipient], [wildcard]],
-    }],
-    pagination: { limit: 50 },
+    })),
+    pagination: { limit: 200 },
   });
 
-  let [incomingResp, outgoingResp] = await Promise.all([
-    sorobanRpc('getEvents', makeFilter(wildcard, cAddressVal)),
-    sorobanRpc('getEvents', makeFilter(cAddressVal, wildcard)),
-  ]);
+  const sacBatches = chunkArray(ALL_SAC_IDS, 25);
 
-  // If startLedger is still outside the node's retention window, retry with a
-  // tighter 4,320-ledger window (~6h) before giving up.
-  if (incomingResp?.error || outgoingResp?.error) {
+  const runQueries = (start: number) =>
+    Promise.all(
+      sacBatches.flatMap((batch) => [
+        sorobanRpc('getEvents', buildParams(batch, wildcard, cAddressVal, start)),
+        sorobanRpc('getEvents', buildParams(batch, cAddressVal, wildcard, start)),
+      ]),
+    );
+
+  let responses = await runQueries(startLedger);
+
+  // Retry with a tighter 4,320-ledger window (~6h) if any call hit a retention error.
+  if (responses.some((r) => r?.error)) {
     if (__DEV__)
-      console.warn('[SAC events] getEvents error — retrying with 4,320-ledger window:',
-        incomingResp?.error ?? outgoingResp?.error);
-    const fallbackFilter = (s: string, r: string) => ({ ...makeFilter(s, r), startLedger: latestLedger - 4_320 });
-    [incomingResp, outgoingResp] = await Promise.all([
-      sorobanRpc('getEvents', fallbackFilter(wildcard, cAddressVal)),
-      sorobanRpc('getEvents', fallbackFilter(cAddressVal, wildcard)),
-    ]);
+      console.warn('[SAC events] getEvents error — retrying with 4,320-ledger window');
+    responses = await runQueries(latestLedger - 4_320);
   }
 
   if (__DEV__) {
-    console.log('[SAC events] incoming:', incomingResp?.result?.events?.length ?? 0,
-      'outgoing:', outgoingResp?.result?.events?.length ?? 0);
+    const total = responses.reduce((s, r) => s + (r?.result?.events?.length ?? 0), 0);
+    console.log('[SAC events] total raw events:', total);
   }
 
   const mapEvent = (event: any): StellarPayment | null => {
@@ -201,6 +227,7 @@ async function fetchSacTransferEvents(cAddress: string): Promise<StellarPayment[
       const from = String(scValToNative(xdr.ScVal.fromXDR(topics[1], 'base64')));
       const to = String(scValToNative(xdr.ScVal.fromXDR(topics[2], 'base64')));
       const amountRaw = scValToNative(xdr.ScVal.fromXDR(event.value, 'base64')) as bigint;
+      const assetInfo = SAC_CONTRACT_INFO.get(event.contractId) ?? { code: 'XLM', assetType: 'native' };
       return {
         id: event.id ?? event.txHash,
         transactionHash: event.txHash ?? '',
@@ -208,7 +235,8 @@ async function fetchSacTransferEvents(cAddress: string): Promise<StellarPayment[
         from,
         to,
         amount: (Number(amountRaw) / 10_000_000).toFixed(7),
-        assetType: 'native',
+        assetType: assetInfo.assetType,
+        assetCode: assetInfo.code === 'XLM' ? undefined : assetInfo.code,
         createdAt: event.ledgerClosedAt ?? '',
       };
     } catch {
@@ -216,15 +244,16 @@ async function fetchSacTransferEvents(cAddress: string): Promise<StellarPayment[
     }
   };
 
-  const incoming = (incomingResp?.result?.events ?? []).map(mapEvent).filter(Boolean) as StellarPayment[];
-  const outgoing = (outgoingResp?.result?.events ?? []).map(mapEvent).filter(Boolean) as StellarPayment[];
-
   const seen = new Set<string>();
-  return [...incoming, ...outgoing].filter((tx) => {
-    if (seen.has(tx.transactionHash)) return false;
-    seen.add(tx.transactionHash);
-    return true;
-  });
+  return responses
+    .flatMap((r) => r?.result?.events ?? [])
+    .map(mapEvent)
+    .filter((tx): tx is StellarPayment => {
+      if (!tx) return false;
+      if (seen.has(tx.transactionHash)) return false;
+      seen.add(tx.transactionHash);
+      return true;
+    });
 }
 
 // ─── Merge ───────────────────────────────────────────────────────────────────

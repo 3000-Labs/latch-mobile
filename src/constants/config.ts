@@ -3,11 +3,7 @@ import { Networks } from '@stellar/stellar-sdk';
 // ─── Backend API ──────────────────────────────────────────────────────────────
 // EXPO_PUBLIC_API_BASE_URL is the Latch Next.js backend.
 // EXPO_PUBLIC_SOROBAN_RPC_URL is the Soroban JSON-RPC endpoint — different host.
-const BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
-const ACCESS_TOKEN_KEY = 'latch_access_token';
-const REFRESH_TOKEN_KEY = 'latch_refresh_token';
-
-const LATCH_BACKEND_URL = BASE_URL;
+const LATCH_BACKEND_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 
 // ─── Stellar / Soroban ────────────────────────────────────────────────────────
 const STELLAR_AUTH_PREFIX = 'Stellar Smart Account Auth:\n';
@@ -46,19 +42,25 @@ export const ACTIVE_NETWORK: NetworkDetails = TESTNET_NETWORK;
 const HORIZON_URL = ACTIVE_NETWORK.horizonUrl;
 const STELLAR_NETWORK_PASSPHRASE = ACTIVE_NETWORK.networkPassphrase;
 const STELLAR_RPC_URL = ACTIVE_NETWORK.sorobanRpcUrl;
+const STELLAR_VERIFIER_ADDRESS =
+  process.env.EXPO_PUBLIC_VERIFIER_ADDRESS ??
+  'CCRB63MFFBYXBZCRLRGLJVTHC7O4SUGAYTO5ZZEUNVY5W5DVGKHETI67';
 
 // Minimum XLM reserve per Stellar protocol:
 //   (BASE_RESERVE_MIN_COUNT + subentry_count + num_sponsoring - num_sponsored) × BASE_RESERVE
 export const BASE_RESERVE = 0.5;
 export const BASE_RESERVE_MIN_COUNT = 2;
 
+// Relying party ID used when constructing WebAuthn authenticatorData for passkey signing.
+// Must be a stable domain string — the on-chain verifier checks signature math, not this value.
+const PASSKEY_RP_ID = process.env.EXPO_PUBLIC_PASSKEY_RP_ID ?? 'latch.finance';
+
 export {
-  ACCESS_TOKEN_KEY,
-  BASE_URL,
   HORIZON_URL,
   LATCH_BACKEND_URL,
-  REFRESH_TOKEN_KEY,
+  PASSKEY_RP_ID,
   STELLAR_AUTH_PREFIX,
   STELLAR_NETWORK_PASSPHRASE,
   STELLAR_RPC_URL,
+  STELLAR_VERIFIER_ADDRESS,
 };

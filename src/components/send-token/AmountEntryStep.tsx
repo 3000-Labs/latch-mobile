@@ -13,9 +13,17 @@ interface Props {
   amount: string;
   onKeyPress: (key: string) => void;
   onMaxPress: () => void;
+  onPresetPress: (usdAmount: number) => void;
 }
 
-const AmountEntryStep = ({ selectedToken, selectedWallet, amount, onKeyPress, onMaxPress }: Props) => {
+const AmountEntryStep = ({
+  selectedToken,
+  selectedWallet,
+  amount,
+  onKeyPress,
+  onMaxPress,
+  onPresetPress,
+}: Props) => {
   const theme = useTheme<Theme>();
 
   const shortAddress = `${selectedWallet.address.slice(0, 6)}...${selectedWallet.address.slice(-4)}`;
@@ -60,7 +68,9 @@ const AmountEntryStep = ({ selectedToken, selectedWallet, amount, onKeyPress, on
           style={{ borderBottomWidth: 1, borderBottomColor: theme.colors.gray800 }}
         >
           <Box flexDirection="row" alignItems="center" flex={1}>
-            <Text variant="p7" color="textSecondary">To: </Text>
+            <Text variant="p7" color="textSecondary">
+              To:{' '}
+            </Text>
             <Text variant="p7" color="textPrimary" fontWeight="700">
               {shortAddress}
             </Text>
@@ -71,13 +81,21 @@ const AmountEntryStep = ({ selectedToken, selectedWallet, amount, onKeyPress, on
       <Box flex={1} justifyContent="center" alignItems="center" mb="m">
         <Box flexDirection="row" alignItems="center">
           <Text
-            variant="h3"
+            variant={amount.length < 10 ? 'h5' : 'h6'}
             color={isOverBalance ? 'inputError' : amount !== '0' ? 'textPrimary' : 'textSecondary'}
           >
             {amount}
           </Text>
-          <Box width={3} height={50} backgroundColor="primary700" marginHorizontal="s" />
-          <Text variant="h3" style={{ color: theme.colors.textPrimary, fontWeight: '600' }}>
+          <Box
+            width={3}
+            height={amount.length < 10 ? 50 : 30}
+            backgroundColor="primary700"
+            marginHorizontal="s"
+          />
+          <Text
+            variant={amount.length < 10 ? 'h5' : 'h6'}
+            style={{ color: theme.colors.textPrimary, fontWeight: '600' }}
+          >
             {selectedToken.code}
           </Text>
         </Box>
@@ -88,22 +106,54 @@ const AmountEntryStep = ({ selectedToken, selectedWallet, amount, onKeyPress, on
         )}
       </Box>
 
-      <Box backgroundColor="mainBackground" paddingHorizontal="xs" paddingBottom="m" style={{ paddingTop: 8 }}>
+      <Box
+        backgroundColor="mainBackground"
+        paddingHorizontal="xs"
+        paddingBottom="m"
+        style={{ paddingTop: 8 }}
+      >
         <Box paddingHorizontal="l" mb="m">
+          {/* <Box flexDirection="row" justifyContent="center" gap="m" mb="m" paddingHorizontal="l">
+            {[50, 500, 1000].map((usdAmount) => (
+              <TouchableOpacity
+                key={usdAmount}
+                style={{ flex: 1 }}
+                onPress={() => onPresetPress(usdAmount)}
+              >
+                <Box
+                  height={54}
+                  backgroundColor="bg900"
+                  borderRadius={12}
+                  justifyContent="center"
+                  alignItems="center"
+                >
+                  <Text variant="p6" color="textPrimary" fontWeight="700">
+                    {'$' + usdAmount}
+                  </Text>
+                </Box>
+              </TouchableOpacity>
+            ))}
+          </Box> */}
+
           <Box height={1} backgroundColor="btnDisabled" mb="m" />
           <Box flexDirection="row" justifyContent="space-between" alignItems="center">
             <Box>
-              <Text variant="p8" color="textSecondary" mb="xs">Available to Send</Text>
+              <Text variant="p8" color="textSecondary" mb="xs">
+                Available to Send
+              </Text>
               <Text variant="h11" color="textPrimary" fontWeight="700">
                 {availableAmount.toLocaleString(undefined, {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: selectedToken.code === 'XLM' ? 7 : 2,
-                })} {selectedToken.code}
+                })}{' '}
+                {selectedToken.code}
               </Text>
             </Box>
             <TouchableOpacity onPress={onMaxPress}>
               <Box px="m" py="s" backgroundColor="bg900" borderRadius={8}>
-                <Text variant="p8" color="textPrimary" fontWeight="700">Max</Text>
+                <Text variant="p8" color="textPrimary" fontWeight="700">
+                  Max
+                </Text>
               </Box>
             </TouchableOpacity>
           </Box>
@@ -112,11 +162,7 @@ const AmountEntryStep = ({ selectedToken, selectedWallet, amount, onKeyPress, on
         {rows.map((row, rowIndex) => (
           <Box key={rowIndex} flexDirection="row">
             {row.map((item, i) => (
-              <KeypadButton
-                key={i}
-                num={item.num}
-                onPress={() => onKeyPress(item.num)}
-              />
+              <KeypadButton key={i} num={item.num} onPress={() => onKeyPress(item.num)} />
             ))}
           </Box>
         ))}
@@ -125,7 +171,13 @@ const AmountEntryStep = ({ selectedToken, selectedWallet, amount, onKeyPress, on
           <KeypadButton num="0" onPress={() => onKeyPress('0')} />
           <TouchableOpacity
             onPress={() => onKeyPress('backspace')}
-            style={{ flex: 1, height: 60, margin: 4, justifyContent: 'center', alignItems: 'center' }}
+            style={{
+              flex: 1,
+              height: 60,
+              margin: 4,
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}
           >
             <Ionicons name="backspace-outline" size={24} color="white" />
           </TouchableOpacity>

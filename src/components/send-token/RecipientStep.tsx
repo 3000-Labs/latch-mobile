@@ -5,6 +5,7 @@ import { Theme } from '@/src/theme/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
 import { StrKey } from '@stellar/stellar-sdk';
+import * as Clipboard from 'expo-clipboard';
 import React, { useState } from 'react';
 import { Image, ScrollView, TextInput, TouchableOpacity } from 'react-native';
 import { Recipient } from './types';
@@ -18,11 +19,15 @@ const RecipientStep = ({ onSelectWallet }: Props) => {
   const [address, setAddress] = useState('');
   const { entries } = useAddressBook();
 
-  const isValid =
-    StrKey.isValidEd25519PublicKey(address) || StrKey.isValidContract(address);
+  const isValid = StrKey.isValidEd25519PublicKey(address) || StrKey.isValidContract(address);
 
   const handleSelectEntry = (entryAddress: string) => {
     setAddress(entryAddress);
+  };
+
+  const handlePaste = async () => {
+    const text = await Clipboard.getStringAsync();
+    setAddress(text);
   };
 
   return (
@@ -60,9 +65,17 @@ const RecipientStep = ({ onSelectWallet }: Props) => {
             fontFamily: 'SFproRegular',
           }}
         />
-        {address.length > 0 && (
+        {address.length > 0 ? (
           <TouchableOpacity onPress={() => setAddress('')}>
             <Ionicons name="close-circle" size={20} color={theme.colors.gray600} />
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity activeOpacity={0.7} onPress={handlePaste}>
+            <Box backgroundColor="primary" px="m" py="xs" borderRadius={8}>
+              <Text variant="p8" color="black" fontWeight="700">
+                Paste
+              </Text>
+            </Box>
           </TouchableOpacity>
         )}
       </Box>
@@ -115,13 +128,7 @@ const RecipientStep = ({ onSelectWallet }: Props) => {
                   borderRadius={14}
                   padding="m"
                 >
-                  <Box
-                    width={40}
-                    height={40}
-                    borderRadius={10}
-                    mr="m"
-                    overflow="hidden"
-                  >
+                  <Box width={40} height={40} borderRadius={10} mr="m" overflow="hidden">
                     <Image
                       source={require('@/src/assets/icon/yellow-user.png')}
                       style={{ width: 40, height: 40, borderRadius: 10 }}

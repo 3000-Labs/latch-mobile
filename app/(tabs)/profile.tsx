@@ -1,5 +1,6 @@
 import AccountSwitcherSheet from '@/src/components/account/AccountSwitcherSheet';
 import AboutSheet from '@/src/components/profile/AboutSheet';
+import BackupSheet from '@/src/components/profile/BackupSheet';
 import AccountInfoSheet from '@/src/components/profile/AccountInfoSheet';
 import AddressBookSheet from '@/src/components/profile/AddressBookSheet';
 import DrawerProfileHeader from '@/src/components/profile/DrawerProfileHeader';
@@ -49,6 +50,7 @@ const Profile = () => {
   const [aboutVisible, setAboutVisible] = useState(false);
   const [privacyVisible, setPrivacyVisible] = useState(false);
   const [logoutVisible, setLogoutVisible] = useState(false);
+  const [backupVisible, setBackupVisible] = useState(false);
 
   const activeAccount = accounts[activeAccountIndex];
 
@@ -117,6 +119,7 @@ const Profile = () => {
           onClose={() => setLogoutVisible(false)}
           onConfirm={handleLogout}
         />
+        <BackupSheet visible={backupVisible} onClose={() => setBackupVisible(false)} />
 
         <Box paddingHorizontal="m">
           {/* Account Section */}
@@ -161,6 +164,11 @@ const Profile = () => {
               rightElement={
                 <Switch value={biometricsEnabled} onValueChange={setBiometricsEnabled} />
               }
+            />
+            <SettingItem
+              icon="cloud-upload-outline"
+              label="Wallet Backup"
+              onPress={() => setBackupVisible(true)}
             />
             <SettingItem
               icon="keypad-outline"

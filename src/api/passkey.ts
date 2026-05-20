@@ -56,7 +56,6 @@ function txToBase64(tx: { toEnvelope(): { toXDR(): Uint8Array } }): string {
   return toBase64(new Uint8Array(tx.toEnvelope().toXDR()));
 }
 
-
 // ─── XMLHttpRequest-based JSON-RPC ───────────────────────────────────────────
 // Matches the sorobanCall in smart-account.ts which is known to work on Android.
 
@@ -221,11 +220,27 @@ export async function deploySmartAccount(
   }
 
   // Check SecureStore first — survives across app restarts.
-  // Skipped when deploying a new additional account (skipCache=true), because
-  // SMART_ACCOUNT holds the ACTIVE account's address, not this new account's.
+  // Also verify the cached address was deployed with the current keyDataHex.
+  // If they diverge (partial SecureStore clear, re-onboarding, etc.) we must
+  // redeploy so the on-chain signer matches the stored private key.
   if (!skipCache) {
     const stored = await SecureStore.getItemAsync(SECURE_KEYS.SMART_ACCOUNT);
-    if (stored) return { smartAccountAddress: stored, alreadyDeployed: true };
+    if (stored) {
+      const deployedKeyData = await SecureStore.getItemAsync(SECURE_KEYS.DEPLOYED_KEY_DATA);
+      if (deployedKeyData === null) {
+        // Legacy account (fingerprint never stored). Store it now and trust cache.
+        await SecureStore.setItemAsync(SECURE_KEYS.DEPLOYED_KEY_DATA, keyDataHex);
+        return { smartAccountAddress: stored, alreadyDeployed: true };
+      }
+      if (deployedKeyData === keyDataHex) {
+        return { smartAccountAddress: stored, alreadyDeployed: true };
+      }
+      // Fingerprint mismatch: credentials were regenerated after the last deployment.
+      // Fall through to redeploy with the current key.
+      if (__DEV__) {
+        console.warn('[passkey] key fingerprint mismatch — redeploying with current credential');
+      }
+    }
   }
 
   try {
@@ -245,9 +260,9 @@ export async function deploySmartAccount(
     const paramsMap = buildParamsMap(keyDataHex, salt);
     const factory = new Contract(factoryAddress);
 
-    console.log('[passkey] fetching bundler account from Horizon...');
+    if (__DEV__) console.log('[passkey] fetching bundler account from Horizon...');
     const bundlerAccount = await getBundlerAccount(horizonUrl, bundlerKeypair.publicKey());
-    console.log('[passkey] bundler seq:', bundlerAccount.sequenceNumber());
+    if (__DEV__) console.log('[passkey] bundler seq:', bundlerAccount.sequenceNumber());
 
     const createTx = new TransactionBuilder(bundlerAccount, {
       fee: '1500000',
@@ -257,12 +272,12 @@ export async function deploySmartAccount(
       .setTimeout(300)
       .build();
 
-    console.log('[passkey] simulating create_account...');
+    if (__DEV__) console.log('[passkey] simulating create_account...');
     const rawSim = await sorobanCall(rpcUrl, 'simulateTransaction', {
       transaction: txToBase64(createTx),
     });
     if (rawSim.error) throw new Error(`create_account simulation failed: ${rawSim.error}`);
-    console.log('[passkey] simulation ok, assembling...');
+    if (__DEV__) console.log('[passkey] simulation ok, assembling...');
 
     const assembled = rpc.assembleTransaction(createTx, parseSimResult(rawSim)).build();
     assembled.sign(bundlerKeypair);
@@ -270,7 +285,7 @@ export async function deploySmartAccount(
     const sendRaw = await sorobanCall(rpcUrl, 'sendTransaction', {
       transaction: txToBase64(assembled),
     });
-    console.log('[passkey] sendTransaction status:', sendRaw.status);
+    if (__DEV__) console.log('[passkey] sendTransaction status:', sendRaw.status);
 
     if (sendRaw.status === 'ERROR') {
       throw new Error(
@@ -282,7 +297,7 @@ export async function deploySmartAccount(
     for (let i = 0; i < 30; i++) {
       await new Promise((r) => setTimeout(r, 2000));
       const poll = await sorobanCall(rpcUrl, 'getTransaction', { hash: sendRaw.hash });
-      console.log(`[passkey] poll ${i + 1}: ${poll.status}`);
+      if (__DEV__) console.log(`[passkey] poll ${i + 1}: ${poll.status}`);
 
       if (poll.status === 'NOT_FOUND') continue;
 
@@ -300,7 +315,9 @@ export async function deploySmartAccount(
       throw new Error('Transaction settled but could not extract smart account address');
     }
 
-    console.log('[passkey] deployed:', smartAccountAddress);
+    if (__DEV__) console.log('[passkey] deployed:', smartAccountAddress);
+    // Persist fingerprint so future runs can detect credential/deployment mismatches.
+    await SecureStore.setItemAsync(SECURE_KEYS.DEPLOYED_KEY_DATA, keyDataHex);
     return { smartAccountAddress, alreadyDeployed: false };
   } catch (error: any) {
     console.error('[passkey] deploySmartAccount error:', error?.message);

@@ -32,20 +32,21 @@ type ScreenState = 'LIST' | 'FORM';
 interface Props {
   visible: boolean;
   onClose: () => void;
+  prefillAddress?: string;
 }
 
-const AddressBookSheet = ({ visible, onClose }: Props) => {
+const AddressBookSheet = ({ visible, onClose, prefillAddress }: Props) => {
   const theme = useTheme<Theme>();
   const insets = useSafeAreaInsets();
   const { isDark } = useAppTheme();
   const [screenState, setScreenState] = useState<ScreenState>('LIST');
-  const { entries: addresses, addEntry } = useAddressBook();
+  const { entries: addresses, addEntry, removeEntry } = useAddressBook();
 
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
 
   useEffect(() => {
     if (visible) {
-      setScreenState('LIST');
+      setScreenState(prefillAddress ? 'FORM' : 'LIST');
       Animated.spring(translateY, {
         toValue: 0,
         useNativeDriver: true,
@@ -79,8 +80,8 @@ const AddressBookSheet = ({ visible, onClose }: Props) => {
     }
   };
 
-  const handleAddAddress = (values: any, { resetForm }: any) => {
-    addEntry(values);
+  const handleAddAddress = (values: { label: string; address: string }, { resetForm }: any) => {
+    addEntry({ ...values, network: 'Stellar' });
     resetForm();
     setScreenState('LIST');
   };
@@ -148,13 +149,18 @@ const AddressBookSheet = ({ visible, onClose }: Props) => {
               <Box flex={1}>
                 <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 20 }}>
                   {addresses.map((item) => (
-                    <AddressBookItem key={item.id} label={item.label} address={item.address} />
+                    <AddressBookItem
+                      key={item.id}
+                      label={item.label}
+                      address={item.address}
+                      onDelete={() => removeEntry(item.id)}
+                    />
                   ))}
                 </ScrollView>
               </Box>
             )
           ) : (
-            <AddressBookForm onSubmit={handleAddAddress} />
+            <AddressBookForm onSubmit={handleAddAddress} initialAddress={prefillAddress} />
           )}
         </Animated.View>
       </KeyboardAvoidingView>

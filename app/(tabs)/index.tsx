@@ -7,6 +7,7 @@ import Text from '@/src/components/shared/Text';
 import TokenIcon from '@/src/components/shared/TokenIcon';
 import { useDrawer } from '@/src/context/drawer-context';
 import { usePortfolio, type TokenBalance } from '@/src/hooks/use-portfolio';
+import { usePrices } from '@/src/hooks/use-prices';
 import { StellarPayment, useStellarTransactions } from '@/src/hooks/use-stellar-transactions';
 import { useTokenIcon } from '@/src/hooks/use-token-list';
 import { useTrackedTokens } from '@/src/hooks/use-tracked-tokens';
@@ -14,13 +15,14 @@ import { discoverMigration } from '@/src/lib/migration';
 import { useWalletStore } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
 import { useAppTheme } from '@/src/theme/ThemeContext';
+import { calculatePortfolio24hChangeFormatted, getTotalUSDBalance } from '@/src/utils';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
 import { useQuery } from '@tanstack/react-query';
 import { ImageBackground } from 'expo-image';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { memo, useState } from 'react';
+import React, { memo, useMemo, useState } from 'react';
 import {
   Dimensions,
   FlatList,
@@ -108,10 +110,10 @@ function TokenRow({
       </Box>
       <Box alignItems="flex-end">
         <Text variant="h11" color="textPrimary" fontWeight="700">
-          {showBalance ? `${formattedAmount} ${token.code}` : '••••'}
+          {showBalance ? `${formattedAmount} ${token.code}` : '****'}
         </Text>
         <Text variant="p8" color="textSecondary" mt="xs">
-          {showBalance ? `$${formattedUsd}` : '••••'}
+          {showBalance ? `$${formattedUsd}` : '****'}
         </Text>
       </Box>
     </Box>
@@ -125,7 +127,7 @@ const Home = () => {
   const insets = useSafeAreaInsets();
 
   const { smartAccountAddress, accounts, activeAccountIndex, mnemonic } = useWalletStore();
-  const [showBalance, setShowBalance] = useState(true);
+  const [showBalance, setShowBalance] = useState(false);
   const [bannerIndex, setBannerIndex] = useState(0);
   const [fundVisible, setFundVisible] = useState(false);
 
@@ -137,6 +139,7 @@ const Home = () => {
 
   const { tokens: trackedTokens } = useTrackedTokens();
 
+  const { data: prices, refetch: refetchPrices } = usePrices();
   const {
     data: portfolio,
     isLoading: portfolioLoading,
@@ -159,14 +162,27 @@ const Home = () => {
   });
 
   const handleRefresh = () => {
+    refetchPrices();
     refetchPortfolio();
     refetchTx();
   };
 
-  const totalUsd = (portfolio ?? []).reduce((sum, t) => sum + t.usdValue, 0);
-  const xlmToken = portfolio?.find((t) => t.code === 'XLM');
-  const spendableXlm = parseFloat(xlmToken?.amount ?? '0');
-  const recentTx = transactions?.slice(0, 3) ?? [];
+  const livePrices: Record<string, any> = prices ?? {};
+  const totalUsd = useMemo(
+    () => getTotalUSDBalance({ portfolio, livePrices }),
+    [portfolio, livePrices],
+  );
+
+  const dayChange = useMemo(() => {
+    return calculatePortfolio24hChangeFormatted({
+      prices: livePrices,
+      portfolio: portfolio as TokenBalance[],
+    });
+  }, [portfolio, livePrices]);
+
+  const xlmToken = useMemo(() => portfolio?.find((t) => t.code === 'XLM'), [portfolio]);
+  const spendableXlm = useMemo(() => parseFloat(xlmToken?.amount ?? '0') || 0, [xlmToken]);
+  const recentTx = useMemo(() => transactions?.slice(0, 3) ?? [], [transactions]);
 
   const handleRowPress = (tx: StellarPayment) => {
     const isSent = tx.from === smartAccountAddress;
@@ -308,11 +324,13 @@ const Home = () => {
               backgroundColor={isDark ? 'gray900' : 'gray100'}
               borderRadius={6}
               paddingHorizontal="s"
+              justifyContent={'center'}
+              alignItems={'center'}
               paddingVertical="xs"
               style={!isDark ? { borderWidth: 1, borderColor: '#F0F0F0' } : {}}
             >
               <Text variant="p7" color="textPrimary" fontWeight="700">
-                0.00%
+                {showBalance ? `${dayChange ?? 0.0}%` : '****'}
               </Text>
             </Box>
           </Box>
@@ -382,15 +400,18 @@ const Home = () => {
                 </Text>
               </TouchableOpacity>
             </Box>
-            {(portfolio ?? []).map((token) => (
-              <TokenRow
-                key={token.code + (token.issuer ?? '')}
-                token={token}
-                showBalance={showBalance}
-                isDark={isDark}
-                theme={theme}
-              />
-            ))}
+            {(portfolio ?? []).map((token) => {
+              const usd = parseFloat(token.amount) * (livePrices[token.code]?.price || 0);
+              return (
+                <TokenRow
+                  key={token.code + (token.issuer ?? '')}
+                  token={{ ...token, usdValue: isNaN(usd) ? 0 : usd }}
+                  showBalance={showBalance}
+                  isDark={isDark}
+                  theme={theme}
+                />
+              );
+            })}
           </Box>
         )}
 

@@ -3,7 +3,7 @@ const { z } = require('zod');
 
 const runtimeEnv = z
   .object({
-    // EXPO_PUBLIC_API_BASE_URL: z.string().url(),
+    EXPO_PUBLIC_API_BASE_URL: z.string().url(),
     // EXPO_PUBLIC_LOGIN_EMAIL: z.string(),
     // EXPO_PUBLIC_LOGIN_PASSWORD: z.string(),
     // EXPO_PUBLIC_DOJAH_KEY: z.string(),
@@ -28,6 +28,7 @@ const runtimeEnv = z
     EXPO_PUBLIC_COUNTER_ADDRESS: z.string(),
     EXPO_PUBLIC_SMART_ACCOUNT_WASM_HASH: z.string(),
     EXPO_PUBLIC_FACTORY_ADDRESS: z.string(),
+    EXPO_PUBLIC_BUNDLER_SECRET: z.string(),
   })
   .partial();
 
@@ -52,7 +53,7 @@ const envSchema =
  * @type {Record<keyof z.TypeOf<typeof runtimeEnv>, string | undefined>}
  */
 const envObject = {
-  // EXPO_PUBLIC_API_BASE_URL: process.env.EXPO_PUBLIC_API_BASE_URL,
+  EXPO_PUBLIC_API_BASE_URL: process.env.EXPO_PUBLIC_API_BASE_URL,
   //   EXPO_PUBLIC_LOGIN_EMAIL: process.env.EXPO_PUBLIC_LOGIN_EMAIL,
   //   EXPO_PUBLIC_LOGIN_PASSWORD: process.env.EXPO_PUBLIC_LOGIN_PASSWORD,
   //   EXPO_PUBLIC_DOJAH_KEY: process.env.EXPO_PUBLIC_DOJAH_KEY,
@@ -77,6 +78,7 @@ const envObject = {
   EXPO_PUBLIC_COUNTER_ADDRESS: process.env.EXPO_PUBLIC_COUNTER_ADDRESS,
   EXPO_PUBLIC_SMART_ACCOUNT_WASM_HASH: process.env.EXPO_PUBLIC_SMART_ACCOUNT_WASM_HASH,
   EXPO_PUBLIC_FACTORY_ADDRESS: process.env.EXPO_PUBLIC_FACTORY_ADDRESS,
+  EXPO_PUBLIC_BUNDLER_SECRET: process.env.EXPO_PUBLIC_BUNDLER_SECRET,
 };
 
 module.exports = envSchema.parse({ ...process.env, ...envObject });

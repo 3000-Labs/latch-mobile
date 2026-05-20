@@ -2,16 +2,15 @@
  * CollectEmail — two-phase screen for email-based auth and account recovery.
  *
  * mode=register (default): onboarding flow
- *   Phase 1 → POST /auth/register → Phase 2 → POST /auth/verify → deploy-account
+ *   Phase 1 → POST /auth/register → Phase 2 → POST /auth/verify → set-recovery-password (set)
  *
  * mode=recovery: account recovery flow
  *   Phase 1 → POST /recovery/initiate → Phase 2 → POST /recovery/verify
- *           → GET /recovery/blob → restore keys → set-pin
+ *           → set-recovery-password (enter) → client-side decrypt → set-pin
  */
 
 import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import {
-  fetchAndRestoreBackup,
   initiateRecovery,
   registerEmail,
   saveAuthTokens,
@@ -23,7 +22,6 @@ import Button from '@/src/components/shared/Button';
 import Text from '@/src/components/shared/Text';
 import { Theme } from '@/src/theme/theme';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '@shopify/restyle';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -110,16 +108,18 @@ const CollectEmail = () => {
     try {
       if (isRecovery) {
         const recoveryToken = await verifyRecoveryOTP(email, otp.trim());
-        await fetchAndRestoreBackup(recoveryToken);
-        // Mark onboarding complete so the app doesn't loop back to onboarding
-        await AsyncStorage.setItem('latch_onboarding_complete', 'true');
-        // Passkey credential is restored — navigate to set-pin so user sets a
-        // new PIN (PIN is not backed up). from=recovery skips deploy-account.
-        router.replace({ pathname: '/(onboarding)/set-pin', params: { from: 'recovery' } });
+        // Navigate to set-recovery-password to collect the password needed to
+        // decrypt the backup client-side. That screen calls fetchAndRestoreBackup.
+        router.replace({
+          pathname: '/(onboarding)/set-recovery-password',
+          params: { mode: 'enter', recoveryToken },
+        });
       } else {
         const { accessToken, refreshToken } = await verifyOTP(email, otp.trim());
         await saveAuthTokens(accessToken, refreshToken, email);
-        router.replace('/(onboarding)/deploy-account');
+        // Navigate to set-recovery-password to collect the password that will
+        // encrypt the backup before it is uploaded in deploy-account.
+        router.replace({ pathname: '/(onboarding)/set-recovery-password', params: { mode: 'set' } });
       }
     } catch (err: any) {
       setError(err?.message ?? 'Invalid or expired code. Please try again.');

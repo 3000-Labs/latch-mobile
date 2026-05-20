@@ -20,13 +20,18 @@ export function useTokenIcon(code?: string, issuer?: string): string | null {
 
   // XLM uses the bundled stellar.png — returning null lets TokenIcon use its local fallback.
   if (codeKey === 'XLM') return null;
+  if (codeKey === 'EURC') {
+    return 'https://6778953.fs1.hubspotusercontent-na1.net/hubfs/6778953/Brand/EURC/EURC-icon_128x128.png';
+  }
 
   const fullKey = issuer ? `${codeKey}:${issuer}` : null;
 
   const stellarIcon = data && ((fullKey && data[fullKey]?.icon) || data[codeKey]?.icon);
-  if (stellarIcon) return stellarIcon;
-
-  // Stellar lists only cover Stellar-native assets. Fall back to CoinCap CDN for
-  // major crypto symbols (BTC, ETH, SOL, etc.). TokenIcon's onError handles 404s.
-  return `https://assets.coincap.io/assets/icons/${codeKey.toLowerCase()}@2x.png`;
+  if (stellarIcon) {
+    return stellarIcon;
+  } else {
+    // Stellar lists only cover Stellar-native assets. Fall back to CoinCap CDN for
+    // major crypto symbols (BTC, ETH, SOL, etc.). TokenIcon's onError handles 404s.
+    return `https://assets.coincap.io/assets/icons/${codeKey.toLowerCase()}@2x.png`;
+  }
 }

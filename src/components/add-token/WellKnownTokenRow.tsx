@@ -3,9 +3,9 @@ import { type TokenConfig } from '@/src/constants/known-tokens';
 import { useTokenIcon } from '@/src/hooks/use-token-list';
 import { Theme } from '@/src/theme/theme';
 import { Ionicons } from '@expo/vector-icons';
+import { TouchableOpacity } from 'react-native';
 import Box from '../shared/Box';
 import Text from '../shared/Text';
-import { TouchableOpacity } from 'react-native';
 
 interface Props {
   token: TokenConfig;

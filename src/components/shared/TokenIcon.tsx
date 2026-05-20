@@ -26,7 +26,9 @@ const TokenIcon = ({ iconUrl, size = 48 }: TokenIconProps) => {
         source={!errored && iconUrl ? { uri: iconUrl } : STELLAR_FALLBACK}
         style={{ width: size + 5, height: size + 5 }}
         contentFit="cover"
-        onError={() => setErrored(true)}
+        onError={(e) => {
+          setErrored(true);
+        }}
       />
     </Box>
   );

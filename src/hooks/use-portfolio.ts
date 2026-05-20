@@ -11,38 +11,43 @@ export interface TokenBalance {
   usdValue: number;
 }
 
-/**
- * Hardcoded USD prices — replace with a live price feed when available.
- * Stablecoins are pegged 1:1. XLM uses a fixed rate for now.
- */
-const TOKEN_USD_PRICES: Record<string, number> = {
-  XLM: 0.16,
-  USDC: 1.0,
-  USDT: 1.0,
-};
-
-/**
- * Read any SAC token balance for a C-address from Soroban ledger entries.
- *
- * The balance is stored in the SAC's contract storage under:
- *   ContractData { contract: sacId, key: Vec([Symbol("Balance"), Address(cAddress)]) }
- *
- * Works for native XLM SAC and any custom asset SAC.
- * Uses XHR to avoid the Axios Android TLS failure on Soroban JSON-RPC.
- */
-function fetchSacBalance(cAddress: string, sacContractId: string): Promise<string> {
-  const balanceKey = xdr.LedgerKey.contractData(
+function buildLedgerKeyB64(cAddress: string, sacContractId: string): string {
+  const ledgerKey = xdr.LedgerKey.contractData(
     new xdr.LedgerKeyContractData({
       contract: new Address(sacContractId).toScAddress(),
       key: xdr.ScVal.scvVec([xdr.ScVal.scvSymbol('Balance'), new Address(cAddress).toScVal()]),
       durability: xdr.ContractDataDurability.persistent(),
     }),
   );
-
-  const bytes = new Uint8Array(balanceKey.toXDR());
+  const bytes = new Uint8Array(ledgerKey.toXDR());
   let binary = '';
   for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-  const keyB64 = btoa(binary);
+  return btoa(binary);
+}
+
+function parseBalanceFromXdr(entryXdr: string): string {
+  try {
+    const entryData = xdr.LedgerEntryData.fromXDR(entryXdr, 'base64');
+    const parsed = scValToNative(entryData.contractData().val()) as { amount: bigint };
+    const n = Number(parsed.amount);
+    if (!isFinite(n)) return '0';
+    return (n / 10_000_000).toFixed(7);
+  } catch {
+    return '0';
+  }
+}
+
+/**
+ * Fetch all SAC token balances for a C-address in a single getLedgerEntries call.
+ * Returns a map of sacId → human-readable balance string.
+ * Uses XHR to avoid the Axios Android TLS failure on Soroban JSON-RPC.
+ */
+function fetchAllSacBalances(cAddress: string, sacIds: string[]): Promise<Record<string, string>> {
+  const zero = Object.fromEntries(sacIds.map((id) => [id, '0']));
+  if (sacIds.length === 0) return Promise.resolve(zero);
+
+  const keys = sacIds.map((id) => buildLedgerKeyB64(cAddress, id));
+  const keyToSacId = new Map(keys.map((k, i) => [k, sacIds[i]]));
 
   return new Promise((resolve) => {
     const xhr = new XMLHttpRequest();
@@ -51,30 +56,26 @@ function fetchSacBalance(cAddress: string, sacContractId: string): Promise<strin
     xhr.setRequestHeader('Accept', 'application/json');
     xhr.timeout = 15000;
     xhr.onload = () => {
+      const result = { ...zero };
       try {
         const json = JSON.parse(xhr.responseText);
-        const entries: any[] = json.result?.entries ?? [];
-        if (__DEV__) console.log('[portfolio] sacId:', sacContractId, 'entries:', entries.length, 'error:', json.error ?? null);
-        if (entries.length === 0) { resolve('0'); return; }
-        const entryData = xdr.LedgerEntryData.fromXDR(entries[0].xdr, 'base64');
-        const val = entryData.contractData().val();
-        const parsed = scValToNative(val) as { amount: bigint };
-        const human = (Number(parsed.amount) / 10_000_000).toFixed(7);
-        if (__DEV__) console.log('[portfolio] sacId:', sacContractId, '→ amount:', human);
-        resolve(human);
-      } catch (e) {
-        if (__DEV__) console.log('[portfolio] sacId:', sacContractId, 'parse error:', e);
-        resolve('0');
-      }
+        for (const entry of json.result?.entries ?? []) {
+          const sacId = keyToSacId.get(entry.key);
+          if (sacId) result[sacId] = parseBalanceFromXdr(entry.xdr);
+        }
+      } catch {}
+      resolve(result);
     };
-    xhr.onerror = () => resolve('0');
-    xhr.ontimeout = () => resolve('0');
-    xhr.send(JSON.stringify({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'getLedgerEntries',
-      params: { keys: [keyB64] },
-    }));
+    xhr.onerror = () => resolve(zero);
+    xhr.ontimeout = () => resolve(zero);
+    xhr.send(
+      JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'getLedgerEntries',
+        params: { keys },
+      }),
+    );
   });
 }
 
@@ -121,13 +122,19 @@ async function fetchPortfolio(
         xhr.open('GET', `${HORIZON_URL}/accounts/${gAddress}`, true);
         xhr.setRequestHeader('Accept', 'application/json');
         xhr.timeout = 10000;
-        xhr.onload = () => { try { resolve(JSON.parse(xhr.responseText)); } catch { resolve({}); } };
+        xhr.onload = () => {
+          try {
+            resolve(JSON.parse(xhr.responseText));
+          } catch {
+            resolve({});
+          }
+        };
         xhr.onerror = () => resolve({});
         xhr.ontimeout = () => resolve({});
         xhr.send();
       });
 
-      for (const b of (account.balances ?? [])) {
+      for (const b of account.balances ?? []) {
         if (b.asset_type === 'native' || b.asset_type === 'liquidity_pool_shares') continue;
         const key = `${b.asset_code}:${b.asset_issuer}`;
         if (!tokenMap.has(key)) {
@@ -139,39 +146,35 @@ async function fetchPortfolio(
     }
   }
 
-  const nonNativeTokens = Array.from(tokenMap.values());
+  const nonNativeTokens = Array.from(tokenMap.values()).map((t) => ({
+    config: t,
+    sacId: t.sacContractId ?? new Asset(t.code, t.issuer!).contractId(STELLAR_NETWORK_PASSPHRASE),
+  }));
 
-  // Fetch all balances in parallel
-  const [xlmAmount, ...tokenAmounts] = await Promise.all([
-    fetchSacBalance(cAddress, nativeSacId),
-    ...nonNativeTokens.map((t) => {
-      // Use sacContractId directly if the token was added by C-address;
-      // otherwise derive the SAC ID from the classic asset code + issuer.
-      const sacId = t.sacContractId
-        ? t.sacContractId
-        : new Asset(t.code, t.issuer!).contractId(STELLAR_NETWORK_PASSPHRASE);
-      return fetchSacBalance(cAddress, sacId).then((amount) => ({ t, sacId, amount }));
-    }),
-  ]);
+  // Single batched getLedgerEntries call for all tokens (XLM + non-native).
+  const allSacIds = [nativeSacId, ...nonNativeTokens.map((t) => t.sacId)];
+  const balances = await fetchAllSacBalances(cAddress, allSacIds);
 
+  const xlmAmount = balances[nativeSacId];
   const results: TokenBalance[] = [
     {
       code: 'XLM',
       issuer: undefined,
       sacContractId: nativeSacId,
-      amount: xlmAmount as string,
-      usdValue: parseFloat(xlmAmount as string) * TOKEN_USD_PRICES.XLM,
+      amount: xlmAmount,
+      usdValue: 0,
     },
   ];
 
-  for (const { t, sacId, amount } of tokenAmounts as { t: TokenConfig; sacId: string; amount: string }[]) {
-    if (parseFloat(amount) <= 0) continue; // hide zero-balance tokens
+  for (const { config: t, sacId } of nonNativeTokens) {
+    const amount = balances[sacId];
+    if (parseFloat(amount) <= 0) continue;
     results.push({
       code: t.code,
       issuer: t.issuer,
       sacContractId: sacId,
       amount,
-      usdValue: parseFloat(amount) * (TOKEN_USD_PRICES[t.code] ?? 0),
+      usdValue: 0,
     });
   }
 

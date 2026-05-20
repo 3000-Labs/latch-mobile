@@ -1,78 +1,46 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
+import { StrKey } from '@stellar/stellar-sdk';
 import * as Clipboard from 'expo-clipboard';
 import { Formik } from 'formik';
 import React from 'react';
-import { Image, TextInput, TouchableOpacity } from 'react-native';
+import { TextInput, TouchableOpacity } from 'react-native';
 import * as Yup from 'yup';
 
 import Box from '@/src/components/shared/Box';
 import Input from '@/src/components/shared/Input';
 import Text from '@/src/components/shared/Text';
 import { Theme } from '@/src/theme/theme';
-import NetworkSelectSheet from './NetworkSelectSheet';
 
 const AddressBookSchema = Yup.object().shape({
-  network: Yup.string().required('Required'),
   label: Yup.string().required('Required'),
-  address: Yup.string().required('Required'),
+  address: Yup.string()
+    .required('Required')
+    .test(
+      'stellar-address',
+      'Enter a valid Stellar G-address or C-address',
+      (value) =>
+        StrKey.isValidEd25519PublicKey(value ?? '') || StrKey.isValidContract(value ?? ''),
+    ),
 });
 
-const NETWORKS = [
-  { name: 'Solana', icon: require('@/src/assets/token/solana.png') },
-  { name: 'Ethereum', icon: require('@/src/assets/token/eth.png') },
-  { name: 'Stellar', icon: require('@/src/assets/token/stellar.png') },
-  { name: 'Ripple', icon: require('@/src/assets/token/ripple.png') },
-  { name: 'Polkadot', icon: require('@/src/assets/token/pokadot.png') },
-];
-
 interface AddressBookFormProps {
-  onSubmit: (values: any, formikHelpers: any) => void;
+  onSubmit: (values: { label: string; address: string }, formikHelpers: any) => void;
+  initialAddress?: string;
 }
 
-const AddressBookForm = ({ onSubmit }: AddressBookFormProps) => {
+const AddressBookForm = ({ onSubmit, initialAddress }: AddressBookFormProps) => {
   const theme = useTheme<Theme>();
-  const [showNetworkSelect, setShowNetworkSelect] = React.useState(false);
 
   return (
     <Formik
-      initialValues={{ network: 'Solana', label: '', address: '' }}
+      initialValues={{ label: '', address: initialAddress ?? '' }}
       validationSchema={AddressBookSchema}
       onSubmit={onSubmit}
     >
-      {({ handleChange, handleBlur, handleSubmit, values, setFieldValue, isValid, dirty }) => (
+      {({ handleChange, handleBlur, handleSubmit, values, setFieldValue, errors, touched, isValid, dirty }) => (
         <Box flex={1}>
           <Box flex={1} paddingHorizontal="m" pt="m">
-            <Box mb="l">
-              <Text variant="p7" color="textPrimary" fontWeight="600" mb="s">
-                Network
-              </Text>
-              <TouchableOpacity activeOpacity={0.7} onPress={() => setShowNetworkSelect(true)}>
-                <Box
-                  flexDirection="row"
-                  alignItems="center"
-                  justifyContent="space-between"
-                  backgroundColor="bg900"
-                  borderRadius={12}
-                  paddingHorizontal="m"
-                  height={56}
-                  borderWidth={1}
-                  borderColor="gray900"
-                >
-                  <Box flexDirection="row" alignItems="center">
-                    <Image
-                      source={NETWORKS.find((n) => n.name === values.network)?.icon}
-                      style={{ width: 24, height: 24, borderRadius: 12, marginRight: 8 }}
-                    />
-                    <Text variant="p6" color="textPrimary">
-                      {values.network}
-                    </Text>
-                  </Box>
-                  <Ionicons name="chevron-down" size={20} color={theme.colors.textSecondary} />
-                </Box>
-              </TouchableOpacity>
-            </Box>
-
             <Box mb="l">
               <Text variant="p7" color="textPrimary" fontWeight="600" mb="s">
                 Label
@@ -83,6 +51,11 @@ const AddressBookForm = ({ onSubmit }: AddressBookFormProps) => {
                 onBlur={handleBlur('label')}
                 value={values.label}
               />
+              {touched.label && errors.label && (
+                <Text variant="p8" color="inputError" mt="xs">
+                  {errors.label}
+                </Text>
+              )}
             </Box>
 
             <Box mb="l">
@@ -97,20 +70,22 @@ const AddressBookForm = ({ onSubmit }: AddressBookFormProps) => {
                 paddingHorizontal="m"
                 minHeight={56}
                 borderWidth={1}
-                borderColor="gray900"
+                borderColor={touched.address && errors.address ? 'inputError' : 'gray900'}
                 paddingVertical="s"
               >
                 <TextInput
-                  placeholder="Input an address"
+                  placeholder="G... or C..."
                   placeholderTextColor={theme.colors.textSecondary}
                   onChangeText={handleChange('address')}
                   onBlur={handleBlur('address')}
                   value={values.address}
+                  autoCapitalize="none"
+                  autoCorrect={false}
                   multiline
                   style={{
                     flex: 1,
                     color: theme.colors.textPrimary,
-                    fontSize: 16,
+                    fontSize: 15,
                     fontFamily: 'SFproRegular',
                     marginRight: 8,
                   }}
@@ -134,24 +109,29 @@ const AddressBookForm = ({ onSubmit }: AddressBookFormProps) => {
                   </TouchableOpacity>
                 )}
               </Box>
+              {touched.address && errors.address && (
+                <Text variant="p8" color="inputError" mt="xs">
+                  {errors.address}
+                </Text>
+              )}
             </Box>
 
             <Box position="absolute" bottom={40} width="100%" left={theme.spacing.m}>
               <TouchableOpacity
                 activeOpacity={0.8}
                 onPress={() => handleSubmit()}
-                disabled={!(isValid && dirty)}
+                disabled={!(isValid && (dirty || !!initialAddress))}
               >
                 <Box
                   height={56}
-                  backgroundColor={isValid && dirty ? 'primary' : 'bg900'}
+                  backgroundColor={isValid && (dirty || !!initialAddress) ? 'primary' : 'bg900'}
                   borderRadius={28}
                   justifyContent="center"
                   alignItems="center"
                 >
                   <Text
                     variant="p6"
-                    color={isValid && dirty ? 'black' : 'textSecondary'}
+                    color={isValid && (dirty || !!initialAddress) ? 'black' : 'textSecondary'}
                     fontWeight="700"
                   >
                     Save Address
@@ -160,18 +140,6 @@ const AddressBookForm = ({ onSubmit }: AddressBookFormProps) => {
               </TouchableOpacity>
             </Box>
           </Box>
-
-          {showNetworkSelect && (
-            <NetworkSelectSheet
-              networks={NETWORKS}
-              selectedNetwork={values.network}
-              onSelect={(name) => {
-                setFieldValue('network', name);
-                setShowNetworkSelect(false);
-              }}
-              onClose={() => setShowNetworkSelect(false)}
-            />
-          )}
         </Box>
       )}
     </Formik>

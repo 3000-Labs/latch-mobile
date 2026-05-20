@@ -165,30 +165,37 @@ const DeployAccount = () => {
         // ── Step 3: persist smart account address ─────────────────────────────
         await SecureStore.setItemAsync(SECURE_KEYS.SMART_ACCOUNT, deployedAddress);
 
-        // ── Step 4: write the multi-account array (account 0) if not yet set ──
-        if (accounts.length === 0) {
-          let account0: WalletAccount;
-          if (storedMnemonic) {
-            const wallet = restoreStellarWallet(storedMnemonic);
-            account0 = {
-              index: 0,
-              name: 'Account 1',
-              gAddress: wallet.gAddress,
-              publicKeyHex: wallet.publicKeyHex,
-              smartAccountAddress: deployedAddress,
-            };
-          } else {
-            account0 = {
-              index: -1,
-              name: 'Account 1',
-              gAddress: '',
-              publicKeyHex: '',
-              smartAccountAddress: deployedAddress,
-            };
-          }
-          await SecureStore.setItemAsync(SECURE_KEYS.ACCOUNTS, JSON.stringify([account0]));
-          await SecureStore.setItemAsync(SECURE_KEYS.ACTIVE_ACCOUNT_INDEX, '0');
+        // ── Step 4: unconditionally write/overwrite account 0 and reset active index.
+        // Stale SecureStore data (e.g. iCloud Keychain persistence after reinstall) can
+        // leave accounts and activeAccountIndex pointing at a previous session. Always
+        // anchoring to index 0 here prevents the signing key from drifting out of sync
+        // with the deployed contract.
+        let account0: WalletAccount;
+        if (storedMnemonic) {
+          const wallet = restoreStellarWallet(storedMnemonic);
+          account0 = {
+            index: 0,
+            name: accounts[0]?.name ?? 'Account 1',
+            gAddress: wallet.gAddress,
+            publicKeyHex: wallet.publicKeyHex,
+            smartAccountAddress: deployedAddress,
+            image: accounts[0]?.image ?? null,
+          };
+        } else {
+          account0 = {
+            index: -1,
+            name: accounts[0]?.name ?? 'Account 1',
+            gAddress: '',
+            publicKeyHex: '',
+            smartAccountAddress: deployedAddress,
+            image: accounts[0]?.image ?? null,
+          };
         }
+        // Preserve any additional accounts beyond slot 0 (edge case: re-onboarding
+        // with existing multi-account data). Account 0 is always the onboarding account.
+        const freshAccounts = [account0, ...accounts.slice(1)];
+        await SecureStore.setItemAsync(SECURE_KEYS.ACCOUNTS, JSON.stringify(freshAccounts));
+        await SecureStore.setItemAsync(SECURE_KEYS.ACTIVE_ACCOUNT_INDEX, '0');
 
         // ── Step 5: mark onboarding complete and hydrate store ────────────────
         await AsyncStorage.setItem('latch_onboarding_complete', 'true');

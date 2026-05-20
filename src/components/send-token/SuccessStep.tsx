@@ -9,9 +9,10 @@ interface Props {
   recipient: string;
   txHash?: string;
   onContinue: () => void;
+  onSaveAddress?: () => void;
 }
 
-const SuccessStep = ({ amount, tokenCode, recipient, onContinue }: Props) => {
+const SuccessStep = ({ amount, tokenCode, recipient, onContinue, onSaveAddress }: Props) => {
   const shortRecipient = `${recipient.slice(0, 6)}...${recipient.slice(-4)}`;
 
   return (
@@ -32,17 +33,33 @@ const SuccessStep = ({ amount, tokenCode, recipient, onContinue }: Props) => {
           </Text>
         </Box>
       </Box>
-      <TouchableOpacity activeOpacity={0.8} onPress={onContinue}>
-        <Box
-          height={56}
-          backgroundColor="primary"
-          borderRadius={28}
-          justifyContent="center"
-          alignItems="center"
-        >
-          <Text variant="p6" color="black" fontWeight="700">Done</Text>
-        </Box>
-      </TouchableOpacity>
+      <Box gap="s">
+        {onSaveAddress && (
+          <TouchableOpacity activeOpacity={0.8} onPress={onSaveAddress}>
+            <Box
+              height={56}
+              borderRadius={28}
+              justifyContent="center"
+              alignItems="center"
+              borderWidth={1}
+              borderColor="primary700"
+            >
+              <Text variant="p6" color="primary700" fontWeight="700">Save to Address Book</Text>
+            </Box>
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity activeOpacity={0.8} onPress={onContinue}>
+          <Box
+            height={56}
+            backgroundColor="primary"
+            borderRadius={28}
+            justifyContent="center"
+            alignItems="center"
+          >
+            <Text variant="p6" color="black" fontWeight="700">Done</Text>
+          </Box>
+        </TouchableOpacity>
+      </Box>
     </Box>
   );
 };
