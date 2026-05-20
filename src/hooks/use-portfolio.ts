@@ -1,5 +1,5 @@
 import { Address, Asset, scValToNative, xdr } from '@stellar/stellar-sdk';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { HORIZON_URL, STELLAR_NETWORK_PASSPHRASE, STELLAR_RPC_URL } from '../constants/config';
 import { WELL_KNOWN_TOKENS, type TokenConfig } from '../constants/known-tokens';
 
@@ -63,7 +63,7 @@ function fetchAllSacBalances(cAddress: string, sacIds: string[]): Promise<Record
           const sacId = keyToSacId.get(entry.key);
           if (sacId) result[sacId] = parseBalanceFromXdr(entry.xdr);
         }
-      } catch {}
+      } catch { }
       resolve(result);
     };
     xhr.onerror = () => resolve(zero);
@@ -190,6 +190,7 @@ export function usePortfolio(
   return useQuery({
     queryKey: ['portfolio', cAddress, gAddress, tokenKey],
     queryFn: () => fetchPortfolio(cAddress!, gAddress, trackedTokens),
+    placeholderData: keepPreviousData,
     enabled: !!cAddress,
     staleTime: 30_000,
   });
