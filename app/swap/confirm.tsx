@@ -64,7 +64,7 @@ const ConfirmSwap = () => {
             >
               <Image
                 source={require('@/src/assets/token/stellar.png')}
-                style={{ width: 24, height: 24 }}
+                style={{ width: 44, height: 44 }}
               />
             </Box>
             <Box flex={1}>
@@ -104,7 +104,7 @@ const ConfirmSwap = () => {
             >
               <Image
                 source={require('@/src/assets/token/stellar.png')}
-                style={{ width: 24, height: 24 }}
+                style={{ width: 44, height: 44 }}
               />
             </Box>
             <Box flex={1}>
@@ -141,7 +141,7 @@ const ConfirmSwap = () => {
             >
               <Image
                 source={require('@/src/assets/token/stellar.png')}
-                style={{ width: 24, height: 24 }}
+                style={{ width: 44, height: 44, resizeMode: 'cover' }}
               />
             </Box>
             <Box flex={1}>
@@ -275,14 +275,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   footerButton: {
-    height: 56,
+    height: 48,
     borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
     flex: 0.48,
   },
   cancelButton: {
-    backgroundColor: '#1C1C1E',
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#e1e1e1',
   },
   confirmButton: {
     backgroundColor: '#FFAD00',

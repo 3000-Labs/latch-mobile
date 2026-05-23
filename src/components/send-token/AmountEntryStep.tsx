@@ -1,6 +1,7 @@
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
 import { Theme } from '@/src/theme/theme';
+import { useAppTheme } from '@/src/theme/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
 import React from 'react';
@@ -25,6 +26,7 @@ const AmountEntryStep = ({
   onPresetPress,
 }: Props) => {
   const theme = useTheme<Theme>();
+  const { isDark } = useAppTheme()
 
   const shortAddress = `${selectedWallet.address.slice(0, 6)}...${selectedWallet.address.slice(-4)}`;
   const availableAmount = parseFloat(selectedToken.amount);
@@ -44,14 +46,14 @@ const AmountEntryStep = ({
       style={{
         flex: 1,
         height: 60,
-        backgroundColor: theme.colors.bg800,
+        backgroundColor: isDark ? theme.colors.bg800 : theme.colors.white,
         margin: 4,
         borderRadius: 8,
         justifyContent: 'center',
         alignItems: 'center',
       }}
     >
-      <Text variant="h8" color="white" fontWeight="400">
+      <Text variant="h8" color={isDark ? "white" : "black"} fontWeight="400">
         {num}
       </Text>
     </TouchableOpacity>
@@ -106,14 +108,8 @@ const AmountEntryStep = ({
         )}
       </Box>
 
-      <Box
-        backgroundColor="mainBackground"
-        paddingHorizontal="xs"
-        paddingBottom="m"
-        style={{ paddingTop: 8 }}
-      >
-        <Box paddingHorizontal="l" mb="m">
-          {/* <Box flexDirection="row" justifyContent="center" gap="m" mb="m" paddingHorizontal="l">
+      <Box paddingHorizontal="l" mb="m">
+        {/* <Box flexDirection="row" justifyContent="center" gap="m" mb="m" paddingHorizontal="l">
             {[50, 500, 1000].map((usdAmount) => (
               <TouchableOpacity
                 key={usdAmount}
@@ -135,29 +131,35 @@ const AmountEntryStep = ({
             ))}
           </Box> */}
 
-          <Box height={1} backgroundColor="btnDisabled" mb="m" />
-          <Box flexDirection="row" justifyContent="space-between" alignItems="center">
-            <Box>
-              <Text variant="p8" color="textSecondary" mb="xs">
-                Available to Send
-              </Text>
-              <Text variant="h11" color="textPrimary" fontWeight="700">
-                {availableAmount.toLocaleString(undefined, {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: selectedToken.code === 'XLM' ? 7 : 2,
-                })}{' '}
-                {selectedToken.code}
+        <Box height={1} backgroundColor="btnDisabled" mb="m" />
+        <Box flexDirection="row" justifyContent="space-between" alignItems="center">
+          <Box>
+            <Text variant="p8" color="textSecondary" mb="xs">
+              Available to Send
+            </Text>
+            <Text variant="h11" color="textPrimary" fontWeight="700">
+              {availableAmount.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: selectedToken.code === 'XLM' ? 7 : 2,
+              })}{' '}
+              {selectedToken.code}
+            </Text>
+          </Box>
+          <TouchableOpacity onPress={onMaxPress}>
+            <Box px="m" py="s" backgroundColor="bg900" borderRadius={8}>
+              <Text variant="p8" color="textPrimary" fontWeight="700">
+                Max
               </Text>
             </Box>
-            <TouchableOpacity onPress={onMaxPress}>
-              <Box px="m" py="s" backgroundColor="bg900" borderRadius={8}>
-                <Text variant="p8" color="textPrimary" fontWeight="700">
-                  Max
-                </Text>
-              </Box>
-            </TouchableOpacity>
-          </Box>
+          </TouchableOpacity>
         </Box>
+      </Box>
+      <Box
+        backgroundColor={isDark ? "transparent" : "gray500"}
+        paddingHorizontal="xs"
+        paddingBottom="m"
+        style={{ paddingTop: 8 }}
+      >
 
         {rows.map((row, rowIndex) => (
           <Box key={rowIndex} flexDirection="row">
@@ -179,7 +181,7 @@ const AmountEntryStep = ({
               alignItems: 'center',
             }}
           >
-            <Ionicons name="backspace-outline" size={24} color="white" />
+            <Ionicons name="backspace-outline" size={24} color={isDark ? "white" : "black"} />
           </TouchableOpacity>
         </Box>
       </Box>

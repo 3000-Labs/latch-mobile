@@ -52,7 +52,7 @@ const SwapCard: React.FC<SwapCardProps> = ({
   };
 
   return (
-    <Box backgroundColor="cardBackground" borderRadius={18} padding="m">
+    <Box backgroundColor={isDark ? 'cardBackground' : 'btnDisabled'} borderRadius={18} padding="m">
       <Box flexDirection="row" alignItems="center" marginBottom="m">
         <TouchableOpacity onPress={onTokenSelect} activeOpacity={0.7} style={styles.tokenSection}>
           <Image source={tokenIcon} style={styles.tokenIcon} />

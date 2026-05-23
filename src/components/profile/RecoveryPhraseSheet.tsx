@@ -103,10 +103,10 @@ const RecoveryPhraseSheet = ({ visible, onClose }: Props) => {
               onPress={onClose}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Ionicons name="chevron-back" size={24} color={theme.colors.textPrimary} />
+              <Ionicons name="chevron-back" size={20} color={theme.colors.textPrimary} />
             </TouchableOpacity>
 
-            <Text variant="h8" color="textPrimary" fontWeight="700">
+            <Text variant="h9" color="textPrimary" fontWeight="700">
               Recovery Phrase
             </Text>
             <Box width={40} />

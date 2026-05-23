@@ -18,12 +18,7 @@ export function CustomTabBar({ state, navigation }: any) {
   const { isDark } = useAppTheme();
 
   return (
-    <View
-      style={[
-        styles.container,
-        { backgroundColor: isDark ? 'rgba(0,0,0,0.85)' : 'rgba(255,255,255,0.85)' },
-      ]}
-    >
+    <View style={[styles.container, { backgroundColor: isDark ? 'rgba(0,0,0,0.85)' : '#F6F6F6' }]}>
       <BlurView
         intensity={Platform.OS === 'ios' ? 80 : 100}
         style={StyleSheet.absoluteFill}
@@ -61,7 +56,7 @@ export function CustomTabBar({ state, navigation }: any) {
             ? theme.colors.primary700
             : isDark
               ? theme.colors.gray600
-              : theme.colors.gray500;
+              : theme.colors.bgDark600;
 
           return (
             <TouchableOpacity

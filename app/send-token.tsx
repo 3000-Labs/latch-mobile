@@ -1,3 +1,4 @@
+import AddressBookSheet from '@/src/components/profile/AddressBookSheet';
 import AmountEntryStep from '@/src/components/send-token/AmountEntryStep';
 import RecipientStep from '@/src/components/send-token/RecipientStep';
 import SuccessStep from '@/src/components/send-token/SuccessStep';
@@ -7,7 +8,6 @@ import {
   SendStatus,
   SendToken as SendTokenType,
 } from '@/src/components/send-token/types';
-import AddressBookSheet from '@/src/components/profile/AddressBookSheet';
 import Box from '@/src/components/shared/Box';
 import LoadingBlur from '@/src/components/shared/LoadingBlur';
 import Text from '@/src/components/shared/Text';
@@ -19,9 +19,10 @@ import { useTrackedTokens } from '@/src/hooks/use-tracked-tokens';
 import { sendTokenFromPasskeyAccount, sendTokenFromSmartAccount } from '@/src/services/send-token';
 import { useWalletStore } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
+import { useAppTheme } from '@/src/theme/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useRef, useState } from 'react';
 import { Dimensions, Image, TouchableOpacity } from 'react-native';
@@ -30,6 +31,9 @@ const { width } = Dimensions.get('window');
 
 const SendToken = () => {
   const theme = useTheme<Theme>();
+  const { isDark } = useAppTheme()
+
+  const { address: scannedAddress } = useLocalSearchParams<{ address?: string }>();
   const { smartAccountAddress, accounts, activeAccountIndex, mnemonic } = useWalletStore();
   const activeAccount = accounts[activeAccountIndex];
   const { tokens: trackedTokens } = useTrackedTokens();
@@ -259,7 +263,7 @@ const SendToken = () => {
     }
 
     if (!selectedWallet) {
-      return <RecipientStep onSelectWallet={setSelectedWallet} />;
+      return <RecipientStep onSelectWallet={setSelectedWallet} initialAddress={scannedAddress} />;
     }
 
     return (
@@ -294,7 +298,7 @@ const SendToken = () => {
         paddingHorizontal="m"
       >
         <TouchableOpacity onPress={handleBack}>
-          <Ionicons name="chevron-back" size={24} color={theme.colors.white} />
+          <Ionicons name="chevron-back" size={24} color={isDark ? theme.colors.white : theme.colors.black} />
         </TouchableOpacity>
 
         {status === 'initial' && (

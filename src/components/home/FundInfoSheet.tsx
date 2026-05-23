@@ -1,6 +1,7 @@
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
 import { Theme } from '@/src/theme/theme';
+import { useAppTheme } from '@/src/theme/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
 import React, { useEffect, useRef } from 'react';
@@ -23,6 +24,7 @@ interface FundInfoSheetProps {
 
 const FundInfoSheet: React.FC<FundInfoSheetProps> = ({ visible, onClose }) => {
   const theme = useTheme<Theme>();
+  const { isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
@@ -72,7 +74,7 @@ const FundInfoSheet: React.FC<FundInfoSheetProps> = ({ visible, onClose }) => {
             style={[
               StyleSheet.absoluteFill,
               {
-                backgroundColor: 'rgba(0,0,0,0.9)',
+                backgroundColor: 'rgba(0,0,0,0.7)',
                 opacity: opacityAnim,
               },
             ]}
@@ -85,7 +87,7 @@ const FundInfoSheet: React.FC<FundInfoSheetProps> = ({ visible, onClose }) => {
           }}
         >
           <Box
-            backgroundColor="gray900"
+            backgroundColor={isDark ? "gray900" : "btnDisabled"}
             borderTopLeftRadius={32}
             borderTopRightRadius={32}
             padding="xl"

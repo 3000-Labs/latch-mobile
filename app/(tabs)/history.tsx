@@ -69,9 +69,11 @@ const History = () => {
     let result = all;
 
     if (activeFilter === 'Sent') {
-      result = result.filter((tx) => tx.from === smartAccountAddress);
+      result = result.filter((tx) => tx.txType === 'send' || (tx.txType === 'unknown' && tx.from === smartAccountAddress));
     } else if (activeFilter === 'Received') {
-      result = result.filter((tx) => tx.to === smartAccountAddress);
+      result = result.filter((tx) => tx.txType === 'receive' || (tx.txType === 'unknown' && tx.to === smartAccountAddress));
+    } else if (activeFilter === 'Swap') {
+      result = result.filter((tx) => tx.txType === 'swap');
     } else if (activeFilter === 'Contract') {
       result = result.filter((tx) => tx.type === 'invoke_host_function');
     }

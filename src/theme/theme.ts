@@ -79,7 +79,6 @@ const palette = {
   bg800: '#3F3F3F',
   bg900: '#1D1D1D',
   bg11: '#161615',
-
   // Bg Dark Mode Scale (Light to Dark)
   bgDark50: '#CCCCCC',
   bgDark100: '#BDBDBD',

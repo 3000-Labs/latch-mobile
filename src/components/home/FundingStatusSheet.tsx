@@ -1,6 +1,7 @@
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
 import { Theme } from '@/src/theme/theme';
+import { useAppTheme } from '@/src/theme/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
 import React, { useEffect, useRef } from 'react';
@@ -50,6 +51,7 @@ const FundingStatusSheet: React.FC<FundingStatusSheetProps> = ({
   txHash = '7a8f9e2c3d4b5a6c7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d',
 }) => {
   const theme = useTheme<Theme>();
+  const { isDark } = useAppTheme()
   const insets = useSafeAreaInsets();
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
 
@@ -90,7 +92,7 @@ const FundingStatusSheet: React.FC<FundingStatusSheetProps> = ({
             style={[
               StyleSheet.absoluteFill,
               {
-                backgroundColor: 'rgba(0,0,0,0.9)',
+                backgroundColor: isDark ? 'rgba(0,0,0,0.9)' : 'rgba(0,0,0,0.3)',
               },
             ]}
           />
@@ -153,8 +155,8 @@ const FundingStatusSheet: React.FC<FundingStatusSheetProps> = ({
                   statusLabel === 'Completed' || statusLabel === 'Success'
                     ? 'success50'
                     : statusLabel === 'Failed' || statusLabel === 'Error'
-                    ? 'danger50'
-                    : 'labelBg'
+                      ? 'danger50'
+                      : 'labelBg'
                 }
                 paddingHorizontal="m"
                 paddingVertical="xs"
@@ -166,8 +168,8 @@ const FundingStatusSheet: React.FC<FundingStatusSheetProps> = ({
                     statusLabel === 'Completed' || statusLabel === 'Success'
                       ? 'success700'
                       : statusLabel === 'Failed' || statusLabel === 'Error'
-                      ? 'inputError'
-                      : 'primary'
+                        ? 'inputError'
+                        : 'primary'
                   }
                   fontWeight="700"
                 >
@@ -238,7 +240,7 @@ const FundingStatusSheet: React.FC<FundingStatusSheetProps> = ({
               <Text variant="p6" color="textPrimary" fontWeight="700" mb="m">
                 Transaction Hash
               </Text>
-              <Box backgroundColor="gray900" padding="m" borderRadius={16}>
+              <Box backgroundColor={isDark ? "gray800" : 'gray200'} padding="m" borderRadius={16}>
                 <Text variant="p7" color="textSecondary" lineHeight={22}>
                   {txHash}
                 </Text>

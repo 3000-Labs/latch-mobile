@@ -186,7 +186,7 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
         ? { ...a, gAddress: wallet.gAddress, publicKeyHex: wallet.publicKeyHex }
         : a,
     );
-    persistAccounts(updated).catch(() => {});
+    persistAccounts(updated).catch(() => { });
     set({ activeWallet: wallet, accounts: updated });
   },
 
@@ -203,9 +203,9 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
     const updated = accounts.map((a, i) =>
       i === activeAccountIndex ? { ...a, smartAccountAddress: address } : a,
     );
-    persistAccounts(updated).catch(() => {});
+    persistAccounts(updated).catch(() => { });
     // Also write the legacy key so app/index.tsx can still find it
-    SecureStore.setItemAsync(SECURE_KEYS.SMART_ACCOUNT, address).catch(() => {});
+    SecureStore.setItemAsync(SECURE_KEYS.SMART_ACCOUNT, address).catch(() => { });
     set({ smartAccountAddress: address, accounts: updated });
   },
 
@@ -275,7 +275,7 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
       // Update the legacy SMART_ACCOUNT key so app/index.tsx still works
       writes.push(SecureStore.setItemAsync(SECURE_KEYS.SMART_ACCOUNT, account.smartAccountAddress));
     }
-    return Promise.all(writes).then(() => {});
+    return Promise.all(writes).then(() => { });
   },
 
   renameAccount: async (listIndex, name) => {

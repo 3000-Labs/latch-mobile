@@ -103,10 +103,10 @@ const FundWalletSheet = ({ visible, onClose, address, memo }: Props) => {
             onPress={handleClose}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Ionicons name="chevron-back" size={20} color={theme.colors.textPrimary} />
+            <Ionicons name="chevron-back" size={24} color={theme.colors.textPrimary} />
           </TouchableOpacity>
 
-          <Text variant="h10" color="textPrimary" fontWeight="700">
+          <Text variant="h9" color="textPrimary" fontWeight="700">
             Fund Wallet
           </Text>
 
@@ -114,7 +114,7 @@ const FundWalletSheet = ({ visible, onClose, address, memo }: Props) => {
             onPress={() => setInfoVisible(true)}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Ionicons name="information-circle-outline" size={20} color={theme.colors.primary} />
+            <Ionicons name="information-circle-outline" size={24} color={theme.colors.primary700} />
           </TouchableOpacity>
         </Box>
         <ScrollView style={{ flex: 1 }} bounces={false} showsVerticalScrollIndicator={false}>

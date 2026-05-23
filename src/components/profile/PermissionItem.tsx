@@ -1,5 +1,6 @@
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
+import { useAppTheme } from '@/src/theme/ThemeContext';
 import React from 'react';
 
 interface Permission {
@@ -21,6 +22,7 @@ const ACTION_MAP: Record<string, string> = {
 };
 
 const PermissionItem = ({ permission }: Props) => {
+  const { isDark } = useAppTheme();
   return (
     <Box backgroundColor="bg11" borderRadius={16} padding="m" mb="m">
       <Text variant="h11" color="textPrimary" fontWeight="700" mb="s">
@@ -30,8 +32,8 @@ const PermissionItem = ({ permission }: Props) => {
       {/* Action Chips */}
       <Box flexDirection="row" flexWrap="wrap" mb="m">
         {permission.allowedActions.map((id) => (
-          <Box key={id} bg="labelBg" paddingHorizontal="m" py="xs" borderRadius={8} mr="xs" mb="xs">
-            <Text variant="p7" color="primary" fontWeight="700">
+          <Box key={id} bg={isDark ? 'labelBg' : 'primary50'} paddingHorizontal="m" py="xs" borderRadius={8} mr="xs" mb="xs">
+            <Text variant="p7" color={isDark ? 'primary' : 'primary800'} fontWeight="700">
               {ACTION_MAP[id] || id}
             </Text>
           </Box>

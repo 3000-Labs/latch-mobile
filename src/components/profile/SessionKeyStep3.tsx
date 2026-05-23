@@ -3,6 +3,7 @@ import { ScrollView, TouchableOpacity } from 'react-native';
 
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
+import { useAppTheme } from '@/src/theme/ThemeContext';
 
 interface Props {
   values: {
@@ -21,6 +22,7 @@ const ACTION_MAP: Record<string, string> = {
 };
 
 const SessionKeyStep3 = ({ values, onSubmit }: Props) => {
+  const { isDark } = useAppTheme();
   return (
     <Box flex={1}>
       <ScrollView
@@ -72,10 +74,10 @@ const SessionKeyStep3 = ({ values, onSubmit }: Props) => {
                   borderRadius={8}
                   ml="xs"
                   style={{
-                    backgroundColor: 'rgba(255, 184, 0, 0.1)',
+                    backgroundColor: isDark ? 'rgba(255, 184, 0, 0.1)' : '#FFF4E6',
                   }}
                 >
-                  <Text variant="p7" color="primary" fontWeight="700">
+                  <Text variant="p7" color="primary800" fontWeight="700">
                     {ACTION_MAP[id] || id}
                   </Text>
                 </Box>
@@ -90,8 +92,8 @@ const SessionKeyStep3 = ({ values, onSubmit }: Props) => {
           padding="m"
           borderWidth={1}
           style={{
-            backgroundColor: 'rgba(255, 184, 0, 0.1)',
-            borderColor: 'rgba(255, 184, 0, 0.1)',
+            backgroundColor: isDark ? 'rgba(255, 184, 0, 0.1)' : '#FFF4E6',
+            borderColor: isDark ? 'rgba(255, 184, 0, 0.1)' : '#FFE8C8',
           }}
         >
           <Text variant="h11" color="inputError" fontWeight="700" mb="s">

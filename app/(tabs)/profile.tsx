@@ -18,6 +18,7 @@ import Box from '@/src/components/shared/Box';
 import Switch from '@/src/components/shared/Switch';
 import Text from '@/src/components/shared/Text';
 import { useDrawer } from '@/src/context/drawer-context';
+import { useAppTheme } from '@/src/theme/ThemeContext';
 import { useWalletStore } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -37,6 +38,7 @@ const Profile = () => {
   const router = useRouter();
   const { clearAll, accounts, activeAccountIndex } = useWalletStore();
   const { closeDrawer } = useDrawer();
+  const { isDark, toggleTheme } = useAppTheme();
   const [accountInfoVisible, setAccountInfoVisible] = useState(false);
   const [biometricsEnabled, setBiometricsEnabled] = useState(false);
   const [switcherVisible, setSwitcherVisible] = useState(false);
@@ -53,6 +55,7 @@ const Profile = () => {
   const [backupVisible, setBackupVisible] = useState(false);
 
   const activeAccount = accounts[activeAccountIndex];
+  const isPasskeyAccount = !activeAccount?.gAddress;
 
   if (!activeAccount) return null;
 
@@ -93,7 +96,7 @@ const Profile = () => {
           visible={accountInfoVisible}
           onClose={() => setAccountInfoVisible(false)}
         />
-        <RecoveryPhraseSheet visible={recoveryVisible} onClose={() => setRecoveryVisible(false)} />
+        {!isPasskeyAccount && <RecoveryPhraseSheet visible={recoveryVisible} onClose={() => setRecoveryVisible(false)} />}
         <SignersSheet visible={signersVisible} onClose={() => setSignersVisible(false)} />
         <PermissionsSheet
           visible={permissionsVisible}
@@ -144,12 +147,14 @@ const Profile = () => {
               label="Address Book"
               onPress={() => setAddressBookVisible(true)}
             />
-            <SettingItem
-              icon="key-outline"
-              label="Recovery Phrase"
-              onPress={() => setRecoveryVisible(true)}
-              image={require('@/src/assets/icon/key.png')}
-            />
+            {!isPasskeyAccount && (
+              <SettingItem
+                icon="key-outline"
+                label="Recovery Phrase"
+                onPress={() => setRecoveryVisible(true)}
+                image={require('@/src/assets/icon/key.png')}
+              />
+            )}
           </Box>
 
           {/* Security Section */}
@@ -189,6 +194,14 @@ const Profile = () => {
             <Text variant="p7" color="textSecondary" mb="m" style={{ marginLeft: 4 }}>
               Preferences
             </Text>
+            <SettingItem
+              icon={isDark ? 'moon-outline' : 'sunny-outline'}
+              label="Dark Mode"
+              showChevron={false}
+              rightElement={
+                <Switch value={isDark} onValueChange={toggleTheme} />
+              }
+            />
             <SettingItem
               icon="globe-outline"
               label="Network"

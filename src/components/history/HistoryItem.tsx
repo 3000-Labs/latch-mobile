@@ -19,8 +19,10 @@ const HistoryItem = ({
   const { isDark } = useAppTheme();
   const iconUrl = useTokenIcon(item.assetCode);
 
-  const isSent = item.from === smartAccountAddress;
-  const isReceived = item.to === smartAccountAddress;
+  const isSent = item.txType === 'send' || (item.txType === 'unknown' && item.from === smartAccountAddress);
+  const isReceived = item.txType === 'receive' || (item.txType === 'unknown' && item.to === smartAccountAddress);
+  const isSwap = item.txType === 'swap';
+  const isBridge = item.txType === 'bridge';
   const code = item.assetCode ?? 'XLM';
   const amountNum = parseFloat(item.amount);
   const formattedAmount = amountNum.toLocaleString(undefined, {
@@ -66,12 +68,16 @@ const HistoryItem = ({
               {code}
             </Text>
             <Text variant="p8" color="textSecondary">
-              {isSent ? 'Sent' : isReceived ? 'Received' : 'Contract Call'}
+              {isSwap ? 'Swap' : isBridge ? 'Bridge' : isSent ? 'Sent' : isReceived ? 'Received' : 'Contract Call'}
             </Text>
           </Box>
           <Box alignItems="flex-end">
             <Text variant="h10" color="textPrimary" fontWeight="700">
-              {isSent || isReceived ? `${isSent ? '-' : '+'}${formattedAmount} ${code}` : '—'}
+              {isSwap || isBridge
+                ? `${formattedAmount} ${code}`
+                : isSent || isReceived
+                  ? `${isSent ? '-' : '+'}${formattedAmount} ${code}`
+                  : '—'}
             </Text>
             <Text variant="p8" color="textSecondary">
               {formatRelativeTime(item.createdAt)}

@@ -2,6 +2,7 @@ import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
 import { useAddressBook } from '@/src/hooks/use-address-book';
 import { Theme } from '@/src/theme/theme';
+import { useAppTheme } from '@/src/theme/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
 import { StrKey } from '@stellar/stellar-sdk';
@@ -12,11 +13,13 @@ import { Recipient } from './types';
 
 interface Props {
   onSelectWallet: (recipient: Recipient) => void;
+  initialAddress?: string;
 }
 
-const RecipientStep = ({ onSelectWallet }: Props) => {
+const RecipientStep = ({ onSelectWallet, initialAddress }: Props) => {
   const theme = useTheme<Theme>();
-  const [address, setAddress] = useState('');
+  const { isDark } = useAppTheme()
+  const [address, setAddress] = useState(initialAddress ?? '');
   const { entries } = useAddressBook();
 
   const isValid = StrKey.isValidEd25519PublicKey(address) || StrKey.isValidContract(address);
@@ -60,7 +63,7 @@ const RecipientStep = ({ onSelectWallet }: Props) => {
           autoCorrect={false}
           style={{
             flex: 1,
-            color: theme.colors.white,
+            color: isDark ? theme.colors.white : theme.colors.black,
             fontSize: 15,
             fontFamily: 'SFproRegular',
           }}

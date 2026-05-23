@@ -4,7 +4,7 @@ import { StrKey } from '@stellar/stellar-sdk';
 import * as Clipboard from 'expo-clipboard';
 import { Formik } from 'formik';
 import React from 'react';
-import { TextInput, TouchableOpacity } from 'react-native';
+import { TouchableOpacity } from 'react-native';
 import * as Yup from 'yup';
 
 import Box from '@/src/components/shared/Box';
@@ -19,8 +19,7 @@ const AddressBookSchema = Yup.object().shape({
     .test(
       'stellar-address',
       'Enter a valid Stellar G-address or C-address',
-      (value) =>
-        StrKey.isValidEd25519PublicKey(value ?? '') || StrKey.isValidContract(value ?? ''),
+      (value) => StrKey.isValidEd25519PublicKey(value ?? '') || StrKey.isValidContract(value ?? ''),
     ),
 });
 
@@ -38,7 +37,17 @@ const AddressBookForm = ({ onSubmit, initialAddress }: AddressBookFormProps) => 
       validationSchema={AddressBookSchema}
       onSubmit={onSubmit}
     >
-      {({ handleChange, handleBlur, handleSubmit, values, setFieldValue, errors, touched, isValid, dirty }) => (
+      {({
+        handleChange,
+        handleBlur,
+        handleSubmit,
+        values,
+        setFieldValue,
+        errors,
+        touched,
+        isValid,
+        dirty,
+      }) => (
         <Box flex={1}>
           <Box flex={1} paddingHorizontal="m" pt="m">
             <Box mb="l">
@@ -62,18 +71,8 @@ const AddressBookForm = ({ onSubmit, initialAddress }: AddressBookFormProps) => 
               <Text variant="p7" color="textPrimary" fontWeight="600" mb="s">
                 Wallet Address
               </Text>
-              <Box
-                flexDirection="row"
-                alignItems="center"
-                backgroundColor="bg900"
-                borderRadius={12}
-                paddingHorizontal="m"
-                minHeight={56}
-                borderWidth={1}
-                borderColor={touched.address && errors.address ? 'inputError' : 'gray900'}
-                paddingVertical="s"
-              >
-                <TextInput
+              <Box minHeight={56} paddingVertical="s">
+                <Input
                   placeholder="G... or C..."
                   placeholderTextColor={theme.colors.textSecondary}
                   onChangeText={handleChange('address')}
@@ -89,25 +88,31 @@ const AddressBookForm = ({ onSubmit, initialAddress }: AddressBookFormProps) => 
                     fontFamily: 'SFproRegular',
                     marginRight: 8,
                   }}
+                  rightElement={
+                    values.address ? (
+                      <TouchableOpacity onPress={() => setFieldValue('address', '')}>
+                        <Ionicons
+                          name="close-circle"
+                          size={20}
+                          color={theme.colors.textSecondary}
+                        />
+                      </TouchableOpacity>
+                    ) : (
+                      <TouchableOpacity
+                        onPress={async () => {
+                          const text = await Clipboard.getStringAsync();
+                          setFieldValue('address', text);
+                        }}
+                      >
+                        <Box backgroundColor="primary" px="m" py="xs" borderRadius={8}>
+                          <Text variant="p8" color="textPrimary" fontWeight="600">
+                            Paste
+                          </Text>
+                        </Box>
+                      </TouchableOpacity>
+                    )
+                  }
                 />
-                {values.address ? (
-                  <TouchableOpacity onPress={() => setFieldValue('address', '')}>
-                    <Ionicons name="close-circle" size={20} color={theme.colors.textSecondary} />
-                  </TouchableOpacity>
-                ) : (
-                  <TouchableOpacity
-                    onPress={async () => {
-                      const text = await Clipboard.getStringAsync();
-                      setFieldValue('address', text);
-                    }}
-                  >
-                    <Box backgroundColor="bg800" px="m" py="xs" borderRadius={8}>
-                      <Text variant="p8" color="textPrimary" fontWeight="600">
-                        Paste
-                      </Text>
-                    </Box>
-                  </TouchableOpacity>
-                )}
               </Box>
               {touched.address && errors.address && (
                 <Text variant="p8" color="inputError" mt="xs">

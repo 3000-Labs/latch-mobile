@@ -1,21 +1,19 @@
-import React, { useState } from 'react';
-import { ScrollView, TouchableOpacity } from 'react-native';
-import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Box from '@/src/components/shared/Box';
+import DatePickerField from '@/src/components/shared/DatePickerField';
+import FilterChip from '@/src/components/shared/FilterChip';
 import Text from '@/src/components/shared/Text';
 import UtilityHeader from '@/src/components/shared/UtilityHeader';
-import FilterChip from '@/src/components/shared/FilterChip';
-import DatePickerField from '@/src/components/shared/DatePickerField';
+import { useRouter } from 'expo-router';
+import React, { useState } from 'react';
+import { ScrollView, TouchableOpacity } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { 
-  startOfWeek, 
-  endOfWeek, 
-  subWeeks, 
-  startOfMonth, 
-  startOfYear, 
-  subMonths, 
-  subYears 
+import {
+  endOfWeek,
+  startOfMonth,
+  startOfWeek,
+  startOfYear,
+  subWeeks
 } from 'date-fns';
 
 const PERIODS = ['Custom Period', 'Current Week', 'Last Week', 'Monthly', 'Yearly'];
@@ -67,17 +65,17 @@ const FilterSheet = () => {
   };
 
   return (
-    <Box flex={1} backgroundColor="mainBackground" style={{ borderTopLeftRadius: 32, borderTopRightRadius: 32, overflow: 'hidden' }}>
+    <Box flex={1} backgroundColor="cardbg" style={{ borderTopLeftRadius: 32, borderTopRightRadius: 32, overflow: 'hidden' }}>
       <UtilityHeader title="" onBack={() => router.back()} showHandle={true} />
-      
-      <ScrollView 
-        showsVerticalScrollIndicator={false} 
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
       >
         <Text variant="p7" color="gray600" mb="m">
           Period
         </Text>
-        
+
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 32 }}>
           {PERIODS.map((period) => (
             <FilterChip
@@ -89,38 +87,38 @@ const FilterSheet = () => {
           ))}
         </ScrollView>
 
-        <DatePickerField 
-          label="Start Date" 
-          date={startDate} 
-          onChange={setStartDate} 
+        <DatePickerField
+          label="Start Date"
+          date={startDate}
+          onChange={setStartDate}
         />
-        
-        <DatePickerField 
-          label="End Date" 
-          date={endDate} 
-          onChange={setEndDate} 
+
+        <DatePickerField
+          label="End Date"
+          date={endDate}
+          onChange={setEndDate}
         />
       </ScrollView>
 
       {/* Bottom Buttons */}
-      <Box 
-        position="absolute" 
-        bottom={0} 
-        left={0} 
-        right={0} 
-        flexDirection="row" 
-        gap="m" 
+      <Box
+        position="absolute"
+        bottom={0}
+        left={0}
+        right={0}
+        flexDirection="row"
+        gap="m"
         padding="m"
-        backgroundColor="mainBackground"
+        // backgroundColor="cardBackground"
         style={{ paddingBottom: Math.max(insets.bottom, 16) }}
       >
-        <TouchableOpacity 
-          style={{ flex: 1 }} 
-          activeOpacity={0.7} 
+        <TouchableOpacity
+          style={{ flex: 1 }}
+          activeOpacity={0.7}
           onPress={handleClearAll}
         >
           <Box
-            height={64}
+            height={48}
             backgroundColor="bg11"
             borderRadius={32}
             justifyContent="center"
@@ -132,13 +130,13 @@ const FilterSheet = () => {
           </Box>
         </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={{ flex: 1 }} 
-          activeOpacity={0.7} 
+        <TouchableOpacity
+          style={{ flex: 1 }}
+          activeOpacity={0.7}
           onPress={handleApply}
         >
           <Box
-            height={64}
+            height={48}
             backgroundColor="primary"
             borderRadius={32}
             justifyContent="center"

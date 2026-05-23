@@ -16,17 +16,17 @@ const TransactionTimeline = ({ date }: TransactionTimelineProps) => {
 
   return (
     <Box alignItems="center" mb="xl" px="m">
-      <Box width="100%" px="xl" position="relative" justifyContent="center" height={40}>
-        {/* Continuous Line */}
+      {/* <Box width="100%" px="xl" position="relative" justifyContent="center" height={40}>
+
         <Box
           position="absolute"
           height={2}
           backgroundColor="primary700"
           width="70%"
-          style={{ alignSelf: 'center', top: 20 }}
+          style={{ alignSelf: 'center', top: 20, zIndex: 1 }}
         />
 
-        {/* Stars */}
+
         <Box flexDirection="row" justifyContent="space-between" width="100%" px="s">
           {steps.map((_, index) => (
             <Box key={index} backgroundColor="mainBackground" borderRadius={16} padding="xs">
@@ -38,6 +38,29 @@ const TransactionTimeline = ({ date }: TransactionTimelineProps) => {
             </Box>
           ))}
         </Box>
+      </Box> */}
+      <Box flexDirection="row" alignItems="center" justifyContent="space-between">
+        {steps.map((_, index) => (
+          <React.Fragment key={index}>
+            <Box alignItems="center" flex={1}>
+              <Image
+                source={require('@/src/assets/icon/star.png')}
+                style={{ width: 32, height: 32 }}
+                resizeMode="contain"
+              />
+            </Box>
+            {index < steps.length - 1 && (
+              <Box
+                height={2}
+                backgroundColor={
+                  'primary700'
+                }
+                flex={1}
+                style={{ zIndex: -1, marginHorizontal: -54 }}
+              />
+            )}
+          </React.Fragment>
+        ))}
       </Box>
 
       <Box flexDirection="row" width="100%" justifyContent="space-between" mt="m">
