@@ -7,9 +7,9 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { LogBox } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-get-random-values';
 import 'react-native-reanimated';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Toast from 'react-native-toast-message';
 import '../shim';
 // Now you can import libraries that need crypto
@@ -59,6 +59,8 @@ export default function RootLayout() {
     SFproRegular: require('../assets/fonts/SFPRO-Regular.ttf'),
     SFproMedium: require('../assets/fonts/SFPRO-Medium.ttf'),
     SFproBold: require('../assets/fonts/SFPRO-bold.ttf'),
+    SFproRoundedBold: require('../assets/fonts/SFProRounded-Bold.ttf'),
+    SFproRoundedMedium: require('../assets/fonts/SFProRounded-Medium.ttf'),
     SFproSemibold: require('../assets/fonts/SFPRO-Semibold.ttf'),
     SFproSemiboldItalic: require('../assets/fonts/SFPRO-Semibolditalic.otf'),
     SFproLight: require('../assets/fonts/SFPRO-Light.ttf'),

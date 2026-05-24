@@ -16,22 +16,19 @@ const ONBOARDING_DATA = [
   {
     id: 1,
     title: 'Welcome to Latch',
-    description:
-      'Your secure gateway to the Stellar ecosystem. Manage your digital assets with confidence and simplicity.',
+    description: 'Securely manage your digital assets with confidence and ease.',
     image: require('@/src/assets/images/ob1.png'),
   },
   {
     id: 2,
     title: 'Smart Accounts',
-    description:
-      'Experience enhanced security with Smart Accounts. Advanced features abstracted into a simple, user-friendly interface.',
+    description: 'Smarter security for your assets with a simple experience.',
     image: require('@/src/assets/images/ob3.png'),
   },
   {
     id: 3,
     title: 'Seamless Funding',
-    description:
-      'Fund your Smart Account easily using traditional Stellar G-addresses with memos. We handle the complexity for you.',
+    description: 'Fund your account quickly without the usual complexity.',
     image: require('@/src/assets/images/on2.png'),
   },
 ];
@@ -101,7 +98,7 @@ const Onboarding = () => {
               resizeMode="contain"
             />
 
-            <Box paddingHorizontal="l" marginTop="xl" alignItems="center">
+            <Box px={'4xl'} marginTop="xl" alignItems="center">
               <Text variant="h7" textAlign="center" marginBottom="s">
                 {item.title}
               </Text>
@@ -115,7 +112,7 @@ const Onboarding = () => {
 
       {/* Footer */}
       <Box
-        paddingHorizontal="xl"
+        px="xl"
         style={{ paddingBottom: insets.bottom + 20 }}
         alignItems="center"
         gap="m"
@@ -127,7 +124,7 @@ const Onboarding = () => {
           <Button
             label="Create a New Wallet"
             variant="primary"
-            onPress={() => router.navigate('/(auth)/biometric')}
+            onPress={() => router.navigate('/(onboarding)/choose-wallet')}
           />
           <Button
             label="I Have a Wallet"

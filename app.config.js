@@ -92,6 +92,8 @@ export default {
             './assets/fonts/SFPRO-Medium.ttf',
             './assets/fonts/SFPRO-bold.ttf',
             './assets/fonts/SFPRO-Semibolditalic.otf',
+            './assets/fonts/SFProRounded-Medium.ttf',
+            './assets/fonts/SFProRounded-Bold.ttf',
           ],
         },
       ],

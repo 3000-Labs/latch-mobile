@@ -356,6 +356,8 @@ const darkTheme = createTheme({
     l: 24,
     xl: 32,
     xxl: 40,
+    '3xl': 58,
+    '4xl': 72,
     none: 0,
     10: 10,
     100: 100,
