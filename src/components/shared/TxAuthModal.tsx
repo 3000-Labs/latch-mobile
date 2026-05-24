@@ -3,6 +3,7 @@ import Button from '@/src/components/shared/Button';
 import Text from '@/src/components/shared/Text';
 import { SECURE_KEYS } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
+import { useAppTheme } from '@/src/theme/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
 import * as LocalAuthentication from 'expo-local-authentication';
@@ -34,6 +35,7 @@ interface Props {
 
 export default function TxAuthModal({ visible, promptMessage, onResult }: Props) {
   const theme = useTheme<Theme>();
+  const { isDark } = useAppTheme();
   const { width } = Dimensions.get('window');
 
   const [mode, setMode] = useState<'choice' | 'pin'>('choice');
@@ -230,7 +232,12 @@ export default function TxAuthModal({ visible, promptMessage, onResult }: Props)
                               ? theme.colors.danger900
                               : theme.colors.primary700,
                           }
-                        : { backgroundColor: theme.colors.gray900, opacity: 0.8 },
+                        : {
+                            backgroundColor: isDark
+                              ? theme.colors.gray900
+                              : theme.colors.btnDisabled,
+                            opacity: 0.8,
+                          },
                     ]}
                   />
                 ))}
@@ -250,7 +257,7 @@ export default function TxAuthModal({ visible, promptMessage, onResult }: Props)
                           >
                             <Box
                               flex={1}
-                              backgroundColor="gray900"
+                              backgroundColor={'gray900'}
                               borderRadius={16}
                               justifyContent="center"
                               alignItems="center"
@@ -276,7 +283,7 @@ export default function TxAuthModal({ visible, promptMessage, onResult }: Props)
                         >
                           <Box
                             flex={1}
-                            backgroundColor="gray900"
+                            backgroundColor={isDark ? 'gray900' : 'btnDisabled'}
                             borderRadius={16}
                             justifyContent="center"
                             alignItems="center"

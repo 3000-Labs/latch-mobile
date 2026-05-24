@@ -17,9 +17,10 @@ interface AccountItemProps {
   onPress: () => void;
   onDeploy?: () => void;
   isDeploying?: boolean;
+  avatarDataUri?: string;
 }
 
-const AccountItem = ({ account, isActive, onPress, onDeploy, isDeploying }: AccountItemProps) => {
+const AccountItem = ({ account, isActive, onPress, onDeploy, isDeploying, avatarDataUri }: AccountItemProps) => {
   const theme = useTheme<Theme>();
   const { isDark } = useAppTheme();
 
@@ -49,8 +50,8 @@ const AccountItem = ({ account, isActive, onPress, onDeploy, isDeploying }: Acco
           overflow="hidden"
           backgroundColor={isDark ? 'gray800' : 'gray100'}
         >
-          {account.image ? (
-            <Image source={{ uri: account.image }} style={{ width: '100%', height: '100%' }} />
+          {avatarDataUri ? (
+            <Image source={{ uri: avatarDataUri }} style={{ width: '100%', height: '100%' }} />
           ) : (
             <Box flex={1} justifyContent="center" alignItems="center">
               <Text variant="h9" color="textPrimary" fontWeight="700">

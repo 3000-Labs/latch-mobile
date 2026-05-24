@@ -1,4 +1,5 @@
 import { deriveWalletAtIndex, restoreStellarWallet, StellarWallet } from '@/src/lib/seed-wallet';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import { create } from 'zustand';
 
@@ -24,6 +25,10 @@ export const SECURE_KEYS = {
   // Temporary session key — holds recovery password during onboarding only.
   // Deleted immediately after the first successful backup upload.
   RECOVERY_PASSWORD_SESSION: 'latch_recovery_password_session',
+} as const;
+
+export const ASYNC_KEYS = {
+  AVATARS: 'latch_account_avatars',
 } as const;
 
 /**
@@ -92,6 +97,8 @@ interface WalletStore {
   activeWallet: StellarWallet | null;
   /** Deployed C-address for the active account */
   smartAccountAddress: string | null;
+  /** In-memory map from publicKeyHex → data:image/jpeg;base64,... */
+  avatars: Record<string, string>;
 
   // ─── Legacy setters (called by deploy-account.tsx) ────────────────────────
   setPendingWallet: (wallet: StellarWallet) => void;
@@ -143,6 +150,17 @@ async function persistAccounts(accounts: WalletAccount[]): Promise<void> {
   await SecureStore.setItemAsync(SECURE_KEYS.ACCOUNTS, JSON.stringify(accounts));
 }
 
+async function loadAvatars(): Promise<Record<string, string>> {
+  try {
+    const raw = await AsyncStorage.getItem(ASYNC_KEYS.AVATARS);
+    return raw ? (JSON.parse(raw) as Record<string, string>) : {};
+  } catch { return {}; }
+}
+
+async function persistAvatars(avatars: Record<string, string>): Promise<void> {
+  await AsyncStorage.setItem(ASYNC_KEYS.AVATARS, JSON.stringify(avatars));
+}
+
 // Keyed by BIP-44 account index. Mnemonic is session-immutable, so this mapping
 // is stable for the lifetime of a session. Avoids re-running PBKDF2 on every switch.
 const derivedWalletCache = new Map<number, StellarWallet>();
@@ -163,6 +181,7 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
   activeAccountIndex: 0,
   activeWallet: null,
   smartAccountAddress: null,
+  avatars: {},
 
   // ─── Legacy setters ───────────────────────────────────────────────────────
 
@@ -285,11 +304,27 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
     set({ accounts: updated });
   },
 
-  setAccountImage: async (listIndex, imageUri) => {
-    const { accounts } = get();
-    const updated = accounts.map((a, i) => (i === listIndex ? { ...a, image: imageUri } : a));
-    await persistAccounts(updated);
-    set({ accounts: updated });
+  setAccountImage: async (listIndex, imageDataUri) => {
+    const { accounts, avatars } = get();
+    const account = accounts[listIndex];
+    if (!account) return;
+    const key = account.publicKeyHex;
+    let updatedAvatars: Record<string, string>;
+    if (imageDataUri && key) {
+      updatedAvatars = { ...avatars, [key]: imageDataUri };
+    } else if (!imageDataUri && key) {
+      const { [key]: _removed, ...rest } = avatars;
+      updatedAvatars = rest;
+    } else {
+      updatedAvatars = { ...avatars };
+    }
+    await persistAvatars(updatedAvatars);
+    // Null out the image field so the SecureStore blob never carries image data
+    const updatedAccounts = accounts.map((a, i) =>
+      i === listIndex ? { ...a, image: null } : a,
+    );
+    await persistAccounts(updatedAccounts);
+    set({ avatars: updatedAvatars, accounts: updatedAccounts });
   },
 
   updateAccountSmartAddress: async (bip44Index, smartAddress) => {
@@ -370,6 +405,18 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
         await persistAccounts(accounts);
       }
 
+      // One-time migration: strip stale file:// image URIs — avatars now live in AsyncStorage
+      const hasStaleImages = accounts.some(
+        (a) => a.image !== null && !a.image?.startsWith('data:'),
+      );
+      if (hasStaleImages) {
+        accounts = accounts.map((a) => ({
+          ...a,
+          image: a.image?.startsWith('data:') ? a.image : null,
+        }));
+        persistAccounts(accounts).catch(() => {});
+      }
+
       // Derive the in-memory keypair for the active account
       const activeAccount = accounts[activeAccountIndex] ?? accounts[0];
       const activeWallet =
@@ -377,12 +424,15 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
           ? getCachedWallet(mnemonic, activeAccount.index)
           : null;
 
+      const storedAvatars = await loadAvatars();
+
       set({
         mnemonic,
         accounts,
         activeAccountIndex,
         activeWallet,
         smartAccountAddress: activeAccount.smartAccountAddress,
+        avatars: storedAvatars,
       });
 
       return true;
@@ -423,6 +473,7 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
       SecureStore.deleteItemAsync(SECURE_KEYS.CREDENTIAL_ID),
       SecureStore.deleteItemAsync(SECURE_KEYS.KEY_DATA_HEX),
       SecureStore.deleteItemAsync(SECURE_KEYS.PASSKEY_PRIVATE_KEY),
+      AsyncStorage.removeItem(ASYNC_KEYS.AVATARS),
       ...indexedPasskeyDeletions,
     ]);
     set({
@@ -432,6 +483,7 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
       activeAccountIndex: 0,
       activeWallet: null,
       smartAccountAddress: null,
+      avatars: {},
     });
   },
 }));

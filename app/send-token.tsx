@@ -20,8 +20,10 @@ import { sendTokenFromPasskeyAccount, sendTokenFromSmartAccount } from '@/src/se
 import { useWalletStore } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
 import { useAppTheme } from '@/src/theme/ThemeContext';
+import { maskAddress } from '@/src/utils';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
+import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useRef, useState } from 'react';
@@ -31,8 +33,9 @@ const { width } = Dimensions.get('window');
 
 const SendToken = () => {
   const theme = useTheme<Theme>();
-  const { isDark } = useAppTheme()
+  const { isDark } = useAppTheme();
 
+  const queryClient = useQueryClient();
   const { address: scannedAddress } = useLocalSearchParams<{ address?: string }>();
   const { smartAccountAddress, accounts, activeAccountIndex, mnemonic } = useWalletStore();
   const activeAccount = accounts[activeAccountIndex];
@@ -167,10 +170,15 @@ const SendToken = () => {
       }
       setTxHash(result.hash);
       setStatus('success');
+      queryClient.invalidateQueries({ queryKey: ['portfolio'] });
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Transaction failed';
       setIsKeyMismatch(msg.startsWith('PASSKEY_KEY_MISMATCH'));
-      setErrorMessage(msg.startsWith('PASSKEY_KEY_MISMATCH') ? 'Your account credential has changed. Re-initialize to continue.' : msg);
+      setErrorMessage(
+        msg.startsWith('PASSKEY_KEY_MISMATCH')
+          ? 'Your account credential has changed. Re-initialize to continue.'
+          : msg,
+      );
       setStatus('error');
     }
   };
@@ -298,7 +306,11 @@ const SendToken = () => {
         paddingHorizontal="m"
       >
         <TouchableOpacity onPress={handleBack}>
-          <Ionicons name="chevron-back" size={24} color={isDark ? theme.colors.white : theme.colors.black} />
+          <Ionicons
+            name="chevron-back"
+            size={24}
+            color={isDark ? theme.colors.white : theme.colors.black}
+          />
         </TouchableOpacity>
 
         {status === 'initial' && (
@@ -336,7 +348,11 @@ const SendToken = () => {
         prefillAddress={selectedWallet?.address}
       />
 
-      <LoadingBlur visible={status === 'sending'} text="Sending..." />
+      <LoadingBlur
+        visible={status === 'sending'}
+        text="Sending..."
+        subText={`${amount}${selectedToken?.code} was successfully sent to ${maskAddress(selectedWallet?.address || '')} `}
+      />
     </Box>
   );
 };

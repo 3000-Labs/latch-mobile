@@ -4,6 +4,7 @@ import React from 'react';
 import { Image, StyleSheet, TouchableWithoutFeedback, View } from 'react-native';
 
 import { Theme } from '@/src/theme/theme';
+import { useAppTheme } from '@/src/theme/ThemeContext';
 import Box from './Box';
 import Text from './Text';
 
@@ -20,11 +21,12 @@ const LoadingBlur: React.FC<Props> = ({
   visible = true,
   text = 'Connecting to wallet...',
   subText,
-  intensity = 30,
+  intensity = 40,
   tint = 'dark',
   onPress,
 }) => {
   const theme = useTheme<Theme>();
+  const { isDark } = useAppTheme();
 
   if (!visible) return null;
 
@@ -42,11 +44,11 @@ const LoadingBlur: React.FC<Props> = ({
             style={{ width: 72, height: 72, tintColor: theme.colors.primary700 }}
             resizeMode="contain"
           />
-          <Text variant="h9" color={'textWhite'}>
+          <Text variant="h9" color={isDark ? 'textWhite' : 'black'}>
             {text}
           </Text>
           {subText && (
-            <Text variant="h11" color={'textWhite'} textAlign="center">
+            <Text variant="h11" color={isDark ? 'textWhite' : 'black'} textAlign="center">
               {subText}
             </Text>
           )}
@@ -63,7 +65,7 @@ const styles = StyleSheet.create({
     elevation: 9999,
   },
   center: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 24,

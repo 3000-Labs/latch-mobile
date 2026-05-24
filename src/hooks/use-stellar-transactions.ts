@@ -68,9 +68,9 @@ function scValB64(val: xdr.ScVal): string {
 //   `/accounts/{gAddress}/operations` → each invoke_host_function op has
 //   `asset_balance_changes` entries with `from`/`to` set to the C-address.
 //
-// This is the primary source for all transactions the user's G-address signed.
-// Catches: sends, receives where G-addr is the outer tx signer, swaps, etc.
-// Falls back to per-op effects for any op where balance_changes is empty.
+// Also processes classic `payment` ops (external senders may use classic
+// Stellar payments to the user's G-address). G-address is mapped to C-address
+// in the result so the existing send/receive classifier works correctly.
 //
 // NOTE: `/accounts/{C-addr}/operations` returns HTTP 400 — Horizon only accepts
 // G-addresses on the /accounts path. Use SAC events for passkey users.
@@ -81,15 +81,53 @@ async function fetchGAddressOps(gAddress: string, cAddress: string): Promise<Ste
   );
 
   const allOps = (resp?._embedded?.records ?? []) as any[];
-  const invokeOps = allOps.filter((r: any) => r.type === 'invoke_host_function');
 
   if (__DEV__) {
-    console.log('[G-addr] ops:', allOps.length, '| invoke:', invokeOps.length, '| error:', resp?.title ?? null);
+    const invokeCount = allOps.filter((r: any) => r.type === 'invoke_host_function').length;
+    const paymentCount = allOps.filter((r: any) => r.type === 'payment').length;
+    console.log('[G-addr] ops:', allOps.length, '| invoke:', invokeCount, '| payment:', paymentCount, '| error:', resp?.title ?? null);
   }
 
-  if (invokeOps.length === 0) return [];
+  if (allOps.length === 0) return [];
 
   const results: StellarPayment[] = [];
+
+  // Classic payment ops — external wallets may send XLM/tokens to the user's G-address
+  // Map gAddress → cAddress so classifyTxTypes works correctly
+  const paymentOps = allOps.filter((r: any) => r.type === 'payment');
+  for (const op of paymentOps) {
+    results.push({
+      id: op.id,
+      transactionHash: op.transaction_hash ?? '',
+      type: 'payment',
+      txType: 'unknown',
+      from: op.from === gAddress ? cAddress : op.from,
+      to: op.to === gAddress ? cAddress : op.to,
+      amount: op.amount ?? '0',
+      assetType: op.asset_type ?? 'native',
+      assetCode: op.asset_code,
+      createdAt: op.created_at ?? '',
+    });
+  }
+
+  // create_account ops — friendbot (and account-creation flows) fund the G-address this way
+  const createOps = allOps.filter((r: any) => r.type === 'create_account');
+  for (const op of createOps) {
+    results.push({
+      id: op.id,
+      transactionHash: op.transaction_hash ?? '',
+      type: 'create_account',
+      txType: 'unknown',
+      from: op.funder ?? '',
+      to: op.account === gAddress ? cAddress : op.account,
+      amount: op.starting_balance ?? '0',
+      assetType: 'native',
+      assetCode: undefined,
+      createdAt: op.created_at ?? '',
+    });
+  }
+
+  const invokeOps = allOps.filter((r: any) => r.type === 'invoke_host_function');
   const needEffects: any[] = [];
 
   for (const op of invokeOps) {
@@ -211,15 +249,11 @@ async function fetchBundlerOps(cAddress: string): Promise<StellarPayment[]> {
 
 // ─── Soroban RPC: SAC transfer events (last ~7 days) ─────────────────────────
 //
-// Catches: incoming transfers from other users (their G-addr signed, not ours),
-// passkey accounts (no G-address), any bundler-sourced transactions.
+// Catches: incoming transfers from ANY sender (external wallets, other Latch
+// users, passkey accounts). Queries ALL contracts — no contractIds filter —
+// so any SAC (including custom tokens) is covered. Just 2 XHR requests vs the
+// previous 14+ batched requests.
 // Coverage limited to the RPC retention window (~7 days / ~17,000 ledgers).
-
-function chunkArray<T>(arr: T[], size: number): T[][] {
-  const result: T[][] = [];
-  for (let i = 0; i < arr.length; i += size) result.push(arr.slice(i, i + size));
-  return result;
-}
 
 const SAC_CONTRACT_INFO = new Map<string, { code: string; assetType: string }>();
 
@@ -237,50 +271,41 @@ for (const t of WELL_KNOWN_TOKENS) {
   } catch { }
 }
 
-const ALL_SAC_IDS = [...SAC_CONTRACT_INFO.keys()];
-
 async function fetchSacTransferEvents(cAddress: string): Promise<StellarPayment[]> {
   const latestLedgerResp = await sorobanRpc('getLatestLedger', {});
   const latestLedger: number = latestLedgerResp?.result?.sequence ?? 0;
   if (latestLedger === 0) return [];
 
-  if (ALL_SAC_IDS.length === 0) return [];
-
-  const startLedger = latestLedger - 17_000;
+  const startLedger = Math.max(1, latestLedger - 17_000);
   const transferSym = scValB64(xdr.ScVal.scvSymbol('transfer'));
   const cAddressVal = scValB64(new Address(cAddress).toScVal());
+  const wildcard = '*';
 
   if (__DEV__) {
     console.log('[SAC events] cAddress:', cAddress, '| startLedger:', startLedger);
-    console.log('[SAC events] SAC IDs:', ALL_SAC_IDS);
   }
 
-  const wildcard = '*';
-  const sacBatches = chunkArray(ALL_SAC_IDS, 5);
-
-  const buildParams = (contractIds: string[], sender: string, recipient: string, start: number) => ({
+  // No contractIds filter — catches transfers from any SAC, including unknown tokens
+  const buildParams = (sender: string, recipient: string, start: number) => ({
     startLedger: start,
     filters: [{
       type: 'contract',
-      contractIds,
-      topics: [[transferSym, sender, recipient, '**']],
+      topics: [[transferSym, sender, recipient, wildcard]],
     }],
     pagination: { limit: 200 },
   });
 
   const runQueries = (start: number) =>
-    Promise.all(
-      sacBatches.flatMap((batch) => [
-        sorobanRpc('getEvents', buildParams(batch, wildcard, cAddressVal, start)),
-        sorobanRpc('getEvents', buildParams(batch, cAddressVal, wildcard, start)),
-      ]),
-    );
+    Promise.all([
+      sorobanRpc('getEvents', buildParams(wildcard, cAddressVal, start)),   // incoming
+      sorobanRpc('getEvents', buildParams(cAddressVal, wildcard, start)),   // outgoing
+    ]);
 
   let responses = await runQueries(startLedger);
 
   if (responses.some((r) => r?.error)) {
     if (__DEV__) console.warn('[SAC events] error — retrying with 4,320-ledger window');
-    responses = await runQueries(latestLedger - 4_320);
+    responses = await runQueries(Math.max(1, latestLedger - 4_320));
   }
 
   if (__DEV__) {

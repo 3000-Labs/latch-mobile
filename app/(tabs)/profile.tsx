@@ -36,7 +36,7 @@ const Profile = () => {
   const theme = useTheme<Theme>();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { clearAll, accounts, activeAccountIndex } = useWalletStore();
+  const { clearAll, accounts, activeAccountIndex, avatars } = useWalletStore();
   const { closeDrawer } = useDrawer();
   const { isDark, toggleTheme } = useAppTheme();
   const [accountInfoVisible, setAccountInfoVisible] = useState(false);
@@ -82,7 +82,7 @@ const Profile = () => {
         <DrawerProfileHeader
           name={activeAccount?.name || 'Crownz'}
           address={activeAccount?.smartAccountAddress || activeAccount?.gAddress || ''}
-          image={activeAccount?.image || null}
+          image={activeAccount ? (avatars[activeAccount.publicKeyHex] ?? null) : null}
           onCopyAddress={async () => {
             if (activeAccount?.smartAccountAddress) {
               await Clipboard.setStringAsync(activeAccount?.smartAccountAddress);

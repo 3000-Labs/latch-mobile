@@ -45,6 +45,7 @@ const AccountSwitcherSheet = ({ visible, onClose }: Props) => {
   const {
     accounts,
     activeAccountIndex,
+    avatars,
     mnemonic,
     switchAccount,
     addAccount,
@@ -207,6 +208,7 @@ const AccountSwitcherSheet = ({ visible, onClose }: Props) => {
                   onPress={() => handleSwitch(listIndex)}
                   onDeploy={() => handleDeploy(account, listIndex)}
                   isDeploying={deployingIndex === listIndex}
+                  avatarDataUri={avatars[account.publicKeyHex]}
                 />
               ))}
             </ScrollView>

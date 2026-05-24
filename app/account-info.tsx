@@ -24,10 +24,11 @@ const AccountInfo = () => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useTheme<Theme>();
-  const { accounts, activeAccountIndex, renameAccount, setAccountImage } = useWalletStore();
+  const { accounts, activeAccountIndex, renameAccount, setAccountImage, avatars } = useWalletStore();
   const activeAccount = accounts[activeAccountIndex];
+  const activeAvatar = activeAccount ? (avatars[activeAccount.publicKeyHex] ?? null) : null;
 
-  const [selectedImage, setSelectedImage] = useState<string | null>(activeAccount?.image || null);
+  const [selectedImage, setSelectedImage] = useState<string | null>(activeAvatar);
 
   const initialValues = {
     walletName: activeAccount?.name || '',
@@ -39,11 +40,16 @@ const AccountInfo = () => {
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 1,
+      quality: 0.3,
+      base64: true,
     });
 
     if (!result.canceled) {
-      setSelectedImage(result.assets[0].uri);
+      const asset = result.assets[0];
+      const dataUri = asset.base64
+        ? `data:image/jpeg;base64,${asset.base64}`
+        : asset.uri;
+      setSelectedImage(dataUri);
     }
   };
 
@@ -139,12 +145,12 @@ const AccountInfo = () => {
                 <Box
                   height={64}
                   backgroundColor={
-                    dirty || selectedImage !== activeAccount?.image ? 'primary' : 'bg11'
+                    dirty || selectedImage !== activeAvatar ? 'primary' : 'bg11'
                   }
                   borderRadius={32}
                   justifyContent="center"
                   alignItems="center"
-                  style={{ opacity: dirty || selectedImage !== activeAccount?.image ? 1 : 0.6 }}
+                  style={{ opacity: dirty || selectedImage !== activeAvatar ? 1 : 0.6 }}
                 >
                   <Text variant="h10" color="black" fontWeight="700">
                     Save Changes

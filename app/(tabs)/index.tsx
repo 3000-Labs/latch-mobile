@@ -126,14 +126,14 @@ const Home = () => {
   const statusBarStyle = useStatusBarStyle();
   const insets = useSafeAreaInsets();
 
-  const { smartAccountAddress, accounts, activeAccountIndex, mnemonic } = useWalletStore();
+  const { smartAccountAddress, accounts, activeAccountIndex, mnemonic, avatars } = useWalletStore();
   const [showBalance, setShowBalance] = useState(false);
   const [bannerIndex, setBannerIndex] = useState(0);
   const [fundVisible, setFundVisible] = useState(false);
 
   const activeAccount = accounts[activeAccountIndex];
   const activeAccountName = activeAccount?.name ?? 'Account 1';
-  const activeAccountImage = activeAccount?.image;
+  const activeAccountImage = activeAccount ? avatars[activeAccount.publicKeyHex] : undefined;
 
   const { openDrawer } = useDrawer();
 

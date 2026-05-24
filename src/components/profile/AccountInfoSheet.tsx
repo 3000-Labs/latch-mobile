@@ -43,17 +43,18 @@ const AccountInfoSheet = ({ visible, onClose }: Props) => {
   const insets = useSafeAreaInsets();
   const theme = useTheme<Theme>();
   const { isDark } = useAppTheme();
-  const { accounts, activeAccountIndex, renameAccount, setAccountImage } = useWalletStore();
+  const { accounts, activeAccountIndex, renameAccount, setAccountImage, avatars } = useWalletStore();
   const activeAccount = accounts[activeAccountIndex];
+  const activeAvatar = activeAccount ? (avatars[activeAccount.publicKeyHex] ?? null) : null;
 
-  const [selectedImage, setSelectedImage] = useState<string | null>(activeAccount?.image || null);
+  const [selectedImage, setSelectedImage] = useState<string | null>(activeAvatar);
 
   // Slide-up animation
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
 
   useEffect(() => {
     if (visible) {
-      setSelectedImage(activeAccount?.image || null);
+      setSelectedImage(activeAvatar);
       Animated.spring(translateY, {
         toValue: 0,
         useNativeDriver: true,
@@ -81,11 +82,16 @@ const AccountInfoSheet = ({ visible, onClose }: Props) => {
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 1,
+      quality: 0.3,
+      base64: true,
     });
 
     if (!result.canceled) {
-      setSelectedImage(result.assets[0].uri);
+      const asset = result.assets[0];
+      const dataUri = asset.base64
+        ? `data:image/jpeg;base64,${asset.base64}`
+        : asset.uri;
+      setSelectedImage(dataUri);
     }
   };
 
@@ -160,7 +166,7 @@ const AccountInfoSheet = ({ visible, onClose }: Props) => {
             enableReinitialize
           >
             {({ handleChange, handleBlur, handleSubmit, values, errors, touched, dirty }) => {
-              const canSave = dirty || selectedImage !== activeAccount?.image;
+              const canSave = dirty || selectedImage !== activeAvatar;
               
               return (
                 <View style={{ flexShrink: 1, minHeight: 400 }}>
