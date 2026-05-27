@@ -1,10 +1,5 @@
 import { Networks } from '@stellar/stellar-sdk';
 
-// ─── Backend API ──────────────────────────────────────────────────────────────
-// EXPO_PUBLIC_API_BASE_URL is the Latch Next.js backend.
-// EXPO_PUBLIC_SOROBAN_RPC_URL is the Soroban JSON-RPC endpoint — different host.
-const LATCH_BACKEND_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
-
 // ─── Stellar / Soroban ────────────────────────────────────────────────────────
 const STELLAR_AUTH_PREFIX = 'Stellar Smart Account Auth:\n';
 
@@ -57,7 +52,6 @@ const PASSKEY_RP_ID = process.env.EXPO_PUBLIC_PASSKEY_RP_ID ?? 'latch.finance';
 
 export {
   HORIZON_URL,
-  LATCH_BACKEND_URL,
   PASSKEY_RP_ID,
   STELLAR_AUTH_PREFIX,
   STELLAR_NETWORK_PASSPHRASE,

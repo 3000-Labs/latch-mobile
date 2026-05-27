@@ -9,7 +9,7 @@ let BUNDLER_G_ADDRESS: string | null = null;
 try {
   const s = process.env.EXPO_PUBLIC_BUNDLER_SECRET;
   if (s) BUNDLER_G_ADDRESS = Keypair.fromSecret(s).publicKey();
-} catch { }
+} catch {}
 
 export interface StellarPayment {
   id: string;
@@ -34,7 +34,13 @@ function horizonGet(url: string): Promise<any> {
     xhr.open('GET', url, true);
     xhr.setRequestHeader('Accept', 'application/json');
     xhr.timeout = 12000;
-    xhr.onload = () => { try { resolve(JSON.parse(xhr.responseText)); } catch { resolve(null); } };
+    xhr.onload = () => {
+      try {
+        resolve(JSON.parse(xhr.responseText));
+      } catch {
+        resolve(null);
+      }
+    };
     xhr.onerror = () => resolve(null);
     xhr.ontimeout = () => resolve(null);
     xhr.send();
@@ -48,7 +54,13 @@ function sorobanRpc(method: string, params: object): Promise<any> {
     xhr.setRequestHeader('Content-Type', 'application/json');
     xhr.setRequestHeader('Accept', 'application/json');
     xhr.timeout = 15000;
-    xhr.onload = () => { try { resolve(JSON.parse(xhr.responseText)); } catch { resolve({}); } };
+    xhr.onload = () => {
+      try {
+        resolve(JSON.parse(xhr.responseText));
+      } catch {
+        resolve({});
+      }
+    };
     xhr.onerror = () => resolve({});
     xhr.ontimeout = () => resolve({});
     xhr.send(JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }));
@@ -85,7 +97,16 @@ async function fetchGAddressOps(gAddress: string, cAddress: string): Promise<Ste
   if (__DEV__) {
     const invokeCount = allOps.filter((r: any) => r.type === 'invoke_host_function').length;
     const paymentCount = allOps.filter((r: any) => r.type === 'payment').length;
-    console.log('[G-addr] ops:', allOps.length, '| invoke:', invokeCount, '| payment:', paymentCount, '| error:', resp?.title ?? null);
+    console.log(
+      '[G-addr] ops:',
+      allOps.length,
+      '| invoke:',
+      invokeCount,
+      '| payment:',
+      paymentCount,
+      '| error:',
+      resp?.title ?? null,
+    );
   }
 
   if (allOps.length === 0) return [];
@@ -158,8 +179,9 @@ async function fetchGAddressOps(gAddress: string, cAddress: string): Promise<Ste
   if (needEffects.length > 0) {
     const effectsBatch = await Promise.all(
       needEffects.map((op: any) =>
-        horizonGet(`${HORIZON_URL}/operations/${op.id}/effects`)
-          .then((r) => (r?._embedded?.records ?? []) as any[]),
+        horizonGet(`${HORIZON_URL}/operations/${op.id}/effects`).then(
+          (r) => (r?._embedded?.records ?? []) as any[],
+        ),
       ),
     );
 
@@ -173,8 +195,12 @@ async function fetchGAddressOps(gAddress: string, cAddress: string): Promise<Ste
 
       // C-address is in effect.contract (effect.account holds the G-addr)
       const matchesCAddr = (e: any) => e.contract === cAddress || e.account === cAddress;
-      const creditEffect = effects.find((e: any) => e.type === 'contract_credited' && matchesCAddr(e));
-      const debitEffect = effects.find((e: any) => e.type === 'contract_debited' && matchesCAddr(e));
+      const creditEffect = effects.find(
+        (e: any) => e.type === 'contract_credited' && matchesCAddr(e),
+      );
+      const debitEffect = effects.find(
+        (e: any) => e.type === 'contract_debited' && matchesCAddr(e),
+      );
 
       if (!creditEffect && !debitEffect) continue;
 
@@ -218,7 +244,14 @@ async function fetchBundlerOps(cAddress: string): Promise<StellarPayment[]> {
   const invokeOps = allOps.filter((r: any) => r.type === 'invoke_host_function');
 
   if (__DEV__) {
-    console.log('[bundler] ops:', allOps.length, '| invoke:', invokeOps.length, '| error:', resp?.title ?? null);
+    console.log(
+      '[bundler] ops:',
+      allOps.length,
+      '| invoke:',
+      invokeOps.length,
+      '| error:',
+      resp?.title ?? null,
+    );
   }
 
   const results: StellarPayment[] = [];
@@ -258,17 +291,18 @@ async function fetchBundlerOps(cAddress: string): Promise<StellarPayment[]> {
 const SAC_CONTRACT_INFO = new Map<string, { code: string; assetType: string }>();
 
 try {
-  SAC_CONTRACT_INFO.set(
-    Asset.native().contractId(STELLAR_NETWORK_PASSPHRASE),
-    { code: 'XLM', assetType: 'native' },
-  );
-} catch { }
+  SAC_CONTRACT_INFO.set(Asset.native().contractId(STELLAR_NETWORK_PASSPHRASE), {
+    code: 'XLM',
+    assetType: 'native',
+  });
+} catch {}
 
 for (const t of WELL_KNOWN_TOKENS) {
   try {
-    const id = t.sacContractId ?? new Asset(t.code, t.issuer!).contractId(STELLAR_NETWORK_PASSPHRASE);
+    const id =
+      t.sacContractId ?? new Asset(t.code, t.issuer!).contractId(STELLAR_NETWORK_PASSPHRASE);
     SAC_CONTRACT_INFO.set(id, { code: t.code, assetType: 'credit_alphanum4' });
-  } catch { }
+  } catch {}
 }
 
 async function fetchSacTransferEvents(cAddress: string): Promise<StellarPayment[]> {
@@ -288,17 +322,19 @@ async function fetchSacTransferEvents(cAddress: string): Promise<StellarPayment[
   // No contractIds filter — catches transfers from any SAC, including unknown tokens
   const buildParams = (sender: string, recipient: string, start: number) => ({
     startLedger: start,
-    filters: [{
-      type: 'contract',
-      topics: [[transferSym, sender, recipient, wildcard]],
-    }],
+    filters: [
+      {
+        type: 'contract',
+        topics: [[transferSym, sender, recipient, wildcard]],
+      },
+    ],
     pagination: { limit: 200 },
   });
 
   const runQueries = (start: number) =>
     Promise.all([
-      sorobanRpc('getEvents', buildParams(wildcard, cAddressVal, start)),   // incoming
-      sorobanRpc('getEvents', buildParams(cAddressVal, wildcard, start)),   // outgoing
+      sorobanRpc('getEvents', buildParams(wildcard, cAddressVal, start)), // incoming
+      sorobanRpc('getEvents', buildParams(cAddressVal, wildcard, start)), // outgoing
     ]);
 
   let responses = await runQueries(startLedger);
@@ -334,7 +370,10 @@ async function fetchSacTransferEvents(cAddress: string): Promise<StellarPayment[
       const amountRaw = scValToNative(xdr.ScVal.fromXDR(event.value, 'base64'));
       const rawValue = typeof amountRaw === 'bigint' ? amountRaw : BigInt(amountRaw ?? 0);
 
-      const assetInfo = SAC_CONTRACT_INFO.get(event.contractId) ?? { code: 'XLM', assetType: 'native' };
+      const assetInfo = SAC_CONTRACT_INFO.get(event.contractId) ?? {
+        code: 'XLM',
+        assetType: 'native',
+      };
 
       return {
         id: event.id ?? event.txHash,
@@ -429,7 +468,14 @@ export async function fetchStellarPayments(
   const sacTxs = sacResult.status === 'fulfilled' ? sacResult.value : [];
 
   if (__DEV__) {
-    console.log('[merge] G-addr:', gAddrTxs.length, '| bundler:', bundlerTxs.length, '| SAC events:', sacTxs.length);
+    console.log(
+      '[merge] G-addr:',
+      gAddrTxs.length,
+      '| bundler:',
+      bundlerTxs.length,
+      '| SAC events:',
+      sacTxs.length,
+    );
   }
 
   const seen = new Set<string>();
