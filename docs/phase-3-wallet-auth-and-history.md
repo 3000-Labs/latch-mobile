@@ -250,28 +250,71 @@ No new deps required.
 
 ---
 
-### Step 3.3 — Soroban RPC helper for fetching smart-account public key
+### Step 3.3 — Soroban RPC helper for fetching smart-account signer
 
 **Files:** `internal/services/latch/sorobanrpc.go` (new)
 
-Minimal JSON-RPC client over the configured `RPC_URL`:
-- `GetContractInstance(ctx, contractID string) (xdr.ScVal, error)`
-  - Builds `LedgerKey.contractData(contract, ScvLedgerKeyContractInstance, persistent)`
-  - Calls `getLedgerEntries` with base64-encoded key
-  - Decodes `LedgerEntryData` → `ContractData().Val()`
-- `GetPasskeyPubKey(ctx, contractID string) (ecdsaPubKey, error)`
-  - Wrapper that pulls the public-key field from the contract storage's
-    instance ScMap by the known symbol (`signers` map; key extraction matches
-    the smart-account contract's storage layout)
+**Storage layout (verified against live testnet contract + OpenZeppelin
+stellar-accounts crate ref `187ad25`):**
 
-This is where coordination with the smart-account contract owner is required —
-the storage layout must be stable and documented. We need to inspect the latch
-passkey contract source (or one of the mobile project's existing deployments)
-to lock the exact storage key/path.
+The smart account stores each registered signer at a persistent ledger entry
+keyed by signer ID:
 
-**Verify:** Integration test against a real testnet smart account deployed by
-latch-mobile — call `GetPasskeyPubKey`, get back a P-256 point, manually verify
-it matches what `src/api/passkey.ts` registered.
+- **Storage area:** persistent
+- **Key:** `Vec[Symbol("SignerData"), U32(signer_id)]` (signer IDs are
+  monotonically assigned from 0 — `NextSignerId` in instance storage holds the
+  next-to-assign value)
+- **Value:** `Map { Symbol("count"): U32, Symbol("signer"):
+  Vec[Symbol("External"), Address(verifier), Bytes(key_data)] }`
+  - For Ed25519 signers: `key_data` is exactly 32 bytes — the raw Ed25519
+    public key.
+  - For WebAuthn signers: `key_data` is ≥65 bytes — uncompressed P-256 pubkey
+    (0x04 prefix || X(32) || Y(32)) followed by an optional credentialId
+    suffix. The backend strips the suffix by taking `key_data[0:65]`.
+
+Discrimination between the two signer kinds is by the `key_type` field the
+client supplies in `POST /v1/auth/sign-in`; cross-checking against the verifier
+address pulled from contract storage is an optional defense-in-depth measure.
+
+**Helper API:**
+
+```go
+type SmartAccountSigner struct {
+    VerifierAddress string  // e.g. CCRB63MFFBYXBZCRLRGLJVTHC7O4SUGAYTO5ZZEUNVY5W5DVGKHETI67
+    KeyData         []byte  // raw bytes from the External(_, key_data) variant
+}
+
+// FetchSmartAccountSigner reads SignerData(signerID) from the smart account
+// contract's persistent storage and returns the parsed signer record.
+// Returns ErrSignerNotFound if the ledger entry does not exist.
+func FetchSmartAccountSigner(
+    ctx context.Context,
+    rpc *SorobanRPC,
+    contractCAddress string,
+    signerID uint32,
+) (SmartAccountSigner, error)
+
+// SmartAccountSigner.P256PubKey decodes bytes[0:65] as an uncompressed
+// secp256r1 public key. Returns ErrBadKeyData for any other size.
+func (s SmartAccountSigner) P256PubKey() (*ecdsa.PublicKey, error)
+
+// SmartAccountSigner.Ed25519PubKey returns key_data verbatim if it is
+// exactly 32 bytes (raw Ed25519 public key). Returns ErrBadKeyData otherwise.
+func (s SmartAccountSigner) Ed25519PubKey() (ed25519.PublicKey, error)
+```
+
+**Note for the mnemonic (G-address) path:** No on-chain lookup is needed. The
+G-address strkey-decodes directly to the Ed25519 public key (already used by
+`VerifyEd25519` in Step 3.2). `FetchSmartAccountSigner` is only required when
+the user is identifying as a C-address (passkey users, or mnemonic users
+choosing to sign as their smart account rather than their underlying
+G-address).
+
+**Verify:** Integration test against the live testnet contract
+`CABAC52XLOQIABM4IUQCRZNGPUDKTFRDS62AE34Z46RXB2XAT3JVCGC7`. Expected return:
+verifier = `CCRB63MFFBYXBZCRLRGLJVTHC7O4SUGAYTO5ZZEUNVY5W5DVGKHETI67`,
+key_data = 32 bytes of Ed25519 public key (Ed25519 smart account — passkey
+test contract still TBD).
 
 ---
 
@@ -578,19 +621,25 @@ different SecureStore keys and serve different APIs.
 
 ## Open questions
 
-1. **Smart account contract storage layout for passkey public keys** — need to
-   read the contract source (or pull the data from a known deployment) to lock
-   the exact ScMap key path. Action: confirm before Step 3.3 begins.
-2. **WebAuthn origin allowlist** — what string does the React Native passkey
-   library set as `origin` in `clientDataJSON`? It's typically the bundle ID;
-   needs verification on both iOS and Android. Action: prototype in Step 3.10.
-3. **Should the wallet JWT also authorize backup endpoints for the same
-   wallet's user?** — Current design says no (those endpoints are email-scoped
-   on purpose). If product wants a one-token-fits-all UX, revisit after Phase
-   3 ships.
-4. **History for mnemonic (G-address) users** — `accountByAddress(G...)`
-   should already return data once ingest covers classic operations. Confirm
-   wallet-backend's resolvers don't artificially restrict to C-addresses.
+1. ~~**Smart account contract storage layout for passkey public keys**~~ —
+   **resolved.** Storage layout is documented in Step 3.3 above. Verified
+   against the OpenZeppelin `stellar-accounts` crate (ref `187ad25`) and live
+   testnet contract `CABAC52X...`. Persistent key:
+   `Vec[Symbol("SignerData"), U32(signer_id)]`. Value:
+   `Map { count: U32, signer: Vec[Symbol("External"), Address, Bytes] }`.
+2. **WebAuthn origin allowlist** — still open. Need to prototype in Step 3.10
+   to capture the exact `origin` string set by `react-native-passkey` on iOS
+   and Android. Will be added as `LATCH_WEBAUTHN_ALLOWED_ORIGINS` config
+   option (comma-separated list).
+3. ~~**Should the wallet JWT also authorize backup endpoints?**~~ —
+   **resolved: no.** Backup endpoints stay email-scoped. The two token
+   namespaces are deliberately independent (see "Coexistence with email-JWT
+   auth" section).
+4. ~~**History for mnemonic (G-address) users**~~ — **resolved.** Verified:
+   wallet-backend's `accountByAddress` resolver uses `IsValidStellarAddress`
+   which accepts both G and C addresses uniformly. No resolver-level
+   discrimination. G-address mnemonic users will receive their classic
+   operation history once ingest indexes those ledger entries.
 
 ---
 
