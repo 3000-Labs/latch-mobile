@@ -22,6 +22,9 @@ export const SECURE_KEYS = {
   ACCESS_TOKEN: 'latch_access_token',
   REFRESH_TOKEN: 'latch_refresh_token',
   USER_EMAIL: 'latch_user_email',
+  // Wallet-scope (SEP-10-inspired) tokens — separate from the email tokens above.
+  WALLET_ACCESS_TOKEN: 'latch_wallet_access_token',
+  WALLET_REFRESH_TOKEN: 'latch_wallet_refresh_token',
   // Temporary session key — holds recovery password during onboarding only.
   // Deleted immediately after the first successful backup upload.
   RECOVERY_PASSWORD_SESSION: 'latch_recovery_password_session',
