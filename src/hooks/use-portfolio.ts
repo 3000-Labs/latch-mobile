@@ -111,6 +111,12 @@ function fetchAllSacBalances(cAddress: string, sacIds: string[]): Promise<Record
  * server has indexed for cAddress, filters down to the requested sacIds, and
  * returns the same Record<sacId, balanceString> shape.
  *
+ * Wallet-backend does not currently index native XLM held by contract
+ * addresses (there is no `native_balances` row for a C-address, and the
+ * native XLM SAC is not in `contract_tokens`). To avoid showing 0 XLM, we
+ * fall back to the direct-RPC fetcher for the native SAC ID. Remove the
+ * fallback once wallet-backend indexes contract-held XLM.
+ *
  * Requires a wallet-scope JWT; uses ensureWalletSession from
  * src/lib/wallet-auth.ts and re-signs in on 401.
  */
@@ -141,6 +147,14 @@ async function fetchAllSacBalancesViaWalletBackend(
   for (const b of balances) {
     if (sacIds.includes(b.tokenId)) result[b.tokenId] = b.balance;
   }
+
+  // Native XLM is not tracked by wallet-backend for C-addresses — fetch via RPC.
+  const nativeSacId = Asset.native().contractId(STELLAR_NETWORK_PASSPHRASE);
+  if (sacIds.includes(nativeSacId)) {
+    const xlmOnly = await fetchAllSacBalances(cAddress, [nativeSacId]);
+    result[nativeSacId] = xlmOnly[nativeSacId];
+  }
+
   return result;
 }
 
