@@ -12,7 +12,7 @@
  */
 
 import { Asset, Keypair } from '@stellar/stellar-sdk';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { STELLAR_NETWORK_PASSPHRASE } from '../constants/config';
 import { WELL_KNOWN_TOKENS } from '../constants/known-tokens';
 import {
@@ -20,8 +20,10 @@ import {
   GraphQLError,
   type HistoryStateChange,
 } from '../api/wallet-backend';
-import { ensureWalletSession, refreshWalletSession } from '../lib/wallet-auth';
+import { ensureWalletSession, reSignInWallet } from '../lib/wallet-auth';
 import { useWalletStore, type WalletAccount } from '../store/wallet';
+
+const PAGE_SIZE = 50;
 
 // Kept per the Phase 3 plan: used by the classifier to recognise self-paid
 // Soroban fees when they surface on the activity feed in the future.
@@ -160,43 +162,80 @@ function classifyTxTypes(payments: StellarPayment[], cAddress: string): StellarP
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
-export async function fetchStellarPayments(
+interface StellarPaymentPage {
+  payments: StellarPayment[];
+  endCursor: string | null;
+  hasNextPage: boolean;
+}
+
+/**
+ * Fetch one page of activity. Cursor is the GraphQL connection endCursor from
+ * the previous page; pass undefined for the first page.
+ */
+export async function fetchStellarPaymentsPage(
   account: WalletAccount,
   cAddress: string,
-): Promise<StellarPayment[]> {
+  cursor: string | undefined,
+): Promise<StellarPaymentPage> {
   let accessToken = await ensureWalletSession(account);
 
   let conn;
   try {
-    conn = await fetchAccountHistory(cAddress, 50, undefined, accessToken);
+    conn = await fetchAccountHistory(cAddress, PAGE_SIZE, cursor, accessToken);
   } catch (err) {
     if (err instanceof GraphQLError && err.code === 'UNAUTHORIZED') {
-      const refreshed = await refreshWalletSession();
-      accessToken = refreshed ?? (await ensureWalletSession(account));
-      conn = await fetchAccountHistory(cAddress, 50, undefined, accessToken);
+      // Cached token rejected (likely expired). Refresh-token rotation for
+      // wallet-scope JWTs is not yet implemented backend-side, so we sign in
+      // fresh instead.
+      accessToken = await reSignInWallet(account);
+      conn = await fetchAccountHistory(cAddress, PAGE_SIZE, cursor, accessToken);
     } else {
       throw err;
     }
   }
 
-  const mapped = mapHistoryToPayments(conn.edges, cAddress);
-  const sorted = mapped.sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-  );
-  return classifyTxTypes(sorted, cAddress);
+  return {
+    payments: mapHistoryToPayments(conn.edges, cAddress),
+    endCursor: conn.pageInfo.endCursor,
+    hasNextPage: conn.pageInfo.hasNextPage,
+  };
 }
 
 export function useStellarTransactions(cAddress: string | null) {
   const { accounts, activeAccountIndex } = useWalletStore();
   const account = accounts[activeAccountIndex];
 
-  return useQuery({
+  const q = useInfiniteQuery({
     queryKey: ['stellar-transactions', cAddress, account?.gAddress, account?.smartAccountAddress],
-    queryFn: () => fetchStellarPayments(account!, cAddress!),
+    queryFn: ({ pageParam }) =>
+      fetchStellarPaymentsPage(account!, cAddress!, pageParam as string | undefined),
     enabled: !!cAddress && !!account,
     staleTime: 30_000,
     retry: 1,
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => (lastPage.hasNextPage ? lastPage.endCursor ?? undefined : undefined),
+    // Flatten pages → sort → classify across the whole loaded set so swap
+    // detection still works when txs span page boundaries.
+    select: (data) => {
+      const all = data.pages.flatMap((p) => p.payments);
+      const sorted = all.sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      );
+      return classifyTxTypes(sorted, cAddress ?? '');
+    },
   });
+
+  return {
+    data: q.data as StellarPayment[] | undefined,
+    isLoading: q.isLoading,
+    isFetching: q.isFetching,
+    isError: q.isError,
+    isRefetching: q.isRefetching,
+    refetch: q.refetch,
+    fetchNextPage: q.fetchNextPage,
+    hasNextPage: q.hasNextPage,
+    isFetchingNextPage: q.isFetchingNextPage,
+  };
 }
 
 // Re-export the bundler address for any future caller — currently unused by

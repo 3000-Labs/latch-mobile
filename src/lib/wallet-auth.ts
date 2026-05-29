@@ -20,7 +20,7 @@ import * as SecureStore from 'expo-secure-store';
 import { Buffer } from 'buffer';
 import { PASSKEY_RP_ID } from '../constants/config';
 import { signWithPasskey } from './passkey-webauthn';
-import { restoreStellarWallet } from './seed-wallet';
+import { deriveWalletAtIndex } from './seed-wallet';
 import { getPasskeyStorageKeys, SECURE_KEYS, type WalletAccount } from '../store/wallet';
 
 const API_ROOT = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
@@ -109,20 +109,30 @@ export async function signInWithWallet(account: WalletAccount): Promise<TokenPai
   const isPasskey = account.index < 0;
   const wallet = isPasskey ? account.smartAccountAddress : account.gAddress;
   const keyType = isPasskey ? 'passkey' : 'ed25519';
+  if (__DEV__) console.log('[wallet-auth] signInWithWallet: wallet=', wallet, 'keyType=', keyType, 'index=', account.index);
   if (!wallet) throw new Error('wallet address not available — smart account may not be deployed yet');
 
   const ch = await xhrPost('/auth/challenge', { wallet, key_type: keyType });
+  if (__DEV__) console.log('[wallet-auth] challenge status=', ch.status, 'body=', JSON.stringify(ch.body));
   if (ch.status !== 200 || !ch.body?.data?.nonce) {
     throw new Error(ch.body?.error?.message ?? `challenge failed (${ch.status})`);
   }
   const nonceB64URL = ch.body.data.nonce as string;
   const nonceBytes = b64URLToBytes(nonceB64URL);
 
-  const payload = isPasskey
-    ? await buildPasskeyPayload(account, nonceB64URL, nonceBytes, wallet, keyType)
-    : await buildEd25519Payload(account, nonceBytes, wallet, keyType, nonceB64URL);
+  let payload;
+  try {
+    payload = isPasskey
+      ? await buildPasskeyPayload(account, nonceB64URL, nonceBytes, wallet, keyType)
+      : await buildEd25519Payload(account, nonceBytes, wallet, keyType, nonceB64URL);
+    if (__DEV__) console.log('[wallet-auth] payload built; signature len=', (payload as any).signature?.length ?? 'n/a');
+  } catch (e: any) {
+    if (__DEV__) console.log('[wallet-auth] BUILD PAYLOAD FAILED:', e?.message, e?.stack);
+    throw e;
+  }
 
   const si = await xhrPost('/auth/sign-in', payload);
+  if (__DEV__) console.log('[wallet-auth] sign-in status=', si.status, 'body=', JSON.stringify(si.body));
   if (si.status !== 200 || !si.body?.data?.access_token) {
     throw new Error(si.body?.error?.message ?? `sign-in failed (${si.status})`);
   }
@@ -147,12 +157,9 @@ async function buildEd25519Payload(
 ): Promise<Record<string, string>> {
   const mnemonic = await SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC);
   if (!mnemonic) throw new Error('mnemonic not available — sign in requires the wallet to be unlocked');
-  // Stellar SDK derives the same keypair for the same index, pure and
-  // network-free, so reusing it here matches what the user signs transactions with.
-  // restoreStellarWallet returns account 0 only; higher mnemonic indices aren't
-  // currently part of the Latch UX. If a non-zero index lands here, the
-  // gAddress mismatch check below catches it.
-  const stellar = restoreStellarWallet(mnemonic);
+  // Derive the same Ed25519 keypair the user signs transactions with.
+  // Pure and network-free; safe to call on the JS thread.
+  const stellar = deriveWalletAtIndex(mnemonic, account.index);
   if (stellar.gAddress !== account.gAddress) {
     throw new Error('account mismatch: signing key does not match wallet address');
   }
@@ -220,6 +227,17 @@ async function buildPasskeyPayload(
 export async function ensureWalletSession(account: WalletAccount): Promise<string> {
   const existing = await SecureStore.getItemAsync(SECURE_KEYS.WALLET_ACCESS_TOKEN);
   if (existing) return existing;
+  const tokens = await signInWithWallet(account);
+  return tokens.accessToken;
+}
+
+/**
+ * Force a fresh sign-in, replacing any cached tokens. Used by the history
+ * hook when a cached token returns 401.
+ */
+export async function reSignInWallet(account: WalletAccount): Promise<string> {
+  await SecureStore.deleteItemAsync(SECURE_KEYS.WALLET_ACCESS_TOKEN);
+  await SecureStore.deleteItemAsync(SECURE_KEYS.WALLET_REFRESH_TOKEN);
   const tokens = await signInWithWallet(account);
   return tokens.accessToken;
 }

@@ -63,6 +63,8 @@ export async function gqlFetch<T>(
   const body = JSON.stringify({ query, variables });
   const { status, body: resp } = await xhr<T>(GRAPHQL_URL, body, accessToken);
 
+  if (__DEV__) console.log('[wb-graphql] status=', status, 'resp=', JSON.stringify(resp));
+
   if (status === 401) throw new GraphQLError('unauthorized', 'UNAUTHORIZED');
   if (status >= 400) throw new GraphQLError(`request failed (${status})`);
   if (!resp) throw new GraphQLError('invalid response body');

@@ -61,6 +61,9 @@ const History = () => {
     isFetching,
     isError,
     refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
   } = useStellarTransactions(smartAccountAddress);
 
   const filtered = useMemo(() => {
@@ -231,6 +234,17 @@ const History = () => {
             stickySectionHeadersEnabled={false}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: insets.bottom + 280 }}
+            onEndReached={() => {
+              if (hasNextPage && !isFetchingNextPage) fetchNextPage();
+            }}
+            onEndReachedThreshold={0.5}
+            ListFooterComponent={
+              isFetchingNextPage ? (
+                <Box paddingVertical="m" alignItems="center">
+                  <ActivityIndicator color={theme.colors.primary700} />
+                </Box>
+              ) : null
+            }
             refreshControl={
               <RefreshControl
                 refreshing={isFetching && !isLoading}
