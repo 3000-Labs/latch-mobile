@@ -188,6 +188,44 @@ const ACCOUNT_STATE_CHANGES = `
   }
 `;
 
+// AccountHistory pulls the users balance-affecting state changes plus the
+// counterparty side of each transfer in a single query. Used by
+// use-stellar-transactions.ts to render the activity feed.
+const ACCOUNT_HISTORY = `
+  query AccountHistory($address: String!, $first: Int, $after: String) {
+    accountByAddress(address: $address) {
+      stateChanges(first: $first, after: $after) {
+        edges {
+          node {
+            type
+            reason
+            ledgerNumber
+            ledgerCreatedAt
+            transaction { hash }
+            operation {
+              id
+              operationType
+              stateChanges(first: 10) {
+                edges {
+                  node {
+                    type
+                    reason
+                    account { address }
+                    ... on StandardBalanceChange { tokenId amount }
+                  }
+                }
+              }
+            }
+            ... on StandardBalanceChange { tokenId amount }
+          }
+          cursor
+        }
+        pageInfo { startCursor endCursor hasNextPage hasPreviousPage }
+      }
+    }
+  }
+`;
+
 interface AccountWrap<K extends string, V> {
   accountByAddress: { [P in K]: V } | null;
 }
@@ -240,4 +278,43 @@ export function fetchAccountStateChanges(
   accessToken: string,
 ): Promise<Connection<StateChange>> {
   return paginate<StateChange>(ACCOUNT_STATE_CHANGES, 'stateChanges', address, first, after, accessToken);
+}
+
+// ─── History (state changes + counterparty side) ─────────────────────────────
+
+export interface HistoryStateChange {
+  type: string; // BALANCE | ACCOUNT | ...
+  reason: string; // DEBIT | CREDIT | MINT | BURN | ...
+  ledgerNumber: number;
+  ledgerCreatedAt: string;
+  transaction: { hash: string };
+  operation: {
+    id: number;
+    operationType: string;
+    stateChanges: Connection<{
+      type: string;
+      reason: string;
+      account: { address: string };
+      tokenId?: string;
+      amount?: string;
+    }>;
+  } | null;
+  tokenId?: string;
+  amount?: string;
+}
+
+export function fetchAccountHistory(
+  address: string,
+  first: number,
+  after: string | undefined,
+  accessToken: string,
+): Promise<Connection<HistoryStateChange>> {
+  return paginate<HistoryStateChange>(
+    ACCOUNT_HISTORY,
+    'stateChanges',
+    address,
+    first,
+    after,
+    accessToken,
+  );
 }
