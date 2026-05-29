@@ -1,3 +1,7 @@
+// Balance lives on direct Soroban RPC for latency; transaction history lives
+// on wallet-backend GraphQL (use-stellar-transactions.ts) for indexed
+// pagination. See docs/phase-3-wallet-auth-and-history.md for the rationale.
+
 import { Address, Asset, scValToNative, xdr } from '@stellar/stellar-sdk';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { HORIZON_URL, STELLAR_NETWORK_PASSPHRASE, STELLAR_RPC_URL } from '../constants/config';

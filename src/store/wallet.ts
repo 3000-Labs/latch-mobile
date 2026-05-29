@@ -472,6 +472,8 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
       SecureStore.deleteItemAsync(SECURE_KEYS.PENDING_MNEMONIC),
       SecureStore.deleteItemAsync(SECURE_KEYS.ACCESS_TOKEN),
       SecureStore.deleteItemAsync(SECURE_KEYS.REFRESH_TOKEN),
+      SecureStore.deleteItemAsync(SECURE_KEYS.WALLET_ACCESS_TOKEN),
+      SecureStore.deleteItemAsync(SECURE_KEYS.WALLET_REFRESH_TOKEN),
       SecureStore.deleteItemAsync(SECURE_KEYS.USER_EMAIL),
       SecureStore.deleteItemAsync(SECURE_KEYS.CREDENTIAL_ID),
       SecureStore.deleteItemAsync(SECURE_KEYS.KEY_DATA_HEX),
