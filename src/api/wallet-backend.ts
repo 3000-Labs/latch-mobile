@@ -282,6 +282,48 @@ export function fetchAccountStateChanges(
   return paginate<StateChange>(ACCOUNT_STATE_CHANGES, 'stateChanges', address, first, after, accessToken);
 }
 
+// ─── Balances ────────────────────────────────────────────────────────────────
+
+export interface WalletBackendBalance {
+  tokenId: string;
+  balance: string; // already human-readable, 7 decimals
+  tokenType: 'NATIVE' | 'CLASSIC' | 'SAC';
+  code?: string;
+  issuer?: string;
+}
+
+const ACCOUNT_BALANCES = `
+  query AccountBalances($address: String!, $first: Int) {
+    accountByAddress(address: $address) {
+      balances(first: $first) {
+        edges {
+          node {
+            tokenId
+            balance
+            tokenType
+            ... on SACBalance { code issuer }
+            ... on TrustlineBalance { code issuer }
+          }
+        }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  }
+`;
+
+export async function fetchAccountBalances(
+  address: string,
+  accessToken: string,
+): Promise<WalletBackendBalance[]> {
+  const data = await gqlFetch<AccountWrap<'balances', Connection<WalletBackendBalance> | null>>(
+    ACCOUNT_BALANCES,
+    { address, first: 50 },
+    accessToken,
+  );
+  const edges = data.accountByAddress?.balances?.edges ?? [];
+  return edges.map((e) => e.node);
+}
+
 // ─── History (state changes + counterparty side) ─────────────────────────────
 
 export interface HistoryStateChange {

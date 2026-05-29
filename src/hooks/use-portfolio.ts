@@ -1,11 +1,34 @@
-// Balance lives on direct Soroban RPC for latency; transaction history lives
-// on wallet-backend GraphQL (use-stellar-transactions.ts) for indexed
-// pagination. See docs/phase-3-wallet-auth-and-history.md for the rationale.
+// ─── Balance data source ────────────────────────────────────────────────────
+//
+// This hook has TWO interchangeable balance fetchers:
+//
+//   1. fetchAllSacBalances              — direct Soroban RPC getLedgerEntries
+//                                         (the default; what shipped pre-Phase-3)
+//   2. fetchAllSacBalancesViaWalletBackend — wallet-backend GraphQL
+//                                            (Phase 3, requires auth)
+//
+// To switch, set EXPO_PUBLIC_USE_WALLET_BACKEND_BALANCES=true in .env (any
+// other value or unset → option 1). Build-time switch; restart Metro after
+// changing.
+//
+// TO REVERT to the legacy RPC behavior:
+//   • Unset EXPO_PUBLIC_USE_WALLET_BACKEND_BALANCES, OR
+//   • Delete the wallet-backend code path (the constant USE_WB_BALANCES, the
+//     function fetchAllSacBalancesViaWalletBackend, and the conditional at
+//     the call site around line `chooseSacBalanceFetcher`).
+//
+// History (use-stellar-transactions.ts) is on wallet-backend GraphQL with no
+// fallback. See docs/phase-3-wallet-auth-and-history.md for the rationale.
 
 import { Address, Asset, scValToNative, xdr } from '@stellar/stellar-sdk';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { HORIZON_URL, STELLAR_NETWORK_PASSPHRASE, STELLAR_RPC_URL } from '../constants/config';
 import { WELL_KNOWN_TOKENS, type TokenConfig } from '../constants/known-tokens';
+import { fetchAccountBalances, GraphQLError } from '../api/wallet-backend';
+import { ensureWalletSession, reSignInWallet } from '../lib/wallet-auth';
+import { useWalletStore } from '../store/wallet';
+
+const USE_WB_BALANCES = process.env.EXPO_PUBLIC_USE_WALLET_BACKEND_BALANCES === 'true';
 
 export interface TokenBalance {
   code: string;
@@ -84,6 +107,48 @@ function fetchAllSacBalances(cAddress: string, sacIds: string[]): Promise<Record
 }
 
 /**
+ * Wallet-backend variant of fetchAllSacBalances. Pulls every balance the
+ * server has indexed for cAddress, filters down to the requested sacIds, and
+ * returns the same Record<sacId, balanceString> shape.
+ *
+ * Requires a wallet-scope JWT; uses ensureWalletSession from
+ * src/lib/wallet-auth.ts and re-signs in on 401.
+ */
+async function fetchAllSacBalancesViaWalletBackend(
+  cAddress: string,
+  sacIds: string[],
+): Promise<Record<string, string>> {
+  const zero = Object.fromEntries(sacIds.map((id) => [id, '0']));
+  if (sacIds.length === 0) return zero;
+
+  const account = useWalletStore.getState().accounts[useWalletStore.getState().activeAccountIndex];
+  if (!account) return zero;
+
+  let token = await ensureWalletSession(account);
+  let balances;
+  try {
+    balances = await fetchAccountBalances(cAddress, token);
+  } catch (err) {
+    if (err instanceof GraphQLError && err.code === 'UNAUTHORIZED') {
+      token = await reSignInWallet(account);
+      balances = await fetchAccountBalances(cAddress, token);
+    } else {
+      return zero;
+    }
+  }
+
+  const result = { ...zero };
+  for (const b of balances) {
+    if (sacIds.includes(b.tokenId)) result[b.tokenId] = b.balance;
+  }
+  return result;
+}
+
+const chooseSacBalanceFetcher = USE_WB_BALANCES
+  ? fetchAllSacBalancesViaWalletBackend
+  : fetchAllSacBalances;
+
+/**
  * Fetch all token balances for a smart account (C-address).
  *
  * Token discovery strategy (union of all, deduplicated by code+issuer):
@@ -155,9 +220,11 @@ async function fetchPortfolio(
     sacId: t.sacContractId ?? new Asset(t.code, t.issuer!).contractId(STELLAR_NETWORK_PASSPHRASE),
   }));
 
-  // Single batched getLedgerEntries call for all tokens (XLM + non-native).
+  // Single batched call for all tokens (XLM + non-native). The fetcher is
+  // selected once at module load via the EXPO_PUBLIC_USE_WALLET_BACKEND_BALANCES
+  // flag (see top-of-file doc block).
   const allSacIds = [nativeSacId, ...nonNativeTokens.map((t) => t.sacId)];
-  const balances = await fetchAllSacBalances(cAddress, allSacIds);
+  const balances = await chooseSacBalanceFetcher(cAddress, allSacIds);
 
   const xlmAmount = balances[nativeSacId];
   const results: TokenBalance[] = [
