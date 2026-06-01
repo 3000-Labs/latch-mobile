@@ -1,10 +1,11 @@
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
 import { SECURE_KEYS } from '@/src/store/wallet';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import React, { useCallback, useEffect } from 'react';
-import { Image } from 'react-native';
+import { Image, StyleSheet } from 'react-native';
 import Animated, {
   Extrapolate,
   interpolate,
@@ -14,7 +15,6 @@ import Animated, {
   withDelay,
   withTiming,
 } from 'react-native-reanimated';
-
 
 const AnimatedLetter = ({
   opacity,
@@ -88,6 +88,13 @@ const SplashAnimation = () => {
 
   return (
     <Box flex={1} backgroundColor="mainBackground" justifyContent="center" alignItems="center">
+      <LinearGradient
+        colors={['rgba(50, 60, 14, 0.74)', '#121212']}
+        locations={[0, 0.2772]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
       <Box flexDirection="column" justifyContent={'center'} alignItems="center" gap={'m'}>
         <Animated.View style={logoStyle}>
           <Image

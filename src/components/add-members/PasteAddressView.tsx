@@ -15,7 +15,8 @@ const schema = Yup.object().shape({
   address: Yup.string()
     .trim()
     .required('Wallet address is required')
-    .matches(/^G[A-Z2-7]{55}$/, 'Enter a valid Stellar wallet address'),
+    .matches(/^C[A-Z2-7]{55}$/, 'Enter a valid Stellar wallet address'),
+  // .matches(/^G[A-Z2-7]{55}$/, 'Enter a valid Stellar wallet address'),
 });
 
 interface PasteAddressViewProps {
@@ -82,7 +83,7 @@ const PasteAddressView: React.FC<PasteAddressViewProps> = ({ onClose, onAdd }) =
 
             <InputField
               label="Wallet Address"
-              placeholder="G..."
+              placeholder="C..."
               value={values.address}
               onChangeText={handleChange('address')}
               onBlur={handleBlur('address')}

@@ -3,10 +3,11 @@ import Box from '@/src/components/shared/Box';
 import Button from '@/src/components/shared/Button';
 import ProgressPagination from '@/src/components/shared/ProgressPagination';
 import Text from '@/src/components/shared/Text';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useRef, useState } from 'react';
-import { Dimensions, FlatList, Image } from 'react-native';
+import { Dimensions, FlatList, Image, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
@@ -61,6 +62,13 @@ const Onboarding = () => {
 
   return (
     <Box flex={1} backgroundColor="onboardingbg">
+      <LinearGradient
+        colors={['rgba(50, 60, 14, 0.74)', '#121212']}
+        locations={[0, 0.2772]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 0.91 }}
+        style={StyleSheet.absoluteFill}
+      />
       <StatusBar style={statusBarStyle} />
       {/* Header */}
       <Box
@@ -91,21 +99,12 @@ const Onboarding = () => {
         keyExtractor={(item) => item.id.toString()}
         style={{ flex: 1 }}
         renderItem={({ item }) => (
-          <Box width={width} alignItems="center" paddingTop="xl">
+          <Box width={width} alignItems="center" justifyContent={'center'} paddingTop="xl">
             <Image
               source={item.image}
-              style={{ width: width, height: width }}
+              style={{ width: width, height: width / 1.35 }}
               resizeMode="contain"
             />
-
-            <Box px={'4xl'} marginTop="xl" alignItems="center">
-              <Text variant="h7" textAlign="center" marginBottom="s">
-                {item.title}
-              </Text>
-              <Text variant="p5" textAlign="center" color="textSecondary">
-                {item.description}
-              </Text>
-            </Box>
           </Box>
         )}
       />
@@ -118,6 +117,14 @@ const Onboarding = () => {
         gap="m"
         mt={'m'}
       >
+        <Box marginTop="xl" alignItems="center">
+          <Text variant="h7" textAlign="center" marginBottom="s">
+            {ONBOARDING_DATA[activeIndex].title}
+          </Text>
+          <Text variant="p5" textAlign="center" color="textSecondary">
+            {ONBOARDING_DATA[activeIndex].description}
+          </Text>
+        </Box>
         <ProgressPagination total={3} activeIndex={activeIndex} />
 
         <Box width="100%" gap="s">
@@ -130,6 +137,11 @@ const Onboarding = () => {
             label="I Have a Wallet"
             variant="outline"
             onPress={() => router.navigate('/(onboarding)/get-started')}
+            bg={'btnDisabled'}
+            shadowOffset={{ width: 0, height: 4 }}
+            shadowColor="primary500"
+            shadowRadius={15}
+            shadowOpacity={0.12}
             labelColor={statusBarStyle === 'light' ? 'textWhite' : 'black'}
           />
         </Box>

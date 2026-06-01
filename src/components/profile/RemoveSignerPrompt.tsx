@@ -32,7 +32,7 @@ const RemoveSignerPrompt = ({ signerName, onCancel, onConfirm }: Props) => {
         </Text>
 
         <Text
-          variant="p5"
+          variant="h10"
           color="textSecondary"
           textAlign="center"
           mb="m"
@@ -40,7 +40,7 @@ const RemoveSignerPrompt = ({ signerName, onCancel, onConfirm }: Props) => {
           width={'70%'}
         >
           Are you sure you want to remove{' '}
-          <Text variant="p7" color="textPrimary" fontWeight="700">
+          <Text variant="h10" color="textPrimary" fontWeight="700">
             {signerName}
           </Text>{' '}
           as a signer?
@@ -74,10 +74,13 @@ const RemoveSignerPrompt = ({ signerName, onCancel, onConfirm }: Props) => {
           >
             <Box
               height={56}
-              backgroundColor="inputError"
+              // backgroundColor="inputError"
               borderRadius={28}
               justifyContent="center"
               alignItems="center"
+              style={{
+                backgroundColor: '#E23A10',
+              }}
             >
               <Text variant="h11" color="black" fontWeight="700">
                 Yes, Go Ahead

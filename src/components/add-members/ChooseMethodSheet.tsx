@@ -30,7 +30,7 @@ interface Props {
   visible: boolean;
   onClose: () => void;
   onScanQR: () => void;
-  onMemberAdded: (name: string, value: string) => void;
+  onMemberAdded: (name: string, value: string, status: 'pending' | 'added') => void;
 }
 
 const ChooseMethodSheet: React.FC<Props> = ({ visible, onClose, onScanQR, onMemberAdded }) => {
@@ -160,7 +160,7 @@ const ChooseMethodSheet: React.FC<Props> = ({ visible, onClose, onScanQR, onMemb
               onClose={handleClose}
               onAdd={(name, address) => {
                 handleClose();
-                onMemberAdded(name, address);
+                onMemberAdded(name, address, 'added');
               }}
             />
           )}
@@ -170,7 +170,7 @@ const ChooseMethodSheet: React.FC<Props> = ({ visible, onClose, onScanQR, onMemb
               onClose={handleClose}
               onAdd={(name, email) => {
                 handleClose();
-                onMemberAdded(name, email);
+                onMemberAdded(name, email, 'pending');
               }}
             />
           )}
