@@ -576,7 +576,7 @@ const Biometrics = () => {
       </Box>
 
       {/* Buttons */}
-      <Box pb="xl">
+      <Box pb="xl" gap={'m'}>
         <Button
           label="Enable Biometrics"
           variant="primary"
@@ -588,7 +588,7 @@ const Biometrics = () => {
         <Button
           label="Maybe Later"
           onPress={proceedToPin}
-          mt="s"
+          // mt="s"
           bg={'btnDisabled'}
           shadowOffset={{ width: 0, height: 4 }}
           shadowColor="primary500"
