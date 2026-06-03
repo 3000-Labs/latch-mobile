@@ -191,7 +191,7 @@ export default function TxAuthModal({ visible, promptMessage, onResult }: Props)
               />
               <Button
                 label="Use PIN"
-                variant="outline"
+                // variant="outline"
                 borderColor="textWhite"
                 labelColor="textWhite"
                 onPress={() => setMode('pin')}
@@ -199,7 +199,7 @@ export default function TxAuthModal({ visible, promptMessage, onResult }: Props)
               />
               <Button
                 label="Cancel"
-                variant="outline"
+                // variant="outline"
                 borderColor="textWhite"
                 labelColor="textWhite"
                 onPress={() => onResult(false)}

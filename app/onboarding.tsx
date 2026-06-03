@@ -99,12 +99,27 @@ const Onboarding = () => {
         keyExtractor={(item) => item.id.toString()}
         style={{ flex: 1 }}
         renderItem={({ item }) => (
-          <Box width={width} alignItems="center" justifyContent={'center'} paddingTop="xl">
+          <Box
+            width={width}
+            justifyContent={'space-between'}
+            // bg={'danger500'}
+            alignItems="center"
+            paddingTop="xl"
+          >
+            <Box></Box>
             <Image
               source={item.image}
               style={{ width: width, height: width / 1.35 }}
               resizeMode="contain"
             />
+            <Box alignItems="center" px="xl">
+              <Text variant="h7" textAlign="center" marginBottom="s">
+                {ONBOARDING_DATA[activeIndex].title}
+              </Text>
+              <Text variant="p5" textAlign="center" color="textSecondary">
+                {ONBOARDING_DATA[activeIndex].description}
+              </Text>
+            </Box>
           </Box>
         )}
       />
@@ -114,19 +129,10 @@ const Onboarding = () => {
         px="xl"
         style={{ paddingBottom: insets.bottom + 20 }}
         alignItems="center"
+        mt={'l'}
         gap="m"
-        mt={'m'}
       >
-        <Box marginTop="xl" alignItems="center">
-          <Text variant="h7" textAlign="center" marginBottom="s">
-            {ONBOARDING_DATA[activeIndex].title}
-          </Text>
-          <Text variant="p5" textAlign="center" color="textSecondary">
-            {ONBOARDING_DATA[activeIndex].description}
-          </Text>
-        </Box>
         <ProgressPagination total={3} activeIndex={activeIndex} />
-
         <Box width="100%" gap="m">
           <Button
             label="Create a New Wallet"

@@ -33,9 +33,9 @@ const G_W = Math.round((GH * 254) / 202); // 88
 const C_W = Math.round((GH * 176) / 202); // 61
 const LOGO_W = Math.round((GH * 336) / 180); // 131
 
-const SLOT_W = Math.round(239 * 0.97); // 232 — 3% narrower than the original reference
+// const SLOT_W = Math.round(239 * 0.97); // 232 — 3% narrower than the original reference
 const SLOT_H = 57; // ~4.7:1 ratio matches the reference ellipse
-const SLOT_FILL = '#1E1E1E';
+// const SLOT_FILL = '#1E1E1E';
 
 const GLYPH_ABOVE_ELLIPSE = 90; // resting glyph TOP sits this far above the ellipse TOP edge
 
@@ -52,7 +52,7 @@ const REST_TOP = CLIP_H - SLOT_H / 2 - GLYPH_ABOVE_ELLIPSE; // 30 — glyph rest
 const G_LEFT = Math.round(CENTER_X - LOGO_W / 2); // 44 (left edge of the combined logo)
 const C_LEFT = Math.round(CENTER_X + LOGO_W / 2 - C_W); // 115 (right edge - C_W)
 
-const SLOT_LEFT = CENTER_X - SLOT_W / 2; // 40
+// const SLOT_LEFT = CENTER_X - SLOT_W / 2; // 40
 
 const EMERGE_DY = CLIP_H - REST_TOP + 20; // start with the glyph top safely below the slot line
 const EMERGE_OVERSHOOT = GH * 1.35; // letters overshoot 1.35× their height above rest before settling
@@ -71,8 +71,8 @@ const WORDMARK_TOP_Y = SCREEN_H / 2.3 + STAGE_OFFSET_Y;
 // Ellipse sits 3% of screen height LOWER than its natural slot position within
 // the stage. Glyphs aren't affected — they still rise to the same peak height
 // relative to the screen.
-const ELLIPSE_LOWER_OFFSET = SCREEN_H * 0.03;
-const SLOT_TOP = CLIP_H - SLOT_H / 2 + ELLIPSE_LOWER_OFFSET;
+// const ELLIPSE_LOWER_OFFSET = SCREEN_H * 0.03;
+// const SLOT_TOP = CLIP_H - SLOT_H / 2 + ELLIPSE_LOWER_OFFSET;
 
 // ---------------------------------------------------------------------------
 
@@ -107,7 +107,6 @@ const SplashAnimation = () => {
   const gTx = useSharedValue(G_APART_TX);
   const cTx = useSharedValue(C_APART_TX);
   const cScaleX = useSharedValue(1); // C is natural at rise; flips to -1 the moment both letters land at the top
-  const cSwing = useSharedValue(0); // C card-tilt rotateY (degrees) — swings 60° / -40° / 0° once the letters merge
   const mergedScale = useSharedValue(1); // grows by 20% during the merge for a clearly visible enlargement
   const mergedScaleX = useSharedValue(1); // after the merge, the whole G+C unit flips horizontally as a group
   const descentY = useSharedValue(0); // single Y that descends the merged unit so both glyphs move in lockstep
@@ -150,7 +149,6 @@ const SplashAnimation = () => {
       gTx.value = 0;
       cTx.value = 0;
       cScaleX.value = -1;
-      cSwing.value = 0;
       mergedScale.value = 1;
       mergedScaleX.value = -1;
       descentY.value = 0;
@@ -176,11 +174,10 @@ const SplashAnimation = () => {
       //   Slot closes:    1370 → 1770   (eases shut around the peak)
       //   Hold apart:     1720 → 2200   (short pause at top before merging)
       //   Merge (slide):  2200 → 3100   (gTx, cTx → 0; synced with enlargement)
-      //   C swing:        3100 → 4080   (rotateY 0° → 60° → -40° → 0°)
-      //   Group flip:     4140 → 4640   (mergedScaleX 1 → -1; both letters mirror together)
-      //   Hold merged:    4640 → 5140
-      //   Descend:        5140 → 6140   (1s)
-      //   Wordmark:       6320 → 6820   (all five letters fade in together)
+      //   Group flip:     3160 → 3660   (mergedScaleX 1 → -1; both letters mirror together)
+      //   Hold merged:    3660 → 4160
+      //   Descend:        4160 → 5160   (1s)
+      //   Wordmark:       5340 → 5840   (all five letters fade in together)
 
       // 1. Slot opens after the initial delay — scale 0 → 1 — then eases shut
       //    as the letters finish their rise (close ends just past peak).
@@ -227,16 +224,16 @@ const SplashAnimation = () => {
       // mergedScale chains its own arc on one shared value:
       //   start→+900  : grow to 1.2× — clearly visible 20% enlargement, slow
       //                  900ms quad-in-out ramp so it stays smooth.
-      //   +900→+2520  : hold at 1.2× through the merged-hold phase
-      //   +2520→end   : shrink back to 1.0× as the unit descends
+      //   +900→+1560  : hold at 1.2× through the group flip + merged-hold phase
+      //   +1560→end   : shrink back to 1.0× as the unit descends
       mergedScale.value = withDelay(
         INITIAL_DELAY + 1700,
         withSequence(
           withTiming(1.2, { duration: 900, easing: Easing.inOut(Easing.quad) }),
           withDelay(
-            // hold at 1.2× until the descent begins (INITIAL_DELAY + 5140);
-            // grow ends at INITIAL_DELAY + 2600 → hold = 5140 - 2600 = 2540ms.
-            2540,
+            // hold at 1.2× until the descent begins (INITIAL_DELAY + 4160);
+            // grow ends at INITIAL_DELAY + 2600 → hold = 4160 - 2600 = 1560ms.
+            1560,
             // Match the enlargement's gentle quad curve so the shrink reads
             // as one continuous, smooth motion — no perceptible curve change.
             withTiming(1, { duration: 1000, easing: Easing.inOut(Easing.quad) }),
@@ -244,33 +241,22 @@ const SplashAnimation = () => {
         ),
       );
 
-      // 4. C swing — fires immediately when the merge settles. RotateY card-
-      //    tilt 0° → 60° → -40° → 0° (with perspective applied in cStyle).
-      cSwing.value = withDelay(
-        INITIAL_DELAY + 2600,
-        withSequence(
-          withTiming(60, { duration: 440, easing: Easing.inOut(Easing.cubic) }),
-          withTiming(-40, { duration: 400, easing: Easing.inOut(Easing.cubic) }),
-          withTiming(0, { duration: 140, easing: Easing.inOut(Easing.cubic) }),
-        ),
-      );
-
-      // 5. After the C swing settles, flip the whole G+C unit horizontally
-      //    as one group (4140 → 4640 absolute = 60ms after the swing ends).
+      // 4. Flip the whole G+C unit horizontally as one group (60ms after the
+      //    merge settles).
       mergedScaleX.value = withDelay(
-        INITIAL_DELAY + 3640,
+        INITIAL_DELAY + 2660,
         withTiming(-1, { duration: 500, easing: Easing.inOut(Easing.cubic) }),
       );
 
-      // 6. Descend — single shared value translates the merged wrapper down
+      // 5. Descend — single shared value translates the merged wrapper down
       //    in 1s so both glyphs move together at identical speed and level.
       descentY.value = withDelay(
-        INITIAL_DELAY + 4640,
+        INITIAL_DELAY + 4160,
         withTiming(EMERGE_OVERSHOOT, { duration: 1000, easing: Easing.inOut(Easing.cubic) }),
       );
 
-      // 7. Wordmark — "Latch" reveals as one (all five letters together).
-      const WORDMARK_DELAY = INITIAL_DELAY + 5820;
+      // 6. Wordmark — "Latch" reveals as one (all five letters together).
+      const WORDMARK_DELAY = INITIAL_DELAY + 5340;
       const WORDMARK_DUR = 500;
       lOpacity.value = withDelay(WORDMARK_DELAY, withTiming(1, { duration: WORDMARK_DUR }));
       aOpacity.value = withDelay(WORDMARK_DELAY, withTiming(1, { duration: WORDMARK_DUR }));
@@ -286,7 +272,7 @@ const SplashAnimation = () => {
           timer = setTimeout(checkUserStatusAndNavigate, 1000);
         } else {
           runAnimation();
-          timer = setTimeout(checkUserStatusAndNavigate, 7570);
+          timer = setTimeout(checkUserStatusAndNavigate, 6590);
         }
       })
       .catch(() => {
@@ -304,13 +290,7 @@ const SplashAnimation = () => {
   }));
   const cStyle = useAnimatedStyle(() => ({
     opacity: glyphsOpacity.value,
-    transform: [
-      { perspective: 600 },
-      { translateX: cTx.value },
-      { translateY: cTy.value },
-      { rotateY: `${cSwing.value}deg` },
-      { scaleX: cScaleX.value },
-    ],
+    transform: [{ translateX: cTx.value }, { translateY: cTy.value }, { scaleX: cScaleX.value }],
   }));
   const mergedWrapperStyle = useAnimatedStyle(() => ({
     transform: [
