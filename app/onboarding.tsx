@@ -131,7 +131,8 @@ const Onboarding = () => {
           <Button
             label="Create a New Wallet"
             variant="primary"
-            onPress={() => router.navigate('/(onboarding)/choose-wallet')}
+            onPress={() => router.navigate('/(auth)/biometric')}
+            // onPress={() => router.navigate('/(onboarding)/choose-wallet')}
           />
           <Button
             label="I Have a Wallet"

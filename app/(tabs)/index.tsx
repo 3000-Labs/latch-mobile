@@ -3,7 +3,6 @@ import HistoryItem from '@/src/components/history/HistoryItem';
 import FundWalletSheet from '@/src/components/home/FundWalletSheet';
 import PendingApprovalBanner from '@/src/components/home/PendingApprovalBanner';
 import Box from '@/src/components/shared/Box';
-import LoadingBlur from '@/src/components/shared/LoadingBlur';
 import Text from '@/src/components/shared/Text';
 import TokenIcon from '@/src/components/shared/TokenIcon';
 import { useDrawer } from '@/src/context/drawer-context';
@@ -13,6 +12,7 @@ import { StellarPayment, useStellarTransactions } from '@/src/hooks/use-stellar-
 import { useTokenIcon } from '@/src/hooks/use-token-list';
 import { useTrackedTokens } from '@/src/hooks/use-tracked-tokens';
 import { discoverMigration } from '@/src/lib/migration';
+import { useLoadingOverlay } from '@/src/store/loading-overlay';
 import { useWalletStore } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
 import { useAppTheme } from '@/src/theme/ThemeContext';
@@ -24,7 +24,7 @@ import { ImageBackground } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { memo, useMemo, useState } from 'react';
+import React, { memo, useEffect, useMemo, useState } from 'react';
 import {
   Dimensions,
   FlatList,
@@ -156,6 +156,18 @@ const Home = () => {
     isLoading: txLoading,
     isRefetching: isRefetchingTx,
   } = useStellarTransactions(smartAccountAddress);
+
+  const showOverlay = useLoadingOverlay((s) => s.show);
+  const hideOverlay = useLoadingOverlay((s) => s.hide);
+
+  useEffect(() => {
+    if (portfolioLoading || txLoading) {
+      showOverlay('Loading...');
+    } else {
+      hideOverlay();
+    }
+    return () => hideOverlay();
+  }, [portfolioLoading, txLoading, showOverlay, hideOverlay]);
 
   const { data: migrationState } = useQuery({
     queryKey: ['migration-state', smartAccountAddress, activeAccount?.gAddress],
@@ -551,7 +563,6 @@ const Home = () => {
           )}
         </Box>
       </ScrollView>
-      <LoadingBlur text="Loading..." visible={portfolioLoading || txLoading} />
     </Box>
   );
 };
