@@ -63,6 +63,7 @@ const Button: React.FC<Props> = ({
       activeOpacity={0.8}
       flexDirection="row"
       backgroundColor={loading ? 'btnDisabled' : bg}
+      height={48}
       {...rest}
     >
       {leftIcon && !loading && <Box marginRight="s">{leftIcon}</Box>}
