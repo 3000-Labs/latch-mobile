@@ -127,7 +127,7 @@ const Onboarding = () => {
         </Box>
         <ProgressPagination total={3} activeIndex={activeIndex} />
 
-        <Box width="100%" gap="s">
+        <Box width="100%" gap="m">
           <Button
             label="Create a New Wallet"
             variant="primary"

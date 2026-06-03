@@ -80,7 +80,11 @@ const BackupSheet = ({ visible, onClose }: Props) => {
       await uploadBackup();
       setBackupExists(true);
       resetForm();
-      Toast.show({ type: 'success', text1: 'Backup saved', text2: 'Your wallet is now backed up.' });
+      Toast.show({
+        type: 'success',
+        text1: 'Backup saved',
+        text2: 'Your wallet is now backed up.',
+      });
       onClose();
     } catch (err: any) {
       await SecureStore.deleteItemAsync(SECURE_KEYS.RECOVERY_PASSWORD_SESSION).catch(() => {});
@@ -122,7 +126,10 @@ const BackupSheet = ({ visible, onClose }: Props) => {
             py="m"
             mb="s"
           >
-            <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <TouchableOpacity
+              onPress={onClose}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
               <Ionicons name="chevron-back" size={24} color={theme.colors.textPrimary} />
             </TouchableOpacity>
             <Text variant="h8" color="textPrimary" fontWeight="700">
@@ -158,7 +165,11 @@ const BackupSheet = ({ visible, onClose }: Props) => {
               </Box>
               <Box flex={1}>
                 <Text variant="p7" color="textPrimary" fontWeight="600">
-                  {backupExists === null ? 'Checking status…' : backupExists ? 'Backup exists' : 'No backup found'}
+                  {backupExists === null
+                    ? 'Checking status…'
+                    : backupExists
+                      ? 'Backup exists'
+                      : 'No backup found'}
                 </Text>
                 <Text variant="p8" color="textSecondary" mt="xs">
                   {backupExists
@@ -173,7 +184,15 @@ const BackupSheet = ({ visible, onClose }: Props) => {
               validationSchema={schema}
               onSubmit={handleSubmit}
             >
-              {({ handleChange, handleBlur, handleSubmit: submit, values, errors, touched, isSubmitting }) => (
+              {({
+                handleChange,
+                handleBlur,
+                handleSubmit: submit,
+                values,
+                errors,
+                touched,
+                isSubmitting,
+              }) => (
                 <Box>
                   <Input
                     value={values.password}
@@ -204,7 +223,7 @@ const BackupSheet = ({ visible, onClose }: Props) => {
                     showPasswordToggle
                     autoCapitalize="none"
                     autoCorrect={false}
-                    returnKeyType="done"
+                    // returnKeyType="done"
                     onSubmitEditing={() => submit()}
                     status={touched.confirm && errors.confirm ? 'danger' : 'basic'}
                   />
@@ -231,7 +250,11 @@ const BackupSheet = ({ visible, onClose }: Props) => {
                       {isSubmitting ? (
                         <ActivityIndicator color={theme.colors.gray600} />
                       ) : (
-                        <Text variant="h10" color={isSubmitting ? 'gray600' : 'black'} fontWeight="700">
+                        <Text
+                          variant="h10"
+                          color={isSubmitting ? 'gray600' : 'black'}
+                          fontWeight="700"
+                        >
                           {backupExists ? 'Update Backup' : 'Back Up Now'}
                         </Text>
                       )}

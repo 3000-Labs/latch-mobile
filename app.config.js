@@ -18,9 +18,9 @@ export default {
     scheme: 'latch',
     userInterfaceStyle: 'automatic',
     splash: {
-      image: './assets/images/icon.png',
-      resizeMode: 'contain',
-      backgroundColor: '#000000',
+      // image: './assets/images/icon.png',
+      // resizeMode: 'cover',
+      backgroundColor: '#121212',
     },
     ios: {
       supportsTablet: true,
@@ -73,12 +73,12 @@ export default {
       [
         'expo-splash-screen',
         {
-          image: './assets/images/splash-icon-light.png',
-          imageWidth: 159.5,
-          resizeMode: 'contain',
+          // image: './assets/images/splash-icon-dark.png',
+          // imageWidth: 159.5,
+          // resizeMode: 'contain',
           backgroundColor: '#121212',
           dark: {
-            image: './assets/images/splash-icon-dark.png',
+            // image: './assets/images/splash-icon-dark.png',
             backgroundColor: '#121212',
           },
         },

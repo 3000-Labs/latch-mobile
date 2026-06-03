@@ -56,9 +56,10 @@ const SetRecoveryPassword = () => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const { mode, recoveryToken } = useLocalSearchParams<{
+  const { mode, recoveryToken, flow } = useLocalSearchParams<{
     mode?: string;
     recoveryToken?: string;
+    flow?: string;
   }>();
 
   const isEnter = mode === 'enter';
@@ -81,7 +82,13 @@ const SetRecoveryPassword = () => {
         router.replace({ pathname: '/(onboarding)/set-pin', params: { from: 'recovery' } });
       } else {
         await SecureStore.setItemAsync(SECURE_KEYS.RECOVERY_PASSWORD_SESSION, values.password);
-        router.replace('/(onboarding)/deploy-account');
+        // Both flows deploy the creator's personal account first via deploy-account.
+        // For the shared flow we carry `flow` through so deploy-account continues
+        // into the multisig build screens (create-shared) instead of the dashboard.
+        router.replace({
+          pathname: '/(onboarding)/deploy-account',
+          params: flow === 'shared' ? { flow: 'shared' } : undefined,
+        });
       }
     } catch (err: any) {
       const msg = err?.message ?? 'Something went wrong. Please try again.';
@@ -211,7 +218,7 @@ const SetRecoveryPassword = () => {
                       secureTextEntry
                       autoCapitalize="none"
                       autoCorrect={false}
-                      returnKeyType="done"
+                      // returnKeyType="done"
                       onSubmitEditing={() => submit()}
                       style={[styles.input, { color: theme.colors.textPrimary }]}
                     />

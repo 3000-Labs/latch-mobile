@@ -46,7 +46,7 @@ const CollectEmail = () => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const { mode } = useLocalSearchParams<{ mode?: string }>();
+  const { mode, flow } = useLocalSearchParams<{ mode?: string; flow?: string }>();
   const isRecovery = mode === 'recovery';
 
   const [phase, setPhase] = useState<Phase>('email');
@@ -122,7 +122,7 @@ const CollectEmail = () => {
         // encrypt the backup before it is uploaded in deploy-account.
         router.replace({
           pathname: '/(onboarding)/set-recovery-password',
-          params: { mode: 'set' },
+          params: { mode: 'set', flow },
         });
       }
     } catch (err: any) {
@@ -278,7 +278,7 @@ const CollectEmail = () => {
               placeholderTextColor={theme.colors.textSecondary}
               keyboardType="number-pad"
               maxLength={6}
-              returnKeyType="done"
+              // returnKeyType="done"
               onSubmitEditing={handleVerify}
               style={[styles.input, { color: theme.colors.textPrimary, letterSpacing: 8 }]}
             />
@@ -340,7 +340,7 @@ const CollectEmail = () => {
         {/* Resend */}
 
         {/* Skip (register mode only) */}
-        {/* {phase === 'email' && !isRecovery && (
+        {phase === 'email' && !isRecovery && (
           <Box alignItems="center" mt="l">
             <TouchableOpacity
               onPress={() => router.replace('/(onboarding)/deploy-account')}
@@ -352,7 +352,7 @@ const CollectEmail = () => {
               </Text>
             </TouchableOpacity>
           </Box>
-        )} */}
+        )}
       </KeyboardAvoidingView>
       <LoadingBlur visible={isLoading} text="Submitting..." />
     </Box>
