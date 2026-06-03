@@ -18,7 +18,6 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
-import Svg, { Ellipse } from 'react-native-svg';
 
 // expo-image renders with SDWebImage/Glide — keeps glyph quality crisp under
 // scale + rotate transforms vs. RN's stock Image which sampling-artifacts.
@@ -136,9 +135,9 @@ const SplashAnimation = () => {
       }
 
       // No deployed wallet yet — show onboarding.
-      // router.replace('/onboarding');
+      router.replace('/onboarding');
     } catch {
-      // router.replace('/onboarding');
+      router.replace('/onboarding');
     }
   }, [router]);
 
@@ -168,7 +167,8 @@ const SplashAnimation = () => {
     const runAnimation = () => {
       // INITIAL_DELAY lets the first frame paint before anything moves — without
       // it the ellipse "open" plays during mount and isn't visible to the user.
-      const INITIAL_DELAY = 500;
+      const INITIAL_DELAY = 0;
+      // const INITIAL_DELAY = 500;
 
       // Phase timing (absolute ms from start, including INITIAL_DELAY):
       //   Slot opens:     500  → 980
@@ -338,7 +338,7 @@ const SplashAnimation = () => {
       <Box position="absolute" left={0} right={0} alignItems="center" style={{ top: STAGE_TOP_Y }}>
         <Box width={STAGE_W} height={STAGE_H}>
           {/* Decorative slot the letters rise out of — true ellipse via SVG */}
-          <Animated.View
+          {/* <Animated.View
             style={[
               {
                 position: 'absolute',
@@ -359,7 +359,7 @@ const SplashAnimation = () => {
                 fill={SLOT_FILL}
               />
             </Svg>
-          </Animated.View>
+          </Animated.View> */}
 
           {/* Clip region: its bottom edge is the slot line, so anything below is hidden */}
           <Box width={STAGE_W} height={CLIP_H} overflow="hidden">

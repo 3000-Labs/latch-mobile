@@ -9,7 +9,11 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "update:preview": "eas update --branch preview",
+    "update:production": "eas update --branch production",
+    "update:rollback:production": "eas update:rollback --branch production",
+    "update:list": "eas update:list"
   },
   "dependencies": {
     "@eva-design/eva": "^2.2.0",
