@@ -1,6 +1,7 @@
 import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import HistoryItem from '@/src/components/history/HistoryItem';
 import FundWalletSheet from '@/src/components/home/FundWalletSheet';
+import PendingApprovalBanner from '@/src/components/home/PendingApprovalBanner';
 import Box from '@/src/components/shared/Box';
 import LoadingBlur from '@/src/components/shared/LoadingBlur';
 import Text from '@/src/components/shared/Text';
@@ -20,6 +21,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
 import { useQuery } from '@tanstack/react-query';
 import { ImageBackground } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { memo, useMemo, useState } from 'react';
@@ -29,6 +31,7 @@ import {
   Image,
   RefreshControl,
   ScrollView,
+  StyleSheet,
   TouchableOpacity,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -207,9 +210,15 @@ const Home = () => {
   };
 
   return (
-    <Box flex={1} backgroundColor="mainBackground">
+    <Box flex={1} backgroundColor="onboardingbg">
+      <LinearGradient
+        colors={[theme.colors.gradientLight, theme.colors.gradientDark]}
+        locations={[0, 0.2772]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 0.9 }}
+        style={StyleSheet.absoluteFill}
+      />
       <StatusBar style={statusBarStyle} />
-
       {/* Header */}
       <Box
         flexDirection="row"
@@ -283,6 +292,8 @@ const Home = () => {
         }
         contentContainerStyle={{ paddingBottom: 120 }}
       >
+        <PendingApprovalBanner />
+
         {/* Balance Section */}
         <Box alignItems="center" pb="xl" position="relative" mt="xl">
           {!isDark && <RaysBackground />}

@@ -32,6 +32,8 @@ import {
 import { Buffer } from 'buffer';
 import * as SecureStore from 'expo-secure-store';
 import QuickCrypto from 'react-native-quick-crypto';
+
+import { encodeAccountInitParams } from '@/src/lib/account-signers';
 import { SECURE_KEYS } from '../store/wallet';
 
 // ─── Config ──────────────────────────────────────────────────────────────────
@@ -109,33 +111,10 @@ function deriveSalt(keyDataHex: string): Buffer {
 // ─── AccountInitParams XDR ────────────────────────────────────────────────────
 
 function buildParamsMap(keyDataHex: string, salt: Buffer): xdr.ScVal {
-  const signerStruct = xdr.ScVal.scvMap([
-    new xdr.ScMapEntry({
-      key: xdr.ScVal.scvSymbol('key_data'),
-      val: xdr.ScVal.scvBytes(Buffer.from(keyDataHex, 'hex')),
-    }),
-    new xdr.ScMapEntry({
-      key: xdr.ScVal.scvSymbol('signer_kind'),
-      val: xdr.ScVal.scvVec([xdr.ScVal.scvSymbol('WebAuthn')]),
-    }),
-  ]);
-
-  const externalSigner = xdr.ScVal.scvVec([xdr.ScVal.scvSymbol('External'), signerStruct]);
-
-  return xdr.ScVal.scvMap([
-    new xdr.ScMapEntry({
-      key: xdr.ScVal.scvSymbol('account_salt'),
-      val: xdr.ScVal.scvBytes(salt),
-    }),
-    new xdr.ScMapEntry({
-      key: xdr.ScVal.scvSymbol('signers'),
-      val: xdr.ScVal.scvVec([externalSigner]),
-    }),
-    new xdr.ScMapEntry({
-      key: xdr.ScVal.scvSymbol('threshold'),
-      val: xdr.ScVal.scvVoid(),
-    }),
-  ]);
+  return encodeAccountInitParams({
+    signers: [{ kind: 'webauthn', keyDataHex }],
+    salt,
+  });
 }
 
 // ─── Sim result adapter ───────────────────────────────────────────────────────

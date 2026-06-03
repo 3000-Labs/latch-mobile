@@ -23,6 +23,7 @@ import { restoreStellarWallet } from '@/src/lib/seed-wallet';
 import { SECURE_KEYS, useWalletStore, type WalletAccount } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
 import { useTheme } from '@shopify/restyle';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
@@ -279,6 +280,13 @@ const DeployAccount = () => {
 
   return (
     <Box flex={1} backgroundColor="mainBackground" justifyContent="center" alignItems="center">
+      <LinearGradient
+        colors={[theme.colors.gradientLight, theme.colors.gradientDark]}
+        locations={[0, 0.2772]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 0.9 }}
+        style={StyleSheet.absoluteFill}
+      />
       <StatusBar style={statusBarStyle} />
 
       <Box alignItems="center" paddingHorizontal="xl" gap="xl">

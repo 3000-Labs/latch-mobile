@@ -11,11 +11,11 @@ const MascotSection: React.FC<MascotSectionProps> = ({ success }) => {
       <Image
         source={
           success
-            ? require('@/src/assets/images/success.png')
-            : require('@/src/assets/images/error.png')
+            ? require('@/src/assets/images/success-sig.png')
+            : require('@/src/assets/images/error-sig.png')
         }
         style={styles.image}
-        resizeMode="contain"
+        // resizeMode="contain"
       />
     </View>
   );
@@ -27,8 +27,8 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   image: {
-    width: 240,
-    height: 240,
+    width: 284,
+    height: 256,
   },
 });
 

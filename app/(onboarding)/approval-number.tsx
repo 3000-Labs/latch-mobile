@@ -8,10 +8,16 @@ import ContinueButton from '@/src/components/approval-number/ContinueButton';
 import Header from '@/src/components/approval-number/Header';
 import TitleSection from '@/src/components/approval-number/TitleSection';
 import Box from '@/src/components/shared/Box';
+import { Theme } from '@/src/theme/theme';
+import { useTheme } from '@shopify/restyle';
+import { LinearGradient } from 'expo-linear-gradient';
+import { StyleSheet } from 'react-native';
 
 const ApprovalNumber = () => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const theme = useTheme<Theme>();
+
   const params = useLocalSearchParams<{
     walletName: string;
     purpose: string;
@@ -36,7 +42,14 @@ const ApprovalNumber = () => {
   };
 
   return (
-    <Box flex={1} backgroundColor="mainBackground">
+    <Box flex={1} backgroundColor="onboardingbg">
+      <LinearGradient
+        colors={[theme.colors.gradientLight, theme.colors.gradientDark]}
+        locations={[0, 0.2772]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 0.9 }}
+        style={StyleSheet.absoluteFill}
+      />
       <StatusBar style="light" />
 
       <Header />

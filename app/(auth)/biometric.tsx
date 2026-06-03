@@ -2,17 +2,18 @@ import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import Box from '@/src/components/shared/Box';
 import Button from '@/src/components/shared/Button';
 import Text from '@/src/components/shared/Text';
+import { fetchPendingCosignOnce } from '@/src/hooks/use-pending-cosign-requests';
 import { createPasskeyCredential, storePasskeyCredential } from '@/src/lib/passkey-webauthn';
 import { SECURE_KEYS } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '@shopify/restyle';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { StatusBar } from 'expo-status-bar';
-import QuickCrypto from 'react-native-quick-crypto';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
@@ -25,6 +26,7 @@ import {
   Vibration,
   View,
 } from 'react-native';
+import QuickCrypto from 'react-native-quick-crypto';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function hashPin(pin: string): string {
@@ -116,7 +118,23 @@ const Biometrics = () => {
 
   // ─── Unlock helpers ───────────────────────────────────────────────────────
 
-  const unlockSuccess = useCallback(() => {
+  const unlockSuccess = useCallback(async () => {
+    // Cold-open routing: if the active smart account has any pending
+    // cosign requests waiting on this device, surface them immediately
+    // instead of landing on the home tab. The banner on (tabs)/index.tsx
+    // covers the warm-foreground case.
+    try {
+      const smart = await SecureStore.getItemAsync(SECURE_KEYS.SMART_ACCOUNT);
+      if (smart) {
+        const pending = await fetchPendingCosignOnce(smart);
+        if (pending.length > 0) {
+          router.replace('/pending-approval');
+          return;
+        }
+      }
+    } catch {
+      // Network blip — fall through to the normal landing.
+    }
     router.replace('/(tabs)');
   }, [router]);
 
@@ -240,16 +258,12 @@ const Biometrics = () => {
         await storePasskeyCredential(credential, false);
       }
       router.replace(
-        from
-          ? { pathname: '/(onboarding)/set-pin', params: { from } }
-          : '/(onboarding)/set-pin',
+        from ? { pathname: '/(onboarding)/set-pin', params: { from } } : '/(onboarding)/set-pin',
       );
     } catch {
-      Alert.alert(
-        'Setup Failed',
-        'Could not save your secure credential. Please try again.',
-        [{ text: 'OK' }],
-      );
+      Alert.alert('Setup Failed', 'Could not save your secure credential. Please try again.', [
+        { text: 'OK' },
+      ]);
     } finally {
       setIsProcessing(false);
     }
@@ -295,16 +309,12 @@ const Biometrics = () => {
       // Navigate to PIN setup so biometric users have a PIN as emergency fallback.
       // set-pin will forward to deploy-account once the PIN is confirmed.
       router.replace(
-        from
-          ? { pathname: '/(onboarding)/set-pin', params: { from } }
-          : '/(onboarding)/set-pin',
+        from ? { pathname: '/(onboarding)/set-pin', params: { from } } : '/(onboarding)/set-pin',
       );
     } catch {
-      Alert.alert(
-        'Setup Failed',
-        'Could not save your biometric credential. Please try again.',
-        [{ text: 'OK' }],
-      );
+      Alert.alert('Setup Failed', 'Could not save your biometric credential. Please try again.', [
+        { text: 'OK' },
+      ]);
     } finally {
       setIsProcessing(false);
     }
@@ -314,7 +324,14 @@ const Biometrics = () => {
 
   if (isUnlockMode) {
     return (
-      <Box flex={1} backgroundColor="mainBackground">
+      <Box flex={1} backgroundColor="onboardingbg">
+        <LinearGradient
+          colors={['rgba(50, 60, 14, 0.74)', '#121212']}
+          locations={[0, 0.2772]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 0.91 }}
+          style={StyleSheet.absoluteFill}
+        />
         <StatusBar style={statusBarStyle} />
         <View style={{ flex: 1 }}>
           {/* Header */}
@@ -496,10 +513,17 @@ const Biometrics = () => {
   return (
     <Box
       flex={1}
-      backgroundColor="mainBackground"
+      backgroundColor="onboardingbg"
       paddingHorizontal="m"
       style={{ paddingTop: insets.top }}
     >
+      <LinearGradient
+        colors={['rgba(50, 60, 14, 0.74)', '#121212']}
+        locations={[0, 0.2772]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 0.9 }}
+        style={StyleSheet.absoluteFill}
+      />
       <StatusBar style={statusBarStyle} />
 
       {/* Header */}
@@ -563,10 +587,13 @@ const Biometrics = () => {
         />
         <Button
           label="Maybe Later"
-          variant="outline"
           onPress={proceedToPin}
-          mt="m"
-          borderColor={statusBarStyle === 'light' ? 'textWhite' : 'textDark900'}
+          mt="s"
+          bg={'btnDisabled'}
+          shadowOffset={{ width: 0, height: 4 }}
+          shadowColor="primary500"
+          shadowRadius={15}
+          shadowOpacity={0.12}
           labelColor={statusBarStyle === 'light' ? 'textWhite' : 'black'}
           disabled={isProcessing}
         />
@@ -597,8 +624,8 @@ const Biometrics = () => {
             <Text variant="h8" color="text200" fontSize={24} mt="l">
               Do you want to allow &quot;Latch&quot; to use {biometricLabel}?
             </Text>
-            <Text variant="p5" color="text200" mt="m">
-              Allow Latch to access your {biometricLabel} data.
+            <Text variant="p5" color="textTertiary" mt="xs">
+              Allow Latch to access your {biometricLabel} biometric data..
             </Text>
             <Box flexDirection="row" gap="m" mt="xl" width="100%">
               <Button

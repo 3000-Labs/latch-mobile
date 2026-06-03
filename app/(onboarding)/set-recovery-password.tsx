@@ -10,6 +10,7 @@
  *   navigates to set-pin so the user can set a new PIN.
  */
 
+import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import { fetchAndRestoreBackup } from '@/src/api/latch-auth';
 import Box from '@/src/components/shared/Box';
 import Button from '@/src/components/shared/Button';
@@ -17,8 +18,9 @@ import Text from '@/src/components/shared/Text';
 import { SECURE_KEYS } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '@shopify/restyle';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTheme } from '@shopify/restyle';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { StatusBar } from 'expo-status-bar';
@@ -35,7 +37,6 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Yup from 'yup';
-import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 
 const setSchema = Yup.object({
   password: Yup.string().min(8, 'Must be at least 8 characters').required('Required'),
@@ -86,7 +87,9 @@ const SetRecoveryPassword = () => {
       const msg = err?.message ?? 'Something went wrong. Please try again.';
       setFieldError(
         'password',
-        msg.includes('Incorrect') || msg.includes('password') ? msg : 'Something went wrong. Please try again.',
+        msg.includes('Incorrect') || msg.includes('password')
+          ? msg
+          : 'Something went wrong. Please try again.',
       );
     } finally {
       setSubmitting(false);
@@ -100,10 +103,17 @@ const SetRecoveryPassword = () => {
     >
       <Box
         flex={1}
-        backgroundColor="mainBackground"
+        backgroundColor="onboardingbg"
         paddingHorizontal="m"
         style={{ paddingTop: insets.top }}
       >
+        <LinearGradient
+          colors={[theme.colors.gradientLight, theme.colors.gradientDark]}
+          locations={[0, 0.2772]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 0.9 }}
+          style={StyleSheet.absoluteFill}
+        />
         <StatusBar style={statusBarStyle} />
 
         {/* Header */}
@@ -140,7 +150,15 @@ const SetRecoveryPassword = () => {
           validationSchema={schema}
           onSubmit={handleSubmit}
         >
-          {({ handleChange, handleBlur, handleSubmit: submit, values, errors, touched, isSubmitting }) => (
+          {({
+            handleChange,
+            handleBlur,
+            handleSubmit: submit,
+            values,
+            errors,
+            touched,
+            isSubmitting,
+          }) => (
             <Box>
               {/* Password field */}
               <Box

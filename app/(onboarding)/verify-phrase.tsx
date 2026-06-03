@@ -6,13 +6,22 @@ import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Dimensions, Image, ScrollView, TouchableOpacity, Vibration, View } from 'react-native';
+import {
+  Dimensions,
+  Image,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  Vibration,
+  View,
+} from 'react-native';
 
 import Box from '@/src/components/shared/Box';
 import Button from '@/src/components/shared/Button';
 import LoadingBlur from '@/src/components/shared/LoadingBlur';
 import Text from '@/src/components/shared/Text';
 import { Theme } from '@/src/theme/theme';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const { width } = Dimensions.get('window');
 
@@ -92,7 +101,14 @@ const VerifyPhrase = () => {
   const itemWidth = (width - theme.spacing.m * 2 - theme.spacing.m * 2) / 3;
 
   return (
-    <Box flex={1} backgroundColor="mainBackground">
+    <Box flex={1} backgroundColor="onboardingbg">
+      <LinearGradient
+        colors={[theme.colors.gradientLight, theme.colors.gradientDark]}
+        locations={[0, 0.2772]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 0.9 }}
+        style={StyleSheet.absoluteFill}
+      />
       <StatusBar style={statusBarStyle} />
       <View style={{ flex: 1 }}>
         <ScrollView

@@ -8,7 +8,7 @@
  * which Axios bypasses.
  */
 
-const API_ROOT = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
+const API_ROOT = process.env.EXPO_PUBLIC_WALLET_BACKEND_URL ?? '';
 const GRAPHQL_URL = `${API_ROOT}/graphql/query`;
 
 interface GraphQLResponse<T> {
@@ -261,7 +261,14 @@ export function fetchAccountTransactions(
   after: string | undefined,
   accessToken: string,
 ): Promise<Connection<Transaction>> {
-  return paginate<Transaction>(ACCOUNT_TRANSACTIONS, 'transactions', address, first, after, accessToken);
+  return paginate<Transaction>(
+    ACCOUNT_TRANSACTIONS,
+    'transactions',
+    address,
+    first,
+    after,
+    accessToken,
+  );
 }
 
 export function fetchAccountOperations(
@@ -279,7 +286,14 @@ export function fetchAccountStateChanges(
   after: string | undefined,
   accessToken: string,
 ): Promise<Connection<StateChange>> {
-  return paginate<StateChange>(ACCOUNT_STATE_CHANGES, 'stateChanges', address, first, after, accessToken);
+  return paginate<StateChange>(
+    ACCOUNT_STATE_CHANGES,
+    'stateChanges',
+    address,
+    first,
+    after,
+    accessToken,
+  );
 }
 
 // ─── Balances ────────────────────────────────────────────────────────────────

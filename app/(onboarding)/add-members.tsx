@@ -13,10 +13,16 @@ import RemoveMemberSheet from '@/src/components/add-members/RemoveMemberSheet';
 import ScanQRSheet from '@/src/components/add-members/ScanQRSheet';
 import TitleSection from '@/src/components/add-members/TitleSection';
 import Box from '@/src/components/shared/Box';
+import { Theme } from '@/src/theme/theme';
+import { useTheme } from '@shopify/restyle';
+import { LinearGradient } from 'expo-linear-gradient';
+import { StyleSheet } from 'react-native';
 
 const AddMembers = () => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const theme = useTheme<Theme>();
+
   const params = useLocalSearchParams<{ walletName: string; purpose: string }>();
   const [members, setMembers] = useState<Member[]>([]);
   const [sheetVisible, setSheetVisible] = useState(false);
@@ -24,10 +30,7 @@ const AddMembers = () => {
   const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null);
 
   const addMember = (name: string, value: string, status: 'pending' | 'added') => {
-    setMembers((prev) => [
-      ...prev,
-      { id: `${Date.now()}-${prev.length}`, name, value, status },
-    ]);
+    setMembers((prev) => [...prev, { id: `${Date.now()}-${prev.length}`, name, value, status }]);
   };
 
   const confirmRemove = () => {
@@ -51,6 +54,13 @@ const AddMembers = () => {
 
   return (
     <Box flex={1} backgroundColor="mainBackground">
+      <LinearGradient
+        colors={[theme.colors.gradientLight, theme.colors.gradientDark]}
+        locations={[0, 0.2772]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 0.9 }}
+        style={StyleSheet.absoluteFill}
+      />
       <StatusBar style="light" />
 
       <Header />

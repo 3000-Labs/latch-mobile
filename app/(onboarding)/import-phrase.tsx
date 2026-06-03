@@ -26,6 +26,7 @@ import Button from '@/src/components/shared/Button';
 import LoadingBlur from '@/src/components/shared/LoadingBlur';
 import Text from '@/src/components/shared/Text';
 import { Theme } from '@/src/theme/theme';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const { width } = Dimensions.get('window');
 
@@ -114,7 +115,14 @@ const ImportPhrase = () => {
   };
 
   return (
-    <Box flex={1} backgroundColor="mainBackground">
+    <Box flex={1} backgroundColor="onboardingbg">
+      <LinearGradient
+        colors={['rgba(50, 60, 14, 0.74)', '#121212']}
+        locations={[0, 0.2772]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 0.91 }}
+        style={StyleSheet.absoluteFill}
+      />
       <StatusBar style={statusBarStyle} />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -125,7 +133,9 @@ const ImportPhrase = () => {
           bounces={false}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-          ref={(r) => { scrollRef.current = r; }}
+          ref={(r) => {
+            scrollRef.current = r;
+          }}
           contentContainerStyle={{
             paddingHorizontal: theme.spacing.m,
             paddingBottom: 40,
@@ -167,13 +177,9 @@ const ImportPhrase = () => {
                     {
                       width: itemWidth,
                       backgroundColor:
-                        statusBarStyle !== 'light'
-                          ? theme.colors.text50
-                          : theme.colors.gray900,
+                        statusBarStyle !== 'light' ? theme.colors.text50 : theme.colors.gray900,
                       borderRadius: 12,
-                      borderColor: error
-                        ? theme.colors.danger900
-                        : theme.colors.gray800,
+                      borderColor: error ? theme.colors.danger900 : theme.colors.gray800,
                     },
                   ]}
                 >
@@ -186,7 +192,9 @@ const ImportPhrase = () => {
                     {index + 1}
                   </Text>
                   <TextInput
-                    ref={(el) => { inputsRef.current[index] = el; }}
+                    ref={(el) => {
+                      inputsRef.current[index] = el;
+                    }}
                     value={word}
                     onChangeText={(t) => handleChange(t, index)}
                     onFocus={() => handleFocus(index)}

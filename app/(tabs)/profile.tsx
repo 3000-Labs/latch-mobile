@@ -1,8 +1,8 @@
 import AccountSwitcherSheet from '@/src/components/account/AccountSwitcherSheet';
 import AboutSheet from '@/src/components/profile/AboutSheet';
-import BackupSheet from '@/src/components/profile/BackupSheet';
 import AccountInfoSheet from '@/src/components/profile/AccountInfoSheet';
 import AddressBookSheet from '@/src/components/profile/AddressBookSheet';
+import BackupSheet from '@/src/components/profile/BackupSheet';
 import DrawerProfileHeader from '@/src/components/profile/DrawerProfileHeader';
 import HelpSupportSheet from '@/src/components/profile/HelpSupportSheet';
 import LogoutItem from '@/src/components/profile/LogoutItem';
@@ -18,17 +18,18 @@ import Box from '@/src/components/shared/Box';
 import Switch from '@/src/components/shared/Switch';
 import Text from '@/src/components/shared/Text';
 import { useDrawer } from '@/src/context/drawer-context';
-import { useAppTheme } from '@/src/theme/ThemeContext';
 import { useWalletStore } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
+import { useAppTheme } from '@/src/theme/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '@shopify/restyle';
 import * as Clipboard from 'expo-clipboard';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useState } from 'react';
-import { ScrollView, TouchableOpacity } from 'react-native';
+import { ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BIOMETRIC_ENABLED_KEY } from '../(auth)/biometric';
 
@@ -40,7 +41,7 @@ const Profile = () => {
   const { closeDrawer } = useDrawer();
   const { isDark, toggleTheme } = useAppTheme();
   const [accountInfoVisible, setAccountInfoVisible] = useState(false);
-  const [biometricsEnabled, setBiometricsEnabled] = useState(false);
+  // const [biometricsEnabled, setBiometricsEnabled] = useState(false);
   const [switcherVisible, setSwitcherVisible] = useState(false);
   const [recoveryVisible, setRecoveryVisible] = useState(false);
   const [signersVisible, setSignersVisible] = useState(false);
@@ -67,6 +68,13 @@ const Profile = () => {
 
   return (
     <Box flex={1} backgroundColor="cardbg" style={{ paddingTop: insets.top }}>
+      <LinearGradient
+        colors={[theme.colors.gradientLight, theme.colors.gradientDark]}
+        locations={[0, 0.2772]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
       <StatusBar style="light" />
 
       <ScrollView
@@ -80,7 +88,7 @@ const Profile = () => {
         </Box>
 
         <DrawerProfileHeader
-          name={activeAccount?.name || 'Crownz'}
+          name={activeAccount?.name || ''}
           address={activeAccount?.smartAccountAddress || activeAccount?.gAddress || ''}
           image={activeAccount ? (avatars[activeAccount.publicKeyHex] ?? null) : null}
           onCopyAddress={async () => {
@@ -96,7 +104,12 @@ const Profile = () => {
           visible={accountInfoVisible}
           onClose={() => setAccountInfoVisible(false)}
         />
-        {!isPasskeyAccount && <RecoveryPhraseSheet visible={recoveryVisible} onClose={() => setRecoveryVisible(false)} />}
+        {!isPasskeyAccount && (
+          <RecoveryPhraseSheet
+            visible={recoveryVisible}
+            onClose={() => setRecoveryVisible(false)}
+          />
+        )}
         <SignersSheet visible={signersVisible} onClose={() => setSignersVisible(false)} />
         <PermissionsSheet
           visible={permissionsVisible}
@@ -162,14 +175,14 @@ const Profile = () => {
             <Text variant="p7" color="textSecondary" mb="m" style={{ marginLeft: 4 }}>
               Security
             </Text>
-            <SettingItem
+            {/* <SettingItem
               icon="finger-print-outline"
               label="Biometrics Authentication"
               showChevron={false}
               rightElement={
                 <Switch value={biometricsEnabled} onValueChange={setBiometricsEnabled} />
               }
-            />
+            /> */}
             <SettingItem
               icon="cloud-upload-outline"
               label="Wallet Backup"
@@ -198,9 +211,7 @@ const Profile = () => {
               icon={isDark ? 'moon-outline' : 'sunny-outline'}
               label="Dark Mode"
               showChevron={false}
-              rightElement={
-                <Switch value={isDark} onValueChange={toggleTheme} />
-              }
+              rightElement={<Switch value={isDark} onValueChange={toggleTheme} />}
             />
             <SettingItem
               icon="globe-outline"

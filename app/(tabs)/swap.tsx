@@ -7,6 +7,7 @@ import { Theme } from '@/src/theme/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFormik } from 'formik';
@@ -80,7 +81,14 @@ const Swap = () => {
   };
 
   return (
-    <Box flex={1} backgroundColor="mainBackground" style={{ paddingTop: insets.top }}>
+    <Box flex={1} backgroundColor="onboardingbg" style={{ paddingTop: insets.top }}>
+      <LinearGradient
+        colors={[theme.colors.gradientLight, theme.colors.gradientDark]}
+        locations={[0, 0.2772]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 0.9 }}
+        style={StyleSheet.absoluteFill}
+      />
       <StatusBar style={isDark ? 'light' : 'dark'} />
 
       {/* Header */}

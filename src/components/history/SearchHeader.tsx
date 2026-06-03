@@ -22,7 +22,7 @@ const SearchHeader = ({
   setActiveFilter: (f: string) => void;
   theme: Theme;
 }) => (
-  <Box paddingHorizontal="m" mt="s" backgroundColor="mainBackground">
+  <Box paddingHorizontal="m" mt="s">
     <Box flexDirection="row" alignItems="center" mb="m">
       <Box flex={1}>
         <Input

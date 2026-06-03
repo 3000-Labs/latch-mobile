@@ -76,10 +76,10 @@ export default {
           image: './assets/images/splash-icon-light.png',
           imageWidth: 159.5,
           resizeMode: 'contain',
-          backgroundColor: '#ffffff',
+          backgroundColor: '#121212',
           dark: {
             image: './assets/images/splash-icon-dark.png',
-            backgroundColor: '#000000',
+            backgroundColor: '#121212',
           },
         },
       ],

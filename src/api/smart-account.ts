@@ -35,6 +35,9 @@ import {
 } from '@stellar/stellar-sdk';
 import QuickCrypto from 'react-native-quick-crypto';
 
+import { AccountSigner, encodeAccountInitParams } from '@/src/lib/account-signers';
+import { deriveMultisigSalt, sortSignersCanonical } from '@/src/lib/multisig-address';
+
 // ─── XHR-based JSON-RPC ───────────────────────────────────────────────────────
 // The stellar SDK uses Axios internally, which fails with "Network Error" on
 // Android because the bundled Axios doesn't go through the platform TLS stack.
@@ -147,39 +150,29 @@ async function deriveSalt(input: string): Promise<Buffer> {
   return Buffer.from(saltHex, 'hex');
 }
 
-// Shared: builds the AccountInitParams ScVal map
+// Builds the AccountInitParams ScVal map for a single-Ed25519-signer deploy
+// (the historical default for mobile seed wallets). Multi-signer deploys go
+// through encodeAccountInitParams directly.
 function buildParamsMap(publicKeyHex: string, salt: Buffer): xdr.ScVal {
-  // ExternalSignerInit struct — fields must be in alphabetical key order (Soroban map encoding)
-  const externalSignerInit = xdr.ScVal.scvMap([
-    new xdr.ScMapEntry({
-      key: xdr.ScVal.scvSymbol('key_data'),
-      val: xdr.ScVal.scvBytes(Buffer.from(publicKeyHex, 'hex')),
-    }),
-    new xdr.ScMapEntry({
-      key: xdr.ScVal.scvSymbol('signer_kind'),
-      // SignerKind::Ed25519 — unit enum variant: Vec([Symbol("Ed25519")])
-      val: xdr.ScVal.scvVec([xdr.ScVal.scvSymbol('Ed25519')]),
-    }),
-  ]);
+  return encodeAccountInitParams({
+    signers: [{ kind: 'ed25519', publicKeyHex }],
+    salt,
+  });
+}
 
-  // AccountSignerInit::External(ExternalSignerInit) — tuple enum variant: Vec([Symbol("External"), payload])
-  const accountSigner = xdr.ScVal.scvVec([xdr.ScVal.scvSymbol('External'), externalSignerInit]);
-
-  // AccountInitParams struct — fields in alphabetical key order
-  return xdr.ScVal.scvMap([
-    new xdr.ScMapEntry({
-      key: xdr.ScVal.scvSymbol('account_salt'),
-      val: xdr.ScVal.scvBytes(salt),
-    }),
-    new xdr.ScMapEntry({
-      key: xdr.ScVal.scvSymbol('signers'),
-      val: xdr.ScVal.scvVec([accountSigner]),
-    }),
-    new xdr.ScMapEntry({
-      key: xdr.ScVal.scvSymbol('threshold'),
-      val: xdr.ScVal.scvVoid(),
-    }),
-  ]);
+/**
+ * Build AccountInitParams for an arbitrary signer set. Caller is responsible
+ * for picking a salt that uniquely identifies the account (the factory uses
+ * salt + signer set to derive the deterministic C-address). Exposed for
+ * future multi-signer deploys; existing single-signer paths continue to use
+ * `buildParamsMap`.
+ */
+export function buildMultiSignerParamsMap(
+  signers: AccountSigner[],
+  threshold: number | undefined,
+  salt: Buffer,
+): xdr.ScVal {
+  return encodeAccountInitParams({ signers, threshold, salt });
 }
 
 function deriveGAddressFromPubkey(pubkeyHex: string): string {
@@ -561,4 +554,145 @@ export async function lookupSmartAccountByGAddress(gAddress: string): Promise<Lo
     console.error('Freighter account lookup error:', error);
     return { deployed: false, smartAccountAddress: '' };
   }
+}
+
+// ─── Multi-signer (at-deploy multisig) path ──────────────────────────────────
+
+export interface MultiSigDeployResult extends DeployResult {
+  /** The N signers actually deployed, sorted canonically. */
+  signers: AccountSigner[];
+  /** Threshold the rule was deployed with. */
+  threshold: number;
+}
+
+/**
+ * Deploy a smart account with N≥2 signers + a chosen threshold in a
+ * single factory call. The salt is derived deterministically from the
+ * (signer set, threshold) pair so every participating device can
+ * predict the resulting C-address without coordination.
+ *
+ * Used by the onboarding-time multisig flow — see Phase P3 in
+ * docs/multisig-build-plan.md.
+ *
+ * For incremental "upgrade single→multisig" use the existing
+ * `deploySmartAccount` + `account-admin.addContextRuleOp` path instead.
+ */
+export async function deployMultiSigSmartAccount(
+  signers: AccountSigner[],
+  threshold: number,
+): Promise<MultiSigDeployResult> {
+  if (signers.length < 2) {
+    throw new Error('deployMultiSigSmartAccount: requires ≥ 2 signers; use deploySmartAccount for single-signer');
+  }
+  if (threshold < 1 || threshold > signers.length) {
+    throw new Error(`deployMultiSigSmartAccount: threshold ${threshold} out of range for ${signers.length} signers`);
+  }
+
+  const config = getTestnetConfig();
+  if (!config.bundlerSecret) {
+    throw new Error('EXPO_PUBLIC_BUNDLER_SECRET is required.');
+  }
+  if (!config.factoryAddress) {
+    throw new Error('Missing EXPO_PUBLIC_FACTORY_ADDRESS.');
+  }
+
+  const canonicalSigners = sortSignersCanonical(signers);
+  const salt = deriveMultisigSalt({ signers: canonicalSigners, threshold });
+  const paramsMap = encodeAccountInitParams({
+    signers: canonicalSigners,
+    threshold,
+    salt,
+  });
+
+  const bundlerKeypair = Keypair.fromSecret(config.bundlerSecret);
+  const contract = new Contract(config.factoryAddress);
+  const bundlerAccount = await getAccountFromHorizon(bundlerKeypair.publicKey());
+
+  const deployTx = new TransactionBuilder(bundlerAccount, {
+    fee: '2000000',
+    networkPassphrase: config.networkPassphrase,
+  })
+    .addOperation(contract.call('create_account', paramsMap))
+    .setTimeout(300)
+    .build();
+
+  const rawSim = await sorobanCall(config.rpcUrl, 'simulateTransaction', {
+    transaction: txToBase64(deployTx),
+  });
+  if (rawSim.error) throw new Error(`multisig deploy simulation failed: ${rawSim.error}`);
+
+  let predicted = '';
+  try {
+    predicted = scValToNative(
+      xdr.ScVal.fromXDR(rawSim.results?.[0]?.retval || 'AAAAAA==', 'base64'),
+    );
+  } catch {
+    /* best-effort; final address comes from settled tx */
+  }
+
+  const assembled = rpc.assembleTransaction(deployTx, parseSimResult(rawSim)).build();
+  assembled.sign(bundlerKeypair);
+
+  const sendRaw = await sorobanCall(config.rpcUrl, 'sendTransaction', {
+    transaction: txToBase64(assembled),
+  });
+  if (sendRaw.status === 'ERROR') {
+    throw new Error(
+      `multisig deploy send failed: ${sendRaw.errorResultXdr ?? JSON.stringify(sendRaw)}`,
+    );
+  }
+
+  const txHash: string = sendRaw.hash;
+  let finalStatus: string | undefined;
+  let returnMeta: string | undefined;
+  for (let i = 0; i < 30; i++) {
+    await new Promise((r) => setTimeout(r, 1000));
+    const poll = await sorobanCall(config.rpcUrl, 'getTransaction', { hash: txHash });
+    finalStatus = poll.status;
+    if (poll.status !== 'NOT_FOUND') {
+      returnMeta = poll.resultMetaXdr;
+      break;
+    }
+  }
+  if (finalStatus !== 'SUCCESS') {
+    throw new Error(`multisig deploy status: ${finalStatus}`);
+  }
+
+  const smartAccountAddress = (returnMeta && extractAddressFromMeta(returnMeta)) || predicted;
+  if (!smartAccountAddress) {
+    throw new Error('multisig deploy succeeded but could not read account address');
+  }
+
+  return {
+    smartAccountAddress,
+    alreadyDeployed: false,
+    factoryAddress: config.factoryAddress,
+    signers: canonicalSigners,
+    threshold,
+  };
+}
+
+/**
+ * Predict the C-address a (signer set, threshold) pair would deploy to,
+ * without touching the chain except via the read-only factory simulation.
+ *
+ * Use this on the joiner side during onboarding so each joiner can
+ * monitor + interact with the smart account before the initiator deploys.
+ */
+export async function predictMultiSigAddress(
+  signers: AccountSigner[],
+  threshold: number,
+): Promise<string> {
+  if (signers.length < 1) throw new Error('predictMultiSigAddress: at least one signer required');
+  const config = getTestnetConfig();
+  if (!config.factoryAddress) throw new Error('Missing EXPO_PUBLIC_FACTORY_ADDRESS.');
+
+  const canonicalSigners = sortSignersCanonical(signers);
+  const salt = deriveMultisigSalt({ signers: canonicalSigners, threshold });
+  const paramsMap = encodeAccountInitParams({
+    signers: canonicalSigners,
+    threshold,
+    salt,
+  });
+  return predictAddress(config.rpcUrl, config.networkPassphrase, config.factoryAddress, paramsMap);
 }

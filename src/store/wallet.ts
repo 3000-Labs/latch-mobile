@@ -35,6 +35,38 @@ export const ASYNC_KEYS = {
 } as const;
 
 /**
+ * A device paired to a smart account. The first device is the one that
+ * deployed the account; subsequent devices are added via the pairing flow
+ * (Phase P2). Multi-device accounts use a split-policy: 1-of-N for normal
+ * ops, ⌈N/2⌉-of-N for admin ops — see docs/multisig-build-plan.md.
+ */
+export interface Device {
+  /**
+   * Canonical signer key used to identify this device in cosign requests
+   * and in the on-chain signer set. G-address for Ed25519 signers, hex
+   * public key for WebAuthn signers, contract/account address for
+   * delegated signers.
+   */
+  signerKey: string;
+  /** Human-readable label, e.g. "iPhone 15", "Pixel 8". */
+  label: string;
+  /** Which on-chain Signer variant this device is. */
+  kind: 'ed25519' | 'webauthn' | 'delegated';
+  /** Public key material for external signers (hex). Empty string for 'delegated'. */
+  keyDataHex: string;
+  /**
+   * Stable on-chain signer id assigned by `add_signer` / `batch_add_signer`.
+   * Needed for `remove_signer` calls. Null until the device's add_signer tx
+   * has been confirmed.
+   */
+  onChainSignerId: number | null;
+  /** True for the device that holds this signer's private key. */
+  isLocal: boolean;
+  /** ISO-8601 timestamp of when the device was paired. */
+  pairedAt: string;
+}
+
+/**
  * One wallet account derived from the user's seed phrase.
  * Passkey users always have exactly one entry (index -1, no mnemonic derivation).
  */
@@ -53,6 +85,17 @@ export interface WalletAccount {
   image: string | null;
   /** Passkey credential ID (hex). Present only on passkey accounts added after account 0. */
   credentialId?: string;
+  /**
+   * Paired devices on this account. Always has at least one entry once the
+   * smart account is deployed. Backfilled to [] for accounts deployed
+   * before the multisig migration.
+   */
+  devices?: Device[];
+  /**
+   * Context rule id for the admin (⌈N/2⌉-of-N) rule. Null until the second
+   * device is paired and the admin rule is installed.
+   */
+  adminRuleId?: number | null;
 }
 
 /**
@@ -136,6 +179,17 @@ interface WalletStore {
    * in both the in-memory list and SecureStore.
    */
   updateAccountSmartAddress: (bip44Index: number, smartAddress: string) => Promise<void>;
+
+  /**
+   * Replace the devices list and (optionally) the admin rule id for an
+   * account. Used after a pair flow completes to persist the new device
+   * set + freshly installed admin rule.
+   */
+  updateAccountDevices: (
+    bip44Index: number,
+    devices: Device[],
+    adminRuleId?: number | null,
+  ) => Promise<void>;
 
   /**
    * Restore wallet + accounts from SecureStore.
@@ -351,6 +405,22 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
     });
   },
 
+  updateAccountDevices: async (bip44Index, devices, adminRuleId) => {
+    const { accounts } = get();
+    const updated = accounts.map((a) =>
+      a.index === bip44Index
+        ? {
+            ...a,
+            devices,
+            // Only overwrite adminRuleId if the caller explicitly passed it.
+            ...(adminRuleId !== undefined ? { adminRuleId } : {}),
+          }
+        : a,
+    );
+    await persistAccounts(updated);
+    set({ accounts: updated });
+  },
+
   // ─── Rehydration ──────────────────────────────────────────────────────────
 
   rehydrateWallet: async () => {
@@ -375,7 +445,12 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
 
       if (accountsJson) {
         // ── Case 2: new multi-account format ─────────────────────────────────
-        accounts = JSON.parse(accountsJson) as WalletAccount[];
+        accounts = (JSON.parse(accountsJson) as WalletAccount[]).map((a) => ({
+          ...a,
+          // Backfill multisig fields for accounts persisted before they existed.
+          devices: a.devices ?? [],
+          adminRuleId: a.adminRuleId ?? null,
+        }));
         activeAccountIndex = activeIndexStr ? parseInt(activeIndexStr, 10) : 0;
       } else {
         // ── Case 3: migrate old single-account format ─────────────────────────

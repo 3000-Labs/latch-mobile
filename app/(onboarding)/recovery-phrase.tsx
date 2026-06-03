@@ -24,6 +24,7 @@ import Button from '@/src/components/shared/Button';
 import LoadingBlur from '@/src/components/shared/LoadingBlur';
 import Text from '@/src/components/shared/Text';
 import { Theme } from '@/src/theme/theme';
+import { LinearGradient } from 'expo-linear-gradient';
 
 export const PENDING_MNEMONIC_KEY = 'latch_pending_mnemonic';
 
@@ -79,7 +80,14 @@ const RecoveryPhrase = () => {
   const itemWidth = (width - theme.spacing.m * 2 - theme.spacing.m * 2) / 3;
 
   return (
-    <Box flex={1} backgroundColor="mainBackground">
+    <Box flex={1} backgroundColor="onboardingbg">
+      <LinearGradient
+        colors={['rgba(50, 60, 14, 0.74)', '#121212']}
+        locations={[0, 0.2772]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 0.91 }}
+        style={StyleSheet.absoluteFill}
+      />
       <StatusBar style={statusBarStyle} />
       <View style={{ flex: 1 }}>
         <ScrollView

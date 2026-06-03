@@ -1,8 +1,9 @@
+import { Theme } from '@/src/theme/theme';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Formik } from 'formik';
 import React from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Yup from 'yup';
 
@@ -11,6 +12,8 @@ import Header from '@/src/components/create-shared/Header';
 import InputField from '@/src/components/create-shared/InputField';
 import TitleSection from '@/src/components/create-shared/TitleSection';
 import Box from '@/src/components/shared/Box';
+import { useTheme } from '@shopify/restyle';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const SharedWalletSchema = Yup.object().shape({
   walletName: Yup.string().trim().required('Wallet name is required'),
@@ -18,6 +21,8 @@ const SharedWalletSchema = Yup.object().shape({
 });
 
 const CreateSharedWallet = () => {
+  const theme = useTheme<Theme>();
+
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -38,7 +43,14 @@ const CreateSharedWallet = () => {
       onSubmit={handleContinue}
     >
       {({ handleChange, handleBlur, handleSubmit, values, errors, touched }) => (
-        <Box flex={1} backgroundColor="mainBackground">
+        <Box flex={1} backgroundColor="onboardingbg">
+          <LinearGradient
+            colors={[theme.colors.gradientLight, theme.colors.gradientDark]}
+            locations={[0, 0.2772]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0, y: 0.9 }}
+            style={StyleSheet.absoluteFill}
+          />
           <StatusBar style="light" />
 
           {/* Top Header - Back Button & Centered Logo (Notch Safe) */}

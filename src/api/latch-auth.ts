@@ -10,7 +10,7 @@ import * as SecureStore from 'expo-secure-store';
 import { decryptBackup, encryptBackup, type EncryptedBackup } from '../lib/backup-crypto';
 import { getPasskeyStorageKeys, SECURE_KEYS, type WalletAccount } from '../store/wallet';
 
-const API_ROOT = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
+const API_ROOT = process.env.EXPO_PUBLIC_WALLET_BACKEND_URL ?? '';
 const API_BASE = `${API_ROOT}/v1`;
 
 // Raw XHR — resolves with { status, body } so callers can inspect the status
@@ -190,7 +190,10 @@ export async function uploadBackup(): Promise<void> {
     '/backup',
     {
       method: 'POST',
-      body: JSON.stringify({ encrypted_blob: encryptedBlob, smart_account_address: smartAccount ?? '' }),
+      body: JSON.stringify({
+        encrypted_blob: encryptedBlob,
+        smart_account_address: smartAccount ?? '',
+      }),
     },
     accessToken,
   );
@@ -250,7 +253,9 @@ export async function fetchAndRestoreBackup(
   const writes: Promise<void>[] = [];
 
   if (blob.passkey_private_key) {
-    writes.push(SecureStore.setItemAsync(SECURE_KEYS.PASSKEY_PRIVATE_KEY, blob.passkey_private_key));
+    writes.push(
+      SecureStore.setItemAsync(SECURE_KEYS.PASSKEY_PRIVATE_KEY, blob.passkey_private_key),
+    );
   }
   if (blob.credential_id) {
     writes.push(SecureStore.setItemAsync(SECURE_KEYS.CREDENTIAL_ID, blob.credential_id));
@@ -273,10 +278,14 @@ export async function fetchAndRestoreBackup(
       if (account.index < 0 && listIndex > 0) {
         const keys = getPasskeyStorageKeys(listIndex);
         if (blob[`passkey_private_key_${listIndex}`]) {
-          writes.push(SecureStore.setItemAsync(keys.privateKey, blob[`passkey_private_key_${listIndex}`]));
+          writes.push(
+            SecureStore.setItemAsync(keys.privateKey, blob[`passkey_private_key_${listIndex}`]),
+          );
         }
         if (blob[`credential_id_${listIndex}`]) {
-          writes.push(SecureStore.setItemAsync(keys.credentialId, blob[`credential_id_${listIndex}`]));
+          writes.push(
+            SecureStore.setItemAsync(keys.credentialId, blob[`credential_id_${listIndex}`]),
+          );
         }
         if (blob[`key_data_hex_${listIndex}`]) {
           writes.push(SecureStore.setItemAsync(keys.keyDataHex, blob[`key_data_hex_${listIndex}`]));
@@ -314,4 +323,3 @@ export interface PriceData {
 export async function getPrices(tokens: string[]): Promise<Record<string, PriceData | null>> {
   return latchFetch(`/prices?tokens=${encodeURIComponent(tokens.join(','))}`);
 }
-

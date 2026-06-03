@@ -1,14 +1,15 @@
-import React, { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import React, { useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Toast from 'react-native-toast-message';
 
-import Box from '@/src/components/shared/Box';
+import ContinueButton from '@/src/components/choose-wallet/ContinueButton';
 import Header from '@/src/components/choose-wallet/Header';
 import TitleSection from '@/src/components/choose-wallet/TitleSection';
 import WalletOptionCard from '@/src/components/choose-wallet/WalletOptionCard';
-import ContinueButton from '@/src/components/choose-wallet/ContinueButton';
+import Box from '@/src/components/shared/Box';
+import { LinearGradient } from 'expo-linear-gradient';
+import { StyleSheet } from 'react-native';
 
 type WalletType = 'personal' | 'shared';
 
@@ -27,7 +28,14 @@ const ChooseWallet = () => {
   };
 
   return (
-    <Box flex={1} backgroundColor="mainBackground">
+    <Box flex={1} backgroundColor="onboardingbg">
+      <LinearGradient
+        colors={['rgba(50, 60, 14, 0.74)', '#121212']}
+        locations={[0, 0.2772]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 0.91 }}
+        style={StyleSheet.absoluteFill}
+      />
       <StatusBar style="light" />
 
       {/* Top Header - Back Button & Centered Logo (Notch Safe) */}

@@ -46,6 +46,12 @@ function RootLayoutContent() {
         <Stack.Screen name="about" options={{ presentation: 'modal' }} />
         <Stack.Screen name="qrcode-scan" options={{ headerShown: false }} />
         <Stack.Screen name="filter-sheet" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="add-device" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="pair-show-code" options={{ headerShown: false }} />
+        <Stack.Screen name="pair-enter-code" options={{ headerShown: false }} />
+        <Stack.Screen name="pair-show-qr" options={{ headerShown: false }} />
+        <Stack.Screen name="pair-scan-qr" options={{ headerShown: false }} />
+        <Stack.Screen name="pending-approval" options={{ headerShown: false }} />
       </Stack>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <Toast />

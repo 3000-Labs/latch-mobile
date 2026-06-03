@@ -19,15 +19,16 @@ import {
 } from '@/src/api/latch-auth';
 import Box from '@/src/components/shared/Box';
 import Button from '@/src/components/shared/Button';
+import LoadingBlur from '@/src/components/shared/LoadingBlur';
 import Text from '@/src/components/shared/Text';
 import { Theme } from '@/src/theme/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -119,7 +120,10 @@ const CollectEmail = () => {
         await saveAuthTokens(accessToken, refreshToken, email);
         // Navigate to set-recovery-password to collect the password that will
         // encrypt the backup before it is uploaded in deploy-account.
-        router.replace({ pathname: '/(onboarding)/set-recovery-password', params: { mode: 'set' } });
+        router.replace({
+          pathname: '/(onboarding)/set-recovery-password',
+          params: { mode: 'set' },
+        });
       }
     } catch (err: any) {
       setError(err?.message ?? 'Invalid or expired code. Please try again.');
@@ -167,10 +171,17 @@ const CollectEmail = () => {
   return (
     <Box
       flex={1}
-      backgroundColor="mainBackground"
+      backgroundColor="onboardingbg"
       paddingHorizontal="m"
       style={{ paddingTop: insets.top }}
     >
+      <LinearGradient
+        colors={[theme.colors.gradientLight, theme.colors.gradientDark]}
+        locations={[0, 0.2772]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 0.9 }}
+        style={StyleSheet.absoluteFill}
+      />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -198,7 +209,7 @@ const CollectEmail = () => {
             />
           </TouchableOpacity>
           <Image
-            source={require('@/src/assets/images/logosym.png')}
+            source={require('@/src/assets/images/logoLoading.png')}
             style={{ width: 35, height: 35 }}
             resizeMode="contain"
           />
@@ -282,45 +293,54 @@ const CollectEmail = () => {
         )}
 
         {/* Primary button */}
-        <Button
-          label={
-            isLoading ? '' : phase === 'email' ? 'Send Code' : isRecovery ? 'Recover Account' : 'Verify'
-          }
-          variant={isLoading ? 'disabled' : 'primary'}
-          bg={isLoading ? 'btnDisabled' : 'primary700'}
-          labelColor={isLoading ? 'gray600' : 'black'}
-          onPress={phase === 'email' ? handleSendCode : handleVerify}
-          disabled={isLoading}
-        />
+        <Box mt={'auto'} mb={phase === 'otp' ? 's' : '4xl'}>
+          <Button
+            label={
+              isLoading
+                ? ''
+                : phase === 'email'
+                  ? 'Send Code'
+                  : isRecovery
+                    ? 'Recover Account'
+                    : 'Verify'
+            }
+            variant={isLoading ? 'disabled' : 'primary'}
+            bg={isLoading ? 'btnDisabled' : 'primary700'}
+            labelColor={isLoading ? 'gray600' : 'black'}
+            onPress={phase === 'email' ? handleSendCode : handleVerify}
+            disabled={isLoading}
+            mt={'auto'}
+          />
+          {phase === 'otp' && (
+            <Box alignItems="center" mt="l">
+              <TouchableOpacity
+                onPress={handleResend}
+                disabled={resendCooldown > 0 || isLoading}
+                activeOpacity={0.7}
+              >
+                <Text
+                  variant="body"
+                  color={resendCooldown > 0 ? 'textSecondary' : 'primary700'}
+                  fontWeight="600"
+                >
+                  {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend code'}
+                </Text>
+              </TouchableOpacity>
+            </Box>
+          )}
+        </Box>
 
         {/* Loading indicator inside button area */}
-        {isLoading && (
+        {/* {isLoading && (
           <Box position="absolute" alignSelf="center" style={{ top: '55%' }}>
             <ActivityIndicator color={theme.colors.primary700} />
           </Box>
-        )}
+        )} */}
 
         {/* Resend */}
-        {phase === 'otp' && (
-          <Box alignItems="center" mt="l">
-            <TouchableOpacity
-              onPress={handleResend}
-              disabled={resendCooldown > 0 || isLoading}
-              activeOpacity={0.7}
-            >
-              <Text
-                variant="body"
-                color={resendCooldown > 0 ? 'textSecondary' : 'primary700'}
-                fontWeight="600"
-              >
-                {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend code'}
-              </Text>
-            </TouchableOpacity>
-          </Box>
-        )}
 
         {/* Skip (register mode only) */}
-        {phase === 'email' && !isRecovery && (
+        {/* {phase === 'email' && !isRecovery && (
           <Box alignItems="center" mt="l">
             <TouchableOpacity
               onPress={() => router.replace('/(onboarding)/deploy-account')}
@@ -332,8 +352,9 @@ const CollectEmail = () => {
               </Text>
             </TouchableOpacity>
           </Box>
-        )}
+        )} */}
       </KeyboardAvoidingView>
+      <LoadingBlur visible={isLoading} text="Submitting..." />
     </Box>
   );
 };

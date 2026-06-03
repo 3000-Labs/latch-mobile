@@ -169,6 +169,8 @@ const palette = {
   transparent: 'transparent',
   onboardingbg: '#151311',
   inputError: '#EA471E',
+  gradientDark: '#121212',
+  gradientLight: 'rgba(50, 60, 14, 0.74)',
 };
 
 const sharedColors = {
@@ -177,7 +179,12 @@ const sharedColors = {
   primaryDark: palette.primary800,
   secondary: palette.primary600,
 
+  gradientLight: palette.gradientLight,
+  gradientDark: palette.gradientDark,
+
   btnHover: '#6D3E04',
+  btnBorder: '#2B2A29',
+
   mainColorHover: '#A67100',
 
   black: palette.black,
@@ -340,10 +347,10 @@ const sharedColors = {
 const darkTheme = createTheme({
   colors: {
     ...sharedColors,
-    mainBackground: palette.black,
+    mainBackground: palette.gradientDark,
     secondaryBackground: '#1D1D1D',
     cardBackground: '#242424',
-    onboardingbg: palette.onboardingbg,
+    onboardingbg: palette.gradientDark,
     textPrimary: palette.white,
     textSecondary: palette.gray600,
     textTertiary: palette.gray500,
@@ -361,6 +368,7 @@ const darkTheme = createTheme({
     none: 0,
     10: 10,
     100: 100,
+    auto: 'auto',
   },
   breakpoints: {
     phone: 0,
@@ -373,18 +381,18 @@ const darkTheme = createTheme({
       color: 'textPrimary',
       fontFamily: 'SFproRegular',
     },
-    h1: { fontSize: 80, lineHeight: 96, letterSpacing: -3.2, fontFamily: 'SFproBold' },
-    h2: { fontSize: 72, lineHeight: 88, letterSpacing: -2.88, fontFamily: 'SFproBold' },
-    h3: { fontSize: 64, lineHeight: 80, letterSpacing: -2.56, fontFamily: 'SFproBold' },
-    h4: { fontSize: 56, lineHeight: 71, letterSpacing: -2.24, fontFamily: 'SFproBold' },
-    h5: { fontSize: 48, lineHeight: 61, letterSpacing: -1.44, fontFamily: 'SFproSemibold' },
-    h6: { fontSize: 40, lineHeight: 52, letterSpacing: -1.2, fontFamily: 'SFproSemibold' },
-    h7: { fontSize: 32, lineHeight: 42, letterSpacing: -0.96, fontFamily: 'SFproSemibold' },
-    h8: { fontSize: 24, lineHeight: 32, letterSpacing: -0.72, fontFamily: 'SFproSemibold' },
-    h9: { fontSize: 18, lineHeight: 24, letterSpacing: -0.36, fontFamily: 'SFproSemibold' },
-    h10: { fontSize: 16, lineHeight: 22, letterSpacing: -0.32, fontFamily: 'SFproSemibold' },
-    h11: { fontSize: 14, lineHeight: 20, letterSpacing: -0.28, fontFamily: 'SFproMedium' },
-    h12: { fontSize: 12, lineHeight: 17, letterSpacing: -0.24, fontFamily: 'SFproMedium' },
+    h1: { fontSize: 80, lineHeight: 96, letterSpacing: -3.2, fontFamily: 'SFproRoundedBold' },
+    h2: { fontSize: 72, lineHeight: 88, letterSpacing: -2.88, fontFamily: 'SFproRoundedBold' },
+    h3: { fontSize: 64, lineHeight: 80, letterSpacing: -2.56, fontFamily: 'SFproRoundedBold' },
+    h4: { fontSize: 56, lineHeight: 71, letterSpacing: -2.24, fontFamily: 'SFproRoundedBold' },
+    h5: { fontSize: 48, lineHeight: 61, letterSpacing: -1.44, fontFamily: 'SFproRoundedMedium' },
+    h6: { fontSize: 40, lineHeight: 52, letterSpacing: -1.2, fontFamily: 'SFproRoundedMedium' },
+    h7: { fontSize: 32, lineHeight: 42, letterSpacing: -0.96, fontFamily: 'SFproRoundedMedium' },
+    h8: { fontSize: 24, lineHeight: 32, letterSpacing: -0.72, fontFamily: 'SFproRoundedMedium' },
+    h9: { fontSize: 18, lineHeight: 24, letterSpacing: -0.36, fontFamily: 'SFproRoundedMedium' },
+    h10: { fontSize: 16, lineHeight: 22, letterSpacing: -0.32, fontFamily: 'SFproRoundedMedium' },
+    h11: { fontSize: 14, lineHeight: 20, letterSpacing: -0.28, fontFamily: 'SFproRoundedMedium' },
+    h12: { fontSize: 12, lineHeight: 17, letterSpacing: -0.24, fontFamily: 'SFproRoundedMedium' },
 
     p1: { fontSize: 32, lineHeight: 45, letterSpacing: -0.96, fontFamily: 'SFproRegular' },
     p2: { fontSize: 28, lineHeight: 39, letterSpacing: -0.84, fontFamily: 'SFproRegular' },
@@ -395,12 +403,12 @@ const darkTheme = createTheme({
     p7: { fontSize: 14, lineHeight: 19, letterSpacing: -0.28, fontFamily: 'SFproRegular' },
     p8: { fontSize: 12, lineHeight: 16, letterSpacing: -0.24, fontFamily: 'SFproRegular' },
 
-    display: { fontSize: 48, lineHeight: 61, letterSpacing: -1.44, fontFamily: 'SFproBold' },
+    display: { fontSize: 48, lineHeight: 61, letterSpacing: -1.44, fontFamily: 'SFproRoundedBold' },
     displayItalic: {
       fontSize: 60,
       lineHeight: 69,
-      letterSpacing: 1.5,
-      fontFamily: 'SFproSemiboldItalic',
+      letterSpacing: 1,
+      fontFamily: 'SFproRoundedBold',
     },
     title: { fontSize: 24, lineHeight: 32, letterSpacing: -0.72, fontFamily: 'SFproBold' },
     largeTitle: { fontSize: 34, lineHeight: 42, letterSpacing: -1, fontFamily: 'SFproBold' },
@@ -515,24 +523,6 @@ const darkTheme = createTheme({
   zIndices: {},
   borderVariants: {},
 });
-
-export const lightTheme: typeof darkTheme = {
-  ...darkTheme,
-  colors: {
-    ...darkTheme.colors,
-    mainBackground: palette.white,
-    secondaryBackground: palette.gray100,
-    cardBackground: palette.white,
-    onboardingbg: palette.white,
-    textPrimary: palette.black,
-    textSecondary: palette.gray700,
-    textTertiary: palette.gray600,
-    btnDisabled: palette.gray200,
-    cardbg: palette.white,
-    bg11: palette.gray100,
-    bg900: palette.gray200,
-  },
-};
 
 export { darkTheme };
 export type Theme = typeof darkTheme;
