@@ -99,6 +99,7 @@ const SplashAnimation = () => {
   const gTx = useSharedValue(G_APART_TX);
   const cTx = useSharedValue(C_APART_TX);
   const cScaleX = useSharedValue(1); // C emerges in original orientation, flips to -1 as it latches
+  const cSwing = useSharedValue(0); // post-latch swing — small rotateY in degrees
   const mergedScaleX = useSharedValue(1); // after merge, the whole G+C unit flips horizontally
   const mergedScale = useSharedValue(1); // merged unit eases up to 1.1× while it flips
   const descentY = useSharedValue(0); // single Y that descends the merged unit so both glyphs move in lockstep
@@ -124,7 +125,7 @@ const SplashAnimation = () => {
       // Its presence is the single source of truth that a wallet exists on this device.
       const smartAccountAddress = await SecureStore.getItemAsync(SECURE_KEYS.SMART_ACCOUNT);
       if (smartAccountAddress) {
-        // router.replace({ pathname: '/(auth)/biometric', params: { mode: 'unlock' } });
+        router.replace({ pathname: '/(auth)/biometric', params: { mode: 'unlock' } });
         return;
       }
 
@@ -144,6 +145,7 @@ const SplashAnimation = () => {
       gTx.value = 0;
       cTx.value = 0;
       cScaleX.value = -1;
+      cSwing.value = 0;
       mergedScaleX.value = -1;
       mergedScale.value = 1.1;
       descentY.value = 0;
@@ -161,13 +163,14 @@ const SplashAnimation = () => {
 
     const runAnimation = () => {
       // Phase timing (absolute ms from start):
-      //   G rises:        200 → 800     (timing to -EMERGE_OVERSHOOT)
-      //   C rises:        620 → 1220    (timing to -EMERGE_OVERSHOOT)
+      //   G rises:        200 → 800
+      //   C rises:        620 → 1220
       //   Slot closes:    700 → 1320
-      //   Latch (slide):  1300 → 1800   (both glyphs held at peak)
-      //   Merged flip:    1850 → 2400   (both glyphs held at peak)
-      //   Descend:        2450 → 2950   (both glyphs ease down to rest)
-      //   Wordmark:       3100 → ~3880
+      //   Latch (slide):  1300 → 1800
+      //   C swing (60°):  1800 → 2780   (eased rotateY: 0 → +60° → -60° → 0°)
+      //   Merged flip:    2830 → 3380   (scaleX -1 + scale up to 1.1×)
+      //   Descend:        3430 → 3930
+      //   Wordmark:       4080 → ~4860
 
       // 1. Letters rise to their peak and stay there. Reanimated holds the
       //    final value of a timing, so no explicit hold is needed.
@@ -180,21 +183,32 @@ const SplashAnimation = () => {
         withTiming(0, { duration: 620, easing: Easing.inOut(Easing.cubic) }),
       );
 
-      // 3. Latch at the top: C flips and both slide horizontally together.
+      // 3. Latch at the top: C mirrors (scaleX → -1) and both slide
+      //    horizontally together. Immediately after, the C performs a single
+      //    15° swing-flip (rotateY: 0 → +15° → -15° → 0°) at its stationary
+      //    position — a smooth, eased card-tilt forward and backward.
       gTx.value = withDelay(1300, withTiming(0, { duration: 500 }));
       cTx.value = withDelay(1300, withTiming(0, { duration: 500 }));
       cScaleX.value = withDelay(1300, withTiming(-1, { duration: 500 }));
+      cSwing.value = withDelay(
+        1800,
+        withSequence(
+          withTiming(60, { duration: 440, easing: Easing.inOut(Easing.cubic) }), // swing forward
+          withTiming(-30, { duration: 400, easing: Easing.inOut(Easing.cubic) }), // swing backward
+          withTiming(0, { duration: 140, easing: Easing.inOut(Easing.cubic) }), // settle
+        ),
+      );
 
       // 4. Glow bloom while the merged G+C flips horizontally as one unit and
-      //    smoothly scales up to 1.1×.
-      glowOpacity.value = withDelay(1750, withTiming(1, { duration: 450 }));
-      mergedScaleX.value = withDelay(1850, withTiming(-1, { duration: 550 }));
+      //    smoothly scales up to 1.1× — kicks off ~50ms after the C swing settles.
+      glowOpacity.value = withDelay(2730, withTiming(1, { duration: 450 }));
+      mergedScaleX.value = withDelay(2830, withTiming(-1, { duration: 550 }));
       mergedScale.value = withDelay(
-        1850,
+        2830,
         withTiming(1.1, { duration: 550, easing: Easing.inOut(Easing.cubic) }),
       );
       logoScale.value = withDelay(
-        1850,
+        2830,
         withSequence(
           withTiming(1.06, { duration: 160 }),
           withSpring(1, { damping: 10, stiffness: 110, mass: 1.1 }),
@@ -202,18 +216,18 @@ const SplashAnimation = () => {
       );
 
       // 5. Descent — a single shared value translates the merged wrapper down so
-      //    both glyphs move together at identical speed and level (2450 → 2950).
+      //    both glyphs move together at identical speed and level (3430 → 3930).
       descentY.value = withDelay(
-        2450,
+        3430,
         withTiming(EMERGE_OVERSHOOT, { duration: 500, easing: Easing.inOut(Easing.cubic) }),
       );
 
       // 6. Wordmark reveals left-to-right after the descent settles.
-      lOpacity.value = withDelay(3100, withTiming(1, { duration: 420 }));
-      aOpacity.value = withDelay(3190, withTiming(1, { duration: 420 }));
-      tOpacity.value = withDelay(3280, withTiming(1, { duration: 420 }));
-      cwOpacity.value = withDelay(3370, withTiming(1, { duration: 420 }));
-      hOpacity.value = withDelay(3460, withTiming(1, { duration: 420 }));
+      lOpacity.value = withDelay(4080, withTiming(1, { duration: 420 }));
+      aOpacity.value = withDelay(4170, withTiming(1, { duration: 420 }));
+      tOpacity.value = withDelay(4260, withTiming(1, { duration: 420 }));
+      cwOpacity.value = withDelay(4350, withTiming(1, { duration: 420 }));
+      hOpacity.value = withDelay(4440, withTiming(1, { duration: 420 }));
     };
 
     AccessibilityInfo.isReduceMotionEnabled()
@@ -223,7 +237,7 @@ const SplashAnimation = () => {
           timer = setTimeout(checkUserStatusAndNavigate, 1000);
         } else {
           runAnimation();
-          timer = setTimeout(checkUserStatusAndNavigate, 4700);
+          timer = setTimeout(checkUserStatusAndNavigate, 5700);
         }
       })
       .catch(() => {
@@ -241,7 +255,13 @@ const SplashAnimation = () => {
   }));
   const cStyle = useAnimatedStyle(() => ({
     opacity: glyphsOpacity.value,
-    transform: [{ translateX: cTx.value }, { translateY: cTy.value }, { scaleX: cScaleX.value }],
+    transform: [
+      { perspective: 600 },
+      { translateX: cTx.value },
+      { translateY: cTy.value },
+      { rotateY: `${cSwing.value}deg` },
+      { scaleX: cScaleX.value },
+    ],
   }));
   const comboStyle = useAnimatedStyle(() => ({ opacity: logoOpacity.value }));
   const markStyle = useAnimatedStyle(() => ({ transform: [{ scale: logoScale.value }] }));
