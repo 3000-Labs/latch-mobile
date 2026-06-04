@@ -181,29 +181,27 @@ export default function TxAuthModal({ visible, promptMessage, onResult }: Props)
                 {promptMessage}
               </Text>
 
-              <Button
-                label={`Use ${biometricLabel}`}
-                variant="primary"
-                bg="primary700"
-                labelColor="black"
-                onPress={handleBiometric}
-                mb="m"
-              />
+              {hasBiometrics && (
+                <Button
+                  label={`Use ${biometricLabel}`}
+                  variant="primary"
+                  leftIcon={
+                    <Ionicons name={biometricIcon} size={20} color={theme.colors.black} />
+                  }
+                  onPress={handleBiometric}
+                  mb="m"
+                />
+              )}
               <Button
                 label="Use PIN"
-                // variant="outline"
-                borderColor="textWhite"
-                labelColor="textWhite"
+                variant="outline"
+                leftIcon={
+                  <Ionicons name="keypad-outline" size={20} color={theme.colors.textPrimary} />
+                }
                 onPress={() => setMode('pin')}
-                mb="m"
+                mb="s"
               />
-              <Button
-                label="Cancel"
-                // variant="outline"
-                borderColor="textWhite"
-                labelColor="textWhite"
-                onPress={() => onResult(false)}
-              />
+              <Button label="Cancel" variant="ghost" onPress={() => onResult(false)} />
             </>
           ) : (
             <>

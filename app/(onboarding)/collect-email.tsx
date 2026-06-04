@@ -173,7 +173,7 @@ const CollectEmail = () => {
       flex={1}
       backgroundColor="onboardingbg"
       paddingHorizontal="m"
-      style={{ paddingTop: insets.top }}
+      style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
     >
       <LinearGradient
         colors={[theme.colors.gradientLight, theme.colors.gradientDark]}
@@ -328,6 +328,19 @@ const CollectEmail = () => {
               </TouchableOpacity>
             </Box>
           )}
+          {phase === 'email' && !isRecovery && (
+            <Box alignItems="center" mt="l">
+              <TouchableOpacity
+                onPress={() => router.replace('/(onboarding)/deploy-account')}
+                disabled={isLoading}
+                activeOpacity={0.7}
+              >
+                <Text variant="body" color="textSecondary">
+                  Skip for now
+                </Text>
+              </TouchableOpacity>
+            </Box>
+          )}
         </Box>
 
         {/* Loading indicator inside button area */}
@@ -340,19 +353,6 @@ const CollectEmail = () => {
         {/* Resend */}
 
         {/* Skip (register mode only) */}
-        {phase === 'email' && !isRecovery && (
-          <Box alignItems="center" mt="l">
-            <TouchableOpacity
-              onPress={() => router.replace('/(onboarding)/deploy-account')}
-              disabled={isLoading}
-              activeOpacity={0.7}
-            >
-              <Text variant="body" color="textSecondary">
-                Skip for now
-              </Text>
-            </TouchableOpacity>
-          </Box>
-        )}
       </KeyboardAvoidingView>
       <LoadingBlur visible={isLoading} text="Submitting..." />
     </Box>
