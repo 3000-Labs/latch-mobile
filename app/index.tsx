@@ -368,7 +368,7 @@ const SplashAnimation = () => {
       </Box>
 
       {/* Wordmark — absolutely positioned a fixed offset below the ellipse */}
-      <Box
+      {/* <Box
         position="absolute"
         left={0}
         right={0}
@@ -382,7 +382,7 @@ const SplashAnimation = () => {
           <AnimatedLetter opacity={cwOpacity}>c</AnimatedLetter>
           <AnimatedLetter opacity={hOpacity}>h</AnimatedLetter>
         </Box>
-      </Box>
+      </Box> */}
     </Box>
   );
 };
