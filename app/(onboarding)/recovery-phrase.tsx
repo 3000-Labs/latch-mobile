@@ -107,7 +107,7 @@ const RecoveryPhrase = () => {
             </TouchableOpacity>
 
             <Image
-              source={require('@/src/assets/images/logosym.png')}
+              source={require('@/src/assets/images/logoLoading.png')}
               style={{ width: 35, height: 35 }}
               resizeMode="contain"
             />

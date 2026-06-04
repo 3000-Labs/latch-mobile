@@ -150,7 +150,7 @@ const ImportPhrase = () => {
             </TouchableOpacity>
 
             <Image
-              source={require('@/src/assets/images/logosym.png')}
+              source={require('@/src/assets/images/logoLoading.png')}
               style={{ width: 35, height: 35 }}
               resizeMode="contain"
             />
@@ -198,7 +198,7 @@ const ImportPhrase = () => {
                     value={word}
                     onChangeText={(t) => handleChange(t, index)}
                     onFocus={() => handleFocus(index)}
-                    placeholder={`word ${index + 1}`}
+                    placeholder={``}
                     placeholderTextColor={theme.colors.gray600}
                     style={{ color: theme.colors.textPrimary, flex: 1, padding: 0 }}
                     autoCapitalize="none"

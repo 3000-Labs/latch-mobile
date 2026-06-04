@@ -92,8 +92,13 @@ const SetPin = () => {
                 return;
               }
 
-              // Collect email for recovery backup before deploying
-              router.push('/(onboarding)/collect-email');
+              // Collect email for recovery backup before deploying. Carry the
+              // shared marker so the rest of the chain ends at the multisig
+              // build screens instead of the personal deploy.
+              router.push({
+                pathname: '/(onboarding)/collect-email',
+                params: from === 'shared' ? { flow: 'shared' } : undefined,
+              });
             } else {
               Vibration.vibrate(400);
               setError(true);
@@ -152,7 +157,7 @@ const SetPin = () => {
               </TouchableOpacity>
 
               <Image
-                source={require('@/src/assets/images/logosym.png')}
+                source={require('@/src/assets/images/logoLoading.png')}
                 style={{ width: 35, height: 35 }}
                 resizeMode="contain"
               />

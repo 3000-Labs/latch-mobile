@@ -17,19 +17,19 @@ const ONBOARDING_DATA = [
   {
     id: 1,
     title: 'Welcome to Latch',
-    description: 'Securely manage your digital assets with confidence and ease.',
+    description: 'To get started, create a new wallet or import an existing one.',
     image: require('@/src/assets/images/ob1.png'),
   },
   {
     id: 2,
     title: 'Smart Accounts',
-    description: 'Smarter security for your assets with a simple experience.',
+    description: 'Programmable wallets with better security, recovery, and control.',
     image: require('@/src/assets/images/ob3.png'),
   },
   {
     id: 3,
     title: 'Seamless Funding',
-    description: 'Fund your account quickly without the usual complexity.',
+    description: 'Fund and use a next-generation Stellar wallet with ease',
     image: require('@/src/assets/images/on2.png'),
   },
 ];

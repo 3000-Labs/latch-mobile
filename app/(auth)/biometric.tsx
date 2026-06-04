@@ -337,7 +337,7 @@ const Biometrics = () => {
           {/* Header */}
           <Box alignItems="center" mt="xxl" mb="m" style={{ paddingTop: insets.top }}>
             <Image
-              source={require('@/src/assets/images/logosym.png')}
+              source={require('@/src/assets/images/logoLoading.png')}
               style={{ width: 35, height: 35 }}
               resizeMode="contain"
             />
@@ -536,7 +536,7 @@ const Biometrics = () => {
           />
         </TouchableOpacity>
         <Image
-          source={require('@/src/assets/images/logosym.png')}
+          source={require('@/src/assets/images/logoLoading.png')}
           style={{ width: 35, height: 35 }}
           resizeMode="contain"
         />
