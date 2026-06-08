@@ -178,8 +178,21 @@ const SetPin = () => {
               >
                 {phase === 'set' ? 'Set Your Access Pin' : 'Confirm Your Pin'}
               </Text>
-              <Text variant="body" color="textSecondary" mt="s" textAlign="center">
-                Used to unlock the app on this device.
+              <Text color="textSecondary" mt="xs" textAlign="center" width={'85%'}>
+                {phase === 'set' ? (
+                  <Text variant="p4" color="textSecondary" textAlign="center">
+                    This is used to secure your wallet on all your devices.
+                    <Text variant="p4" color="primary7" textAlign="center">
+                      {' '}
+                      This cannot be recovered.
+                    </Text>
+                  </Text>
+                ) : (
+                  <Text variant="p4" color="primary7" textAlign="center">
+                    If you forget this PIN you will not be able to recover your wallet on new
+                    devices.
+                  </Text>
+                )}
               </Text>
               {error && (
                 <Text

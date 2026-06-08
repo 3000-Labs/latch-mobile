@@ -24,6 +24,7 @@ import Box from '@/src/components/shared/Box';
 import Button from '@/src/components/shared/Button';
 import LoadingBlur from '@/src/components/shared/LoadingBlur';
 import Text from '@/src/components/shared/Text';
+import { LATCH_PRIVACY_URL } from '@/src/constants/constants';
 import { Theme } from '@/src/theme/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
@@ -34,6 +35,7 @@ import React, { useRef, useState } from 'react';
 import {
   Image,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   StyleSheet,
   TextInput,
@@ -185,7 +187,7 @@ const CollectEmail = () => {
       ? 'Recover Your Account'
       : 'Check Your Email'
     : phase === 'email'
-      ? 'Secure Your Recovery'
+      ? 'Protect Your Wallet With 2FA'
       : 'Check Your Email';
 
   const subtitle = isRecovery
@@ -193,7 +195,7 @@ const CollectEmail = () => {
       ? 'Enter the email you used when setting up Latch.'
       : `We sent a recovery code to ${email}`
     : phase === 'email'
-      ? 'Add an email so you can recover your wallet if you lose your device.'
+      ? 'Secure your funds with 2FA.'
       : `We sent a verification code to ${email}`;
 
   return (
@@ -262,30 +264,47 @@ const CollectEmail = () => {
 
         {/* Input */}
         {phase === 'email' ? (
-          <Box
-            backgroundColor={statusBarStyle !== 'light' ? 'text50' : 'gray900'}
-            borderRadius={16}
-            paddingHorizontal="m"
-            height={56}
-            justifyContent="center"
-            mb="m"
-          >
-            <TextInput
-              value={email}
-              onChangeText={(t) => {
-                setEmail(t);
-                setError('');
-              }}
-              placeholder="your@email.com"
-              placeholderTextColor={theme.colors.textSecondary}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              returnKeyType="send"
-              onSubmitEditing={handleSendCode}
-              style={[styles.input, { color: theme.colors.textPrimary }]}
-            />
-          </Box>
+          <>
+            <Text variant="h11" mb="xs">
+              Email Address
+            </Text>
+            <Box
+              backgroundColor={statusBarStyle !== 'light' ? 'text50' : 'gray900'}
+              borderRadius={16}
+              paddingHorizontal="m"
+              height={56}
+              justifyContent="center"
+              mb="s"
+            >
+              <TextInput
+                value={email}
+                onChangeText={(t) => {
+                  setEmail(t);
+                  setError('');
+                }}
+                placeholder="your@email.com"
+                placeholderTextColor={theme.colors.textSecondary}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="send"
+                onSubmitEditing={handleSendCode}
+                style={[styles.input, { color: theme.colors.textPrimary }]}
+              />
+            </Box>
+            <Text variant="caption" color="textSecondary" mb="m">
+              We use email for security alerts, for unsubscribing, and other details. See our
+              <Text
+                variant="caption"
+                color="primary700"
+                fontWeight="600"
+                onPress={() => LATCH_PRIVACY_URL && Linking.openURL(LATCH_PRIVACY_URL)}
+              >
+                {' '}
+                privacy policy
+              </Text>
+            </Text>
+          </>
         ) : (
           <Box
             backgroundColor={statusBarStyle !== 'light' ? 'text50' : 'gray900'}
