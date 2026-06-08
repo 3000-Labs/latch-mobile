@@ -178,7 +178,7 @@ const SetPin = () => {
               >
                 {phase === 'set' ? 'Set Your Access Pin' : 'Confirm Your Pin'}
               </Text>
-              <Text color="textSecondary" mt="xs" textAlign="center" width={'85%'}>
+              <Text color="textSecondary" mt="xs" textAlign="center">
                 {phase === 'set' ? (
                   <Text variant="p4" color="textSecondary" textAlign="center">
                     This is used to secure your wallet on all your devices.
