@@ -3,9 +3,19 @@ import { useEffect } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
 import Toast from 'react-native-toast-message';
 
-// Industry-standard OTA flow: silently download a pending update in the
-// background, then surface a non-blocking "tap to restart" prompt instead
-// of force-reloading mid-session. The user picks the moment to apply it.
+// Reads `extra.otaCritical` from the incoming update's manifest. Set it on a
+// publish (via `extra` in app.config.js) only when a fix must reach users
+// immediately — e.g. `eas update` after flipping the flag on.
+function isCriticalUpdate(manifest: unknown): boolean {
+  const extra = (manifest as { extra?: { expoClient?: { extra?: Record<string, unknown> } } })?.extra
+    ?.expoClient?.extra;
+  return extra?.otaCritical === true;
+}
+
+// OTA policy: normal updates download silently and apply on the next cold
+// launch (no UI — matches every major consumer app). Only updates explicitly
+// flagged critical surface a non-blocking "Restart" prompt so the user can
+// apply the fix without waiting for a natural relaunch.
 export function useOtaUpdate() {
   useEffect(() => {
     if (__DEV__ || !Updates.isEnabled) {
@@ -13,7 +23,7 @@ export function useOtaUpdate() {
     }
 
     let checking = false;
-    // One prompt per fetched update — avoids re-toasting on every foreground.
+    // One prompt per session — avoids re-toasting on every foreground.
     let prompted = false;
 
     const promptRestart = () => {
@@ -23,8 +33,8 @@ export function useOtaUpdate() {
       prompted = true;
       Toast.show({
         type: 'update',
-        text1: 'Update ready',
-        text2: 'A new version is ready to install.',
+        text1: 'Update available',
+        text2: 'An important update is ready to install.',
         autoHide: false,
         props: {
           actionLabel: 'Restart',
@@ -36,14 +46,19 @@ export function useOtaUpdate() {
       });
     };
 
-    const checkAndFetch = async () => {
+    const check = async () => {
       if (checking || prompted) {
         return;
       }
       checking = true;
       try {
-        const { isAvailable } = await Updates.checkForUpdateAsync();
-        if (!isAvailable) {
+        const result = await Updates.checkForUpdateAsync();
+        if (!result.isAvailable) {
+          return;
+        }
+        // Non-critical updates are left to expo-updates' automatic
+        // background fetch — they apply silently on the next cold launch.
+        if (!isCriticalUpdate(result.manifest)) {
           return;
         }
         await Updates.fetchUpdateAsync();
@@ -56,11 +71,11 @@ export function useOtaUpdate() {
       }
     };
 
-    void checkAndFetch();
+    void check();
 
     const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
       if (state === 'active') {
-        void checkAndFetch();
+        void check();
       }
     });
 

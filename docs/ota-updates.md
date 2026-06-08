@@ -112,16 +112,29 @@ pressing home, not locking the phone, not closing TestFlight. Those leave
 the app suspended in memory; the next "open" is a warm resume, not a cold
 launch.
 
-**Surfaced via a tap-to-restart prompt.** `useOtaUpdate`
+**Silent by default; prompt only for critical updates.** `useOtaUpdate`
 (`src/hooks/use-ota-update.ts`, wired in `app/_layout.tsx`) runs
-`Updates.checkForUpdateAsync()` → `fetchUpdateAsync()` on cold launch and on
-every foreground. The download is silent; once it lands, a non-blocking
-Toast ("Update ready — tap to restart") appears. The update is applied via
-`Updates.reloadAsync()` only when the user taps it — never force-reloaded
-mid-session. If the user ignores the prompt, the update still applies on the
-next cold launch (default behavior). Disabled in `__DEV__` / Expo Go (where
-`Updates.isEnabled` is false); errors are swallowed and fall back to the
-default next-cold-launch behavior.
+`Updates.checkForUpdateAsync()` on cold launch and on every foreground.
+
+- **Normal update** → nothing happens in-session. expo-updates' automatic
+  background fetch downloads it and it applies on the **next cold launch**.
+  No UI — same as every major consumer app.
+- **Critical update** → the hook fetches it and shows a non-blocking Toast
+  ("Update available — Restart"). `Updates.reloadAsync()` runs only when the
+  user taps **Restart**; never force-reloaded mid-session.
+
+Disabled in `__DEV__` / Expo Go (where `Updates.isEnabled` is false); errors
+are swallowed and fall back to the default next-cold-launch behavior.
+
+### Flagging an update critical
+
+The hook reads `extra.otaCritical` from the incoming update's manifest. To
+push a must-have fix that prompts users immediately:
+
+1. Set `extra: { otaCritical: true }` in `app.config.js`.
+2. `bun run update:production -- --message "fix: critical X"`.
+3. **Revert the flag** to `false`/remove it before the next normal publish,
+   or every subsequent update keeps prompting.
 
 ---
 
