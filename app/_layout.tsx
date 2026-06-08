@@ -17,6 +17,7 @@ import { Buffer } from 'buffer';
 import { Stack } from 'expo-router';
 import { install } from 'react-native-quick-crypto';
 import { queryClient } from '../src/api/client';
+import { useOtaUpdate } from '../src/hooks/use-ota-update';
 import { AppThemeProvider, useAppTheme } from '../src/theme/ThemeContext';
 
 install();
@@ -32,6 +33,7 @@ LogBox.ignoreAllLogs(true);
 
 function RootLayoutContent() {
   const { isDark } = useAppTheme();
+  useOtaUpdate();
 
   return (
     <>
