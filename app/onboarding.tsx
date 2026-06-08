@@ -3,11 +3,12 @@ import Box from '@/src/components/shared/Box';
 import Button from '@/src/components/shared/Button';
 import ProgressPagination from '@/src/components/shared/ProgressPagination';
 import Text from '@/src/components/shared/Text';
+import { LATCH_TERMS_URL } from '@/src/constants/constants';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useRef, useState } from 'react';
-import { Dimensions, FlatList, Image, StyleSheet } from 'react-native';
+import { Dimensions, FlatList, Image, Linking, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
@@ -145,13 +146,34 @@ const Onboarding = () => {
             variant="outline"
             onPress={() => router.navigate('/(onboarding)/get-started')}
             bg={'btnDisabled'}
-            shadowOffset={{ width: 0, height: 4 }}
-            shadowColor="primary500"
-            shadowRadius={15}
-            shadowOpacity={0.12}
+            // shadowOffset={{ width: 0, height: 4 }}
+            // shadowColor="primary500"
+            // shadowRadius={15}
+            // shadowOpacity={0.12}
             labelColor={statusBarStyle === 'light' ? 'textWhite' : 'black'}
           />
         </Box>
+        <Text variant="caption" color="textSecondary" textAlign="center" mt="s" px="m">
+          By proceeding, you agree to our{' '}
+          <Text
+            variant="caption"
+            color="primary700"
+            fontWeight="600"
+            onPress={() => LATCH_TERMS_URL && Linking.openURL(LATCH_TERMS_URL)}
+          >
+            Terms of Service.
+          </Text>
+          {/* {' and '}
+          <Text
+            variant="caption"
+            color="primary700"
+            fontWeight="600"
+            onPress={() => LATCH_PRIVACY_URL && Linking.openURL(LATCH_PRIVACY_URL)}
+          >
+            Privacy Policy
+          </Text> */}
+          {/* . */}
+        </Text>
       </Box>
     </Box>
   );

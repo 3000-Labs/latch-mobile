@@ -3,17 +3,25 @@ import Text from '@/src/components/shared/Text';
 import { Theme } from '@/src/theme/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
+import { Image } from 'expo-image';
 import React from 'react';
-import { TouchableOpacity } from 'react-native';
+import { ImageSourcePropType, TouchableOpacity } from 'react-native';
 
 interface MethodOptionCardProps {
   icon: keyof typeof Ionicons.glyphMap;
   title: string;
   subtitle: string;
   onPress: () => void;
+  image?: ImageSourcePropType;
 }
 
-const MethodOptionCard: React.FC<MethodOptionCardProps> = ({ icon, title, subtitle, onPress }) => {
+const MethodOptionCard: React.FC<MethodOptionCardProps> = ({
+  icon,
+  title,
+  subtitle,
+  onPress,
+  image,
+}) => {
   const theme = useTheme<Theme>();
 
   return (
@@ -33,7 +41,18 @@ const MethodOptionCard: React.FC<MethodOptionCardProps> = ({ icon, title, subtit
       >
         {/* Icon container */}
 
-        <Ionicons name={icon} size={24} color={theme.colors.textPrimary} />
+        {image ? (
+          <Image
+            source={image}
+            style={{
+              width: 24,
+              height: 24,
+              // tintColor: theme.colors.gray900,
+            }}
+          />
+        ) : (
+          <Ionicons name={icon} size={24} color={theme.colors.textPrimary} />
+        )}
 
         {/* Text content */}
         <Box flex={1} ml={'m'}>

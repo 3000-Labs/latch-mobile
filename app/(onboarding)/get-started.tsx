@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useState } from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import Box from '@/src/components/shared/Box';
 import Button from '@/src/components/shared/Button';
@@ -18,7 +19,8 @@ const GetStarted = () => {
   const theme = useTheme<Theme>();
   const statusBarStyle = useStatusBarStyle();
   const router = useRouter();
-  const [selectedOption, setSelectedOption] = useState<OptionType>('new-account');
+  const insets = useSafeAreaInsets();
+  const [selectedOption, setSelectedOption] = useState<OptionType | null>(null);
 
   const options = [
     // {
@@ -133,13 +135,19 @@ const GetStarted = () => {
       </ScrollView>
 
       {/* Continue Button at Bottom */}
-      <Box padding="m" mb={'l'} backgroundColor="mainBackground">
+      <Box
+        paddingHorizontal="m"
+        paddingTop="m"
+        backgroundColor="mainBackground"
+        style={{ paddingBottom: Math.max(insets.bottom, 24) }}
+      >
         <Button
           label="Continue"
-          variant="primary"
+          variant={selectedOption ? 'primary' : 'disabled'}
           onPress={handleContinue}
-          bg="primary700"
-          labelColor="black"
+          bg={selectedOption ? 'primary700' : 'btnDisabled'}
+          labelColor={selectedOption ? 'black' : 'gray600'}
+          disabled={!selectedOption}
         />
       </Box>
     </Box>

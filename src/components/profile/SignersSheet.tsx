@@ -23,6 +23,7 @@ import BottomSheetHandle from '@/src/components/shared/BottomSheetHandle';
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
 import { useWalletStore } from '@/src/store/wallet';
+import { SHEET_HEIGHT } from '@/src/constants/constants';
 import { Theme } from '@/src/theme/theme';
 import { useAppTheme } from '@/src/theme/ThemeContext';
 
@@ -118,15 +119,7 @@ const SignersSheet = ({ visible, onClose }: Props) => {
               backgroundColor: isDark ? theme.colors.cardbg : theme.colors.mainBackground,
               paddingBottom: Math.max(insets.bottom, 16),
               transform: [{ translateY }],
-              maxHeight: SCREEN_HEIGHT * 0.9,
-              minHeight:
-                step === 'list'
-                  ? 500
-                  : step === 'confirm_delete'
-                    ? 240
-                    : step === 'success'
-                      ? SCREEN_HEIGHT
-                      : 500, // Reduced minHeight to allow keyboard to breathe
+              height: SHEET_HEIGHT,
             },
           ]}
         >

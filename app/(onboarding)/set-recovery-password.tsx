@@ -112,7 +112,7 @@ const SetRecoveryPassword = () => {
         flex={1}
         backgroundColor="onboardingbg"
         paddingHorizontal="m"
-        style={{ paddingTop: insets.top }}
+        style={{ paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, 24) }}
       >
         <LinearGradient
           colors={[theme.colors.gradientLight, theme.colors.gradientDark]}
@@ -166,7 +166,7 @@ const SetRecoveryPassword = () => {
             touched,
             isSubmitting,
           }) => (
-            <Box>
+            <Box flex={1}>
               {/* Password field */}
               <Box
                 backgroundColor={statusBarStyle !== 'light' ? 'text50' : 'gray900'}
@@ -232,7 +232,7 @@ const SetRecoveryPassword = () => {
                 </>
               )}
 
-              <Box mt="m">
+              <Box mt="auto">
                 <Button
                   label={isSubmitting ? '' : isEnter ? 'Restore Wallet' : 'Continue'}
                   variant={isSubmitting ? 'disabled' : 'primary'}
@@ -241,13 +241,20 @@ const SetRecoveryPassword = () => {
                   onPress={() => submit()}
                   disabled={isSubmitting}
                 />
+                {isSubmitting && (
+                  <Box
+                    position="absolute"
+                    top={0}
+                    bottom={0}
+                    left={0}
+                    right={0}
+                    justifyContent="center"
+                    alignItems="center"
+                  >
+                    <ActivityIndicator color={theme.colors.primary700} />
+                  </Box>
+                )}
               </Box>
-
-              {isSubmitting && (
-                <Box position="absolute" alignSelf="center" style={{ top: isEnter ? 72 : 140 }}>
-                  <ActivityIndicator color={theme.colors.primary700} />
-                </Box>
-              )}
             </Box>
           )}
         </Formik>

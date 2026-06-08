@@ -18,6 +18,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import Box from '@/src/components/shared/Box';
 import Button from '@/src/components/shared/Button';
@@ -34,6 +35,7 @@ const RecoveryPhrase = () => {
   const theme = useTheme<Theme>();
   const statusBarStyle = useStatusBarStyle();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [isRevealed, setIsRevealed] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isGenerating, setIsGenerating] = useState(true);
@@ -222,7 +224,12 @@ const RecoveryPhrase = () => {
         </ScrollView>
 
         {/* Continue Button - Always at Bottom */}
-        <Box padding="m" mb={'l'} backgroundColor="mainBackground">
+        <Box
+          paddingHorizontal="m"
+          paddingTop="m"
+          backgroundColor="mainBackground"
+          style={{ paddingBottom: Math.max(insets.bottom, 24) }}
+        >
           <Button
             label="Continue"
             variant={isRevealed && !isGenerating ? 'primary' : 'disabled'}

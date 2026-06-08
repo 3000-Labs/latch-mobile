@@ -12,6 +12,7 @@ const AddMemberButton: React.FC<AddMemberButtonProps> = ({ onPress }) => {
     <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
       <Box
         bg={'bg11'}
+        mb={'m'}
         style={{
           borderWidth: 1,
           borderStyle: 'dashed',

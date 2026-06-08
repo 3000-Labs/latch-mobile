@@ -9,6 +9,7 @@ interface InputFieldProps extends TextInputProps {
   isOptional?: boolean;
   status?: 'danger' | 'basic';
   error?: string;
+  rightElement?: React.ReactNode;
 }
 
 const InputField: React.FC<InputFieldProps> = ({

@@ -17,6 +17,7 @@ import NetworkItem from '@/src/components/network/NetworkItem';
 import BottomSheetHandle from '@/src/components/shared/BottomSheetHandle';
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
+import { SHEET_HEIGHT } from '@/src/constants/constants';
 import { Theme } from '@/src/theme/theme';
 import { useAppTheme } from '@/src/theme/ThemeContext';
 
@@ -81,8 +82,7 @@ const NetworkSheet = ({ visible, onClose }: Props) => {
             backgroundColor: isDark ? theme.colors.cardbg : theme.colors.mainBackground,
             paddingBottom: Math.max(insets.bottom, 16),
             transform: [{ translateY }],
-            maxHeight: SCREEN_HEIGHT * 0.9,
-            minHeight: SCREEN_HEIGHT * 0.9,
+            height: SHEET_HEIGHT,
           },
         ]}
       >

@@ -34,7 +34,7 @@ const AddSignerSuccess = ({ signerName, onContinue }: Props) => {
         </Text>
       </Box>
 
-      <Box width="100%" position="absolute" bottom={100}>
+      <Box width="100%" paddingTop="m">
         <TouchableOpacity activeOpacity={0.7} onPress={onContinue}>
           <Box
             height={64}

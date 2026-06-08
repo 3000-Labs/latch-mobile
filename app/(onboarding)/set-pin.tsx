@@ -20,6 +20,7 @@ import {
   View,
 } from 'react-native';
 import QuickCrypto from 'react-native-quick-crypto';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function hashPin(pin: string): string {
   return QuickCrypto.createHash('sha256').update(pin).digest('hex') as unknown as string;
@@ -42,6 +43,7 @@ const SetPin = () => {
   const statusBarStyle = useStatusBarStyle();
   const { from } = useLocalSearchParams();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { pendingWallet, clearPendingWallet } = useWalletStore();
 
   const [phase, setPhase] = useState<'set' | 'confirm'>('set');
@@ -139,7 +141,7 @@ const SetPin = () => {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{
             paddingHorizontal: theme.spacing.m,
-            paddingBottom: 20,
+            paddingBottom: Math.max(insets.bottom, 20),
             paddingTop: 60,
             flexGrow: 1,
             justifyContent: 'space-between',

@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React from 'react';
 import { Image, ScrollView, TouchableOpacity } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
@@ -42,6 +43,7 @@ const ConnectWallet = () => {
   const theme = useTheme<Theme>();
   const statusBarStyle = useStatusBarStyle();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const openExternal = (url: string) => {
     Linking.openURL(url);
@@ -110,7 +112,11 @@ const ConnectWallet = () => {
           ))}
         </Box>
       </ScrollView>
-      <Box mb="xl" alignItems="center">
+      <Box
+        alignItems="center"
+        paddingTop="m"
+        style={{ paddingBottom: Math.max(insets.bottom, 24) }}
+      >
         <TouchableOpacity onPress={() => router.push('/(onboarding)/get-started')}>
           <Text variant="body" color="textSecondary">
             Don’t have a Stellar Wallet?{' '}

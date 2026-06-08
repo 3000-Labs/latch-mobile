@@ -1,6 +1,11 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import { Networks } from '@stellar/stellar-sdk';
 import BigNumber from 'bignumber.js';
+import { Dimensions } from 'react-native';
+
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+export const SHEET_HEIGHT = SCREEN_HEIGHT * 0.92;
 // import { getAppVersion } from "helpers/version";
 
 // export const APP_VERSION = getAppVersion();
@@ -92,6 +97,10 @@ export const FREIGHTER_GITHUB_ISSUE_URL = 'https://github.com/stellar/freighter-
 export const STELLAR_FOUNDATION_BASE_URL = 'https://stellar.org';
 export const FREIGHTER_TERMS_URL = 'https://www.freighter.app/terms';
 export const FREIGHTER_PRIVACY_URL = 'https://www.freighter.app/privacy';
+
+// TODO: replace with live Latch URLs once legal pages are published.
+export const LATCH_TERMS_URL = '';
+export const LATCH_PRIVACY_URL = '';
 
 export const CREATE_ACCOUNT_TUTORIAL_URL =
   'https://developers.stellar.org/docs/tutorials/create-account/#create-account';

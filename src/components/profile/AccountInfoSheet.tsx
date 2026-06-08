@@ -25,6 +25,7 @@ import Input from '@/src/components/shared/Input';
 import Text from '@/src/components/shared/Text';
 import BottomSheetHandle from '@/src/components/shared/BottomSheetHandle';
 import { useWalletStore } from '@/src/store/wallet';
+import { SHEET_HEIGHT } from '@/src/constants/constants';
 import { Theme } from '@/src/theme/theme';
 import { useAppTheme } from '@/src/theme/ThemeContext';
 
@@ -138,7 +139,7 @@ const AccountInfoSheet = ({ visible, onClose }: Props) => {
               backgroundColor: isDark ? theme.colors.cardbg : theme.colors.mainBackground,
               paddingBottom: Math.max(insets.bottom, 16),
               transform: [{ translateY }],
-              maxHeight: SCREEN_HEIGHT * 0.9,
+              height: SHEET_HEIGHT,
             },
           ]}
         >
@@ -169,8 +170,9 @@ const AccountInfoSheet = ({ visible, onClose }: Props) => {
               const canSave = dirty || selectedImage !== activeAvatar;
               
               return (
-                <View style={{ flexShrink: 1, minHeight: 400 }}>
+                <View style={{ flex: 1 }}>
                   <ScrollView
+                    style={{ flex: 1 }}
                     showsVerticalScrollIndicator={false}
                     contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 20 }}
                     bounces={false}

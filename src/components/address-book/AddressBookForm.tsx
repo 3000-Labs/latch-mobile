@@ -121,7 +121,7 @@ const AddressBookForm = ({ onSubmit, initialAddress }: AddressBookFormProps) => 
               )}
             </Box>
 
-            <Box position="absolute" bottom={40} width="100%" left={theme.spacing.m}>
+            <Box mt="auto" paddingBottom="m">
               <TouchableOpacity
                 activeOpacity={0.8}
                 onPress={() => handleSubmit()}

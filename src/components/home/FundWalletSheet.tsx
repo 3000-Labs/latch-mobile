@@ -19,6 +19,7 @@ import FundingStatusSheet from './FundingStatusSheet';
 import BottomSheetHandle from '@/src/components/shared/BottomSheetHandle';
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
+import { SHEET_HEIGHT } from '@/src/constants/constants';
 import { Theme } from '@/src/theme/theme';
 import { useAppTheme } from '@/src/theme/ThemeContext';
 import * as Clipboard from 'expo-clipboard';
@@ -84,7 +85,7 @@ const FundWalletSheet = ({ visible, onClose, address, memo }: Props) => {
             backgroundColor: theme.colors.bg11,
             paddingBottom: Math.max(insets.bottom, 16),
             transform: [{ translateY }],
-            maxHeight: SCREEN_HEIGHT,
+            height: SHEET_HEIGHT,
           },
         ]}
       >

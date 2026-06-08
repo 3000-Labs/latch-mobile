@@ -23,7 +23,10 @@ const ChooseWallet = () => {
       // Go to biometric / personal wallet creation flow
       router.push('/(auth)/biometric');
     } else if (selectedType === 'shared') {
-      router.push('/(onboarding)/create-shared');
+      // Shared wallets need the creator to be a signer AND backed up, so run the
+      // same identity + email setup the personal flow uses. `from: 'shared'` makes
+      // set-pin forward into the shared branch instead of the personal deploy.
+      router.push({ pathname: '/(auth)/biometric', params: { from: 'shared' } });
     }
   };
 

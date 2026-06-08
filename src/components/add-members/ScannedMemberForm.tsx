@@ -2,6 +2,7 @@ import InputField from '@/src/components/create-shared/InputField';
 import Box from '@/src/components/shared/Box';
 import Button from '@/src/components/shared/Button';
 import Text from '@/src/components/shared/Text';
+import { StrKey } from '@stellar/stellar-sdk';
 import { Formik } from 'formik';
 import React from 'react';
 import { ScrollView } from 'react-native';
@@ -21,6 +22,10 @@ const truncate = (str: string) =>
   str.length > 20 ? `${str.slice(0, 8)}...${str.slice(-8)}` : str;
 
 const ScannedMemberForm: React.FC<ScannedMemberFormProps> = ({ address, onAdd, onScanAgain }) => {
+  // Defence-in-depth: if a non-C-address somehow reached this form
+  // (bypassing ScanQRSheet's validation), keep the Add button disabled
+  // so it can't be submitted as a signer.
+  const isValidAddress = StrKey.isValidContract(address);
   return (
     <Box
       style={{
@@ -89,7 +94,7 @@ const ScannedMemberForm: React.FC<ScannedMemberFormProps> = ({ address, onAdd, o
 
                 <Button
                   label="Add Member"
-                  disabled={!values.name}
+                  disabled={!values.name || !isValidAddress}
                   onPress={() => handleSubmit()}
                 />
 

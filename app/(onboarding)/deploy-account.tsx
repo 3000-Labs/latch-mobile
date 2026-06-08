@@ -18,6 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Box from '@/src/components/shared/Box';
 import Button from '@/src/components/shared/Button';
 import Text from '@/src/components/shared/Text';
+import DeployTimeline, { type DeployStep, type StepStatus } from '@/src/components/deploy/DeployTimeline';
 import { createPasskeyCredential, storePasskeyCredential } from '@/src/lib/passkey-webauthn';
 import { restoreStellarWallet } from '@/src/lib/seed-wallet';
 import { SECURE_KEYS, useWalletStore, type WalletAccount } from '@/src/store/wallet';
@@ -25,24 +26,18 @@ import { Theme } from '@/src/theme/theme';
 import { useTheme } from '@shopify/restyle';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as LocalAuthentication from 'expo-local-authentication';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Image, StyleSheet } from 'react-native';
+import { AccessibilityInfo, Image, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type Stage =
   | 'auth' // verifying credentials / passkey gate
   | 'deploying' // waiting on Soroban RPC
   | 'success' // all done
   | 'error'; // deployment failed
-
-const STAGE_LABELS: Record<Stage, string> = {
-  auth: 'Verifying your identity…',
-  deploying: 'Deploying your smart account…\nThis can take up to 30 seconds.',
-  success: 'Your smart account is ready!',
-  error: 'Something went wrong',
-};
 
 /**
  * Attempt biometric authentication. Returns true if successful, false if unavailable or declined.
@@ -106,6 +101,11 @@ const DeployAccount = () => {
   const theme = useTheme<Theme>();
   const statusBarStyle = useStatusBarStyle();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  // `flow === 'shared'` means this is a multisig onboarding: deploy the creator's
+  // personal account here, then continue into the shared-wallet build screens
+  // (create-shared) rather than landing on the dashboard.
+  const { flow } = useLocalSearchParams<{ flow?: string }>();
   const { setActiveWallet, setSmartAccountAddress, accounts } = useWalletStore();
 
   const [stage, setStage] = useState<Stage>('auth');
@@ -113,19 +113,26 @@ const DeployAccount = () => {
   //  const [smartAccountAddress, setLocalSmartAccount] = useState('');
   const [retryCount, setRetryCount] = useState(0);
   const [isMnemonicPath, setIsMnemonicPath] = useState(false);
+  const [reduceMotion, setReduceMotion] = useState(false);
 
-  // Pulse animation for the spinner container
-  const pulse = useRef(new Animated.Value(1)).current;
+  // Track the last in-progress stage so an error can point the timeline at the
+  // step that actually failed (auth vs deploying). UI-only — does not touch the
+  // deploy flow in the effect below.
+  const lastActiveRef = useRef<Stage>('auth');
   useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1.08, duration: 900, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 1, duration: 900, useNativeDriver: true }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [pulse]);
+    if (stage === 'auth' || stage === 'deploying') lastActiveRef.current = stage;
+  }, [stage]);
+
+  // Respect the system reduced-motion setting for the active-step indicator.
+  useEffect(() => {
+    let mounted = true;
+    AccessibilityInfo.isReduceMotionEnabled().then((v) => mounted && setReduceMotion(v));
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => {
+      mounted = false;
+      sub?.remove?.();
+    };
+  }, []);
 
   // Run deployment on mount and on each retry
   useEffect(() => {
@@ -207,9 +214,15 @@ const DeployAccount = () => {
         setSmartAccountAddress(deployedAddress);
 
         // ── Step 5: upload encrypted backup (best-effort, non-blocking) ───────
-        uploadBackup().catch((err) => {
-          __DEV__ && console.log('[backup] upload failed:', err?.message);
-        });
+        // Skip for the shared flow: uploadBackup consumes and deletes the
+        // recovery-password session, and the multisig doesn't exist yet. The
+        // single backup is deferred to shared-wallet-review, which runs once
+        // both the personal and multisig accounts are in ACCOUNTS.
+        if (flow !== 'shared') {
+          uploadBackup().catch((err) => {
+            __DEV__ && console.log('[backup] upload failed:', err?.message);
+          });
+        }
 
         if (!cancelled) {
           // Surface success — user explicitly taps "Go to Dashboard" to proceed.
@@ -234,6 +247,14 @@ const DeployAccount = () => {
   }, [retryCount]);
 
   const goToDashboard = async (address: string) => {
+    // Shared-wallet onboarding: the personal account is now deployed and backed
+    // up. Continue into the multisig build screens instead of the dashboard; the
+    // shared wallet will be appended as a second account in shared-wallet-review.
+    if (flow === 'shared') {
+      router.replace('/(onboarding)/create-shared');
+      return;
+    }
+
     // Mnemonic users: check if their G-address has assets to sweep before going to dashboard.
     if (isMnemonicPath) {
       try {
@@ -276,10 +297,47 @@ const DeployAccount = () => {
     setRetryCount((c) => c + 1);
   };
 
-  const isSpinning = stage === 'auth' || stage === 'deploying';
+  // Derive per-step status from the current stage. On error, point at the step
+  // that was in progress when it failed (auth vs deploying).
+  const stepStatuses = (): [StepStatus, StepStatus, StepStatus] => {
+    if (stage === 'success') return ['done', 'done', 'done'];
+    if (stage === 'error') {
+      return lastActiveRef.current === 'auth'
+        ? ['error', 'pending', 'pending']
+        : ['done', 'error', 'pending'];
+    }
+    // Mnemonic path skips the auth stage entirely (goes straight to deploying),
+    // so step 1 reads as done once we're deploying.
+    if (stage === 'deploying') return ['done', 'active', 'pending'];
+    return ['active', 'pending', 'pending'];
+  };
+
+  const statuses = stepStatuses();
+  const steps: DeployStep[] = [
+    { label: isMnemonicPath ? 'Wallet imported' : 'Identity verified', status: statuses[0] },
+    {
+      label: 'Deploying on Stellar',
+      status: statuses[1],
+      caption: statuses[1] === 'active' ? 'This can take up to 30 seconds' : undefined,
+    },
+    { label: 'Finalizing', status: statuses[2] },
+  ];
+
+  const heading =
+    stage === 'success'
+      ? 'You’re all set'
+      : stage === 'error'
+        ? 'Setup failed'
+        : 'Setting up your\nsmart account';
+  const subheading =
+    stage === 'success'
+      ? 'Your smart account is ready.'
+      : stage === 'error'
+        ? errorMsg
+        : 'This usually takes a few moments. Keep the app open.';
 
   return (
-    <Box flex={1} backgroundColor="mainBackground" justifyContent="center" alignItems="center">
+    <Box flex={1} backgroundColor="mainBackground">
       <LinearGradient
         colors={[theme.colors.gradientLight, theme.colors.gradientDark]}
         locations={[0, 0.2772]}
@@ -289,124 +347,48 @@ const DeployAccount = () => {
       />
       <StatusBar style={statusBarStyle} />
 
-      <Box alignItems="center" paddingHorizontal="xl" gap="xl">
+      <Box
+        flex={1}
+        paddingHorizontal="xl"
+        style={{ paddingTop: insets.top + 24, paddingBottom: Math.max(insets.bottom, 24) }}
+      >
         {/* Logo */}
         <Image
-          source={require('@/src/assets/images/logosym.png')}
-          style={{ width: 64, height: 64 }}
+          source={require('@/src/assets/images/logoLoading.png')}
+          style={{ width: 56, height: 56 }}
           resizeMode="contain"
         />
 
-        {/* Animated spinner / success / error indicator */}
-        <Animated.View
-          style={[
-            styles.circle,
-            {
-              backgroundColor:
-                stage === 'error' ? theme.colors.danger900 + '22' : theme.colors.primary700 + '22',
-              borderColor: stage === 'error' ? theme.colors.danger900 : theme.colors.primary700,
-              transform: [{ scale: isSpinning ? pulse : 1 }],
-            },
-          ]}
-        >
-          {isSpinning && <ActivityIndicator size="large" color={theme.colors.primary700} />}
-          {stage === 'success' && (
-            <Text variant="h7" fontSize={40}>
-              ✓
-            </Text>
-          )}
-          {stage === 'error' && (
-            <Text variant="h7" fontSize={40}>
-              ✕
-            </Text>
-          )}
-        </Animated.View>
-
-        {/* Stage label */}
-        <Box alignItems="center" gap="s">
-          <Text variant="h8" fontSize={22} fontWeight="700" textAlign="center" color="textPrimary">
-            {stage === 'success'
-              ? 'All done!'
-              : stage === 'error'
-                ? 'Deployment Failed'
-                : 'Setting up…'}
+        {/* Hero */}
+        <Box mt="xxl">
+          <Text variant="h7" fontSize={30} fontWeight="700" color="textPrimary" lineHeight={38}>
+            {heading}
           </Text>
-          <Text variant="body" color="textSecondary" textAlign="center" lineHeight={22}>
-            {stage === 'error' ? errorMsg : STAGE_LABELS[stage]}
+          <Text variant="body" color="textSecondary" mt="s" lineHeight={22}>
+            {subheading}
           </Text>
         </Box>
 
-        {/* Progress steps — visible while loading */}
-        {isSpinning && (
-          <Box gap="s" width="100%">
-            {[
-              {
-                label: isMnemonicPath ? 'Wallet imported' : 'Passkey credential verified',
-                done: stage === 'deploying',
-              },
-              { label: 'Deploying on Stellar', done: false },
-            ].map(({ label, done }) => (
-              <Box key={label} flexDirection="row" alignItems="center" gap="m">
-                <Box
-                  width={20}
-                  height={20}
-                  borderRadius={10}
-                  backgroundColor={done ? 'primary700' : 'gray900'}
-                  justifyContent="center"
-                  alignItems="center"
-                >
-                  {done && (
-                    <Text variant="body" fontSize={12} color="textWhite">
-                      ✓
-                    </Text>
-                  )}
-                </Box>
-                <Text variant="body" color={done ? 'textPrimary' : 'textSecondary'}>
-                  {label}
-                </Text>
-              </Box>
-            ))}
-          </Box>
-        )}
+        {/* Timeline */}
+        <Box mt="xxl">
+          <DeployTimeline steps={steps} reduceMotion={reduceMotion} />
+        </Box>
 
-        {/* Action buttons */}
-        {/* {stage === 'success' && (
-          <Box width="100%" mt="m">
-            <Button
-              label="Go to Dashboard"
-              variant="primary"
-              onPress={goToDashboard}
-              bg="primary700"
-              labelColor="black"
-            />
-          </Box>
-        )} */}
+        <Box flex={1} />
 
+        {/* Error recovery — bottom anchored */}
         {stage === 'error' && (
-          <Box width="100%" gap="m" mt="m">
-            <Button
-              label="Try Again"
-              variant="primary"
-              onPress={retry}
-              bg="primary700"
-              labelColor="black"
-            />
-          </Box>
+          <Button
+            label="Try Again"
+            variant="primary"
+            onPress={retry}
+            bg="primary700"
+            labelColor="black"
+          />
         )}
       </Box>
     </Box>
   );
 };
-
-const styles = StyleSheet.create({
-  circle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 2,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-});
 
 export default DeployAccount;

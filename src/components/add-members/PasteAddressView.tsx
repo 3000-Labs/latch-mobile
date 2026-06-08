@@ -5,6 +5,7 @@ import Text from '@/src/components/shared/Text';
 import { Theme } from '@/src/theme/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
+import * as Clipboard from 'expo-clipboard';
 import { Formik } from 'formik';
 import React from 'react';
 import { ScrollView, TouchableOpacity } from 'react-native';
@@ -16,7 +17,6 @@ const schema = Yup.object().shape({
     .trim()
     .required('Wallet address is required')
     .matches(/^C[A-Z2-7]{55}$/, 'Enter a valid Stellar wallet address'),
-  // .matches(/^G[A-Z2-7]{55}$/, 'Enter a valid Stellar wallet address'),
 });
 
 interface PasteAddressViewProps {
@@ -33,7 +33,7 @@ const PasteAddressView: React.FC<PasteAddressViewProps> = ({ onClose, onAdd }) =
       validationSchema={schema}
       onSubmit={(values) => onAdd(values.name.trim(), values.address.trim())}
     >
-      {({ handleChange, handleBlur, handleSubmit, values, errors, touched }) => (
+      {({ handleChange, handleBlur, handleSubmit, setFieldValue, values, errors, touched }) => (
         <ScrollView
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -91,6 +91,29 @@ const PasteAddressView: React.FC<PasteAddressViewProps> = ({ onClose, onAdd }) =
               error={touched.address && errors.address ? errors.address : undefined}
               autoCapitalize="characters"
               autoCorrect={false}
+              rightElement={
+                values.address ? (
+                  <TouchableOpacity
+                    onPress={() => setFieldValue('address', '')}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Ionicons name="close-circle" size={20} color={theme.colors.textSecondary} />
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    onPress={async () => {
+                      const text = await Clipboard.getStringAsync();
+                      setFieldValue('address', text.trim());
+                    }}
+                  >
+                    <Box backgroundColor="primary" px="m" py="xs" borderRadius={8}>
+                      <Text variant="p8" color="black" fontWeight="600">
+                        Paste
+                      </Text>
+                    </Box>
+                  </TouchableOpacity>
+                )
+              }
             />
 
             <Button

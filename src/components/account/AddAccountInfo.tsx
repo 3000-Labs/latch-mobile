@@ -129,7 +129,7 @@ const AddAccountInfo = ({ defaultName, onBack, onSubmit, isSubmitting }: AddAcco
             </ScrollView>
 
             {/* Bottom Button */}
-            <Box style={{ marginBottom: 50 }}>
+            <Box>
               <TouchableOpacity
                 activeOpacity={0.7}
                 onPress={() => handleSubmit()}

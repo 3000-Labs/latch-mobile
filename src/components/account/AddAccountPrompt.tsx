@@ -33,11 +33,7 @@ const AddAccountPrompt = ({ onBack, onCreatePress }: AddAccountPromptProps) => {
       <Box gap="xs">
         {/* Create Smart Account Option */}
         <TouchableOpacity activeOpacity={0.8} onPress={onCreatePress}>
-          <Box
-            padding="l"
-            borderRadius={24}
-            // borderWidth={1.5} borderColor="primary700"
-          >
+          <Box padding="l" borderRadius={24} borderWidth={1.5} borderColor="primary700">
             <Box flexDirection="row" justifyContent="space-between" alignItems="center" mb="s">
               <Text variant="h9" color="textPrimary" fontWeight="700">
                 Create Smart Account

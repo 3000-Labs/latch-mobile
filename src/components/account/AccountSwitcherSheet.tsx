@@ -3,6 +3,7 @@ import { deploySmartAccount as deploySmartAccountEd25519 } from '@/src/api/smart
 import BottomSheetHandle from '@/src/components/shared/BottomSheetHandle';
 import { createPasskeyCredential, storePasskeyCredentialAtIndex } from '@/src/lib/passkey-webauthn';
 import { SECURE_KEYS, useWalletStore, WalletAccount } from '@/src/store/wallet';
+import { SHEET_HEIGHT } from '@/src/constants/constants';
 import { Theme } from '@/src/theme/theme';
 import { useAppTheme } from '@/src/theme/ThemeContext';
 import { useTheme } from '@shopify/restyle';
@@ -235,8 +236,7 @@ const AccountSwitcherSheet = ({ visible, onClose }: Props) => {
               backgroundColor: isDark ? theme.colors.cardbg : theme.colors.mainBackground,
               paddingBottom: Math.max(insets.bottom, 16),
               transform: [{ translateY }],
-              maxHeight: SCREEN_HEIGHT * 0.9,
-              minHeight: step === 'list' ? 300 : SCREEN_HEIGHT,
+              height: SHEET_HEIGHT,
             },
           ]}
         >

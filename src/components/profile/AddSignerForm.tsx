@@ -90,25 +90,24 @@ const AddSignerForm = ({ onBack, onSubmit }: Props) => {
           />
         </Box>
 
-        <Box height={30} />
-        <Box padding="m" paddingBottom="l">
-          <TouchableOpacity activeOpacity={0.7} onPress={() => formik.handleSubmit()}>
-            <Box
-              height={64}
-              backgroundColor="primary"
-              borderRadius={32}
-              justifyContent="center"
-              alignItems="center"
-            >
-              <Text variant="h10" color="black" fontWeight="700">
-                Add Signer
-              </Text>
-            </Box>
-          </TouchableOpacity>
-        </Box>
       </ScrollView>
 
       {/* Bottom Button */}
+      <Box paddingHorizontal="m" paddingTop="m">
+        <TouchableOpacity activeOpacity={0.7} onPress={() => formik.handleSubmit()}>
+          <Box
+            height={64}
+            backgroundColor="primary"
+            borderRadius={32}
+            justifyContent="center"
+            alignItems="center"
+          >
+            <Text variant="h10" color="black" fontWeight="700">
+              Add Signer
+            </Text>
+          </Box>
+        </TouchableOpacity>
+      </Box>
     </Box>
   );
 };

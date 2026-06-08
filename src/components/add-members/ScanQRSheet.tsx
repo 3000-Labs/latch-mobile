@@ -2,6 +2,7 @@ import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
 import { Theme } from '@/src/theme/theme';
 import { Ionicons } from '@expo/vector-icons';
+import { StrKey } from '@stellar/stellar-sdk';
 import { useTheme } from '@shopify/restyle';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import React, { useRef, useState } from 'react';
@@ -49,9 +50,12 @@ const ScanQRSheet: React.FC<Props> = ({ visible, onClose, onMemberAdded }) => {
   };
 
   const handleBarcodeScanned = (data: string) => {
-    if (!scannedAddress) {
-      showForm(data);
-    }
+    if (scannedAddress) return;
+    // Only accept Stellar contract (C…) addresses. Anything else (URLs,
+    // raw text, G-addresses) is silently ignored so the camera keeps
+    // scanning — the user can simply point at a valid QR.
+    if (!StrKey.isValidContract(data)) return;
+    showForm(data);
   };
 
   return (

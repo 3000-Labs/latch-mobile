@@ -144,11 +144,13 @@ const ChooseMethodSheet: React.FC<Props> = ({ visible, onClose, onScanQR, onMemb
                   title="Invite via Email"
                   subtitle="Send an invitation"
                   onPress={() => setView('invite-email')}
+                  image={require('@/src/assets/icon/email.png')}
                 />
                 <MethodOptionCard
                   icon="qr-code-outline"
                   title="Scan QR Code"
                   subtitle="Scan member's QR code"
+                  image={require('@/src/assets/icon/qr-code.png')}
                   onPress={onScanQR}
                 />
               </Box>

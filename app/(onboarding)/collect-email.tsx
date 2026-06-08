@@ -11,6 +11,9 @@
 
 import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import {
+  checkEmailHasBackup,
+  clearEmailSession,
+  getBackupStatus,
   initiateRecovery,
   registerEmail,
   saveAuthTokens,
@@ -85,6 +88,16 @@ const CollectEmail = () => {
       if (isRecovery) {
         await initiateRecovery(trimmed);
       } else {
+        // Pre-OTP collision check: if this email already anchors a wallet,
+        // tell the user up front rather than letting them go through OTP
+        // and onboarding only to fail at upload time.
+        const hasBackup = await checkEmailHasBackup(trimmed);
+        if (hasBackup) {
+          setError(
+            'This email is already tied to another wallet. Use a different email, or recover the existing wallet from the previous screen.',
+          );
+          return;
+        }
         await registerEmail(trimmed);
       }
       setEmail(trimmed);
@@ -118,6 +131,21 @@ const CollectEmail = () => {
       } else {
         const { accessToken, refreshToken } = await verifyOTP(email, otp.trim());
         await saveAuthTokens(accessToken, refreshToken, email);
+        // Each Latch email anchors at most one wallet. If foo@ already has a
+        // backup from a prior wallet, the registration we just completed is
+        // pointing at the wrong identity — clear the session and prompt the
+        // user for a different email instead of letting them invest in
+        // onboarding only to fail at upload time.
+        const status = await getBackupStatus();
+        if (status.exists) {
+          await clearEmailSession();
+          setPhase('email');
+          setOtp('');
+          setError(
+            'This email is already linked to a different wallet. Use a different email, or recover the existing wallet from the previous screen.',
+          );
+          return;
+        }
         // Navigate to set-recovery-password to collect the password that will
         // encrypt the backup before it is uploaded in deploy-account.
         router.replace({
@@ -173,7 +201,7 @@ const CollectEmail = () => {
       flex={1}
       backgroundColor="onboardingbg"
       paddingHorizontal="m"
-      style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
+      style={{ paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, 24) }}
     >
       <LinearGradient
         colors={[theme.colors.gradientLight, theme.colors.gradientDark]}
@@ -224,7 +252,7 @@ const CollectEmail = () => {
           <Text
             variant="body"
             color="textSecondary"
-            mt="s"
+            // mt="s"
             textAlign="center"
             style={{ width: '85%' }}
           >
@@ -293,7 +321,7 @@ const CollectEmail = () => {
         )}
 
         {/* Primary button */}
-        <Box mt={'auto'} mb={phase === 'otp' ? 's' : '4xl'}>
+        <Box mt={'auto'}>
           <Button
             label={
               isLoading

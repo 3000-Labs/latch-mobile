@@ -1,9 +1,10 @@
-import { checkBackupExists, uploadBackup } from '@/src/api/latch-auth';
+import { checkBackupExists, LatchAPIError, uploadBackup } from '@/src/api/latch-auth';
 import BottomSheetHandle from '@/src/components/shared/BottomSheetHandle';
 import Box from '@/src/components/shared/Box';
 import Input from '@/src/components/shared/Input';
 import Text from '@/src/components/shared/Text';
 import { SECURE_KEYS } from '@/src/store/wallet';
+import { SHEET_HEIGHT } from '@/src/constants/constants';
 import { Theme } from '@/src/theme/theme';
 import { useAppTheme } from '@/src/theme/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
@@ -88,7 +89,17 @@ const BackupSheet = ({ visible, onClose }: Props) => {
       onClose();
     } catch (err: any) {
       await SecureStore.deleteItemAsync(SECURE_KEYS.RECOVERY_PASSWORD_SESSION).catch(() => {});
-      setFieldError('password', err?.message ?? 'Backup failed. Please try again.');
+      // 409 ADDRESS_MISMATCH means foo@ already anchors a different wallet.
+      // Surface a friendly directive — the user's only path forward is a
+      // different email since they can't change the wallet on this device.
+      const isMismatch =
+        err instanceof LatchAPIError && (err.status === 409 || err.code === 'ADDRESS_MISMATCH');
+      setFieldError(
+        'password',
+        isMismatch
+          ? 'This email is already linked to a different wallet. Use a different email to back up this one.'
+          : (err?.message ?? 'Backup failed. Please try again.'),
+      );
     } finally {
       setSubmitting(false);
     }
@@ -112,6 +123,7 @@ const BackupSheet = ({ visible, onClose }: Props) => {
               backgroundColor: isDark ? theme.colors.cardbg : theme.colors.mainBackground,
               paddingBottom: Math.max(insets.bottom, 16),
               transform: [{ translateY }],
+              height: SHEET_HEIGHT,
             },
           ]}
         >
@@ -138,7 +150,7 @@ const BackupSheet = ({ visible, onClose }: Props) => {
             <Box width={40} />
           </Box>
 
-          <Box paddingHorizontal="m">
+          <Box paddingHorizontal="m" flex={1}>
             {/* Status row */}
             <Box
               backgroundColor="bg11"
@@ -193,7 +205,7 @@ const BackupSheet = ({ visible, onClose }: Props) => {
                 touched,
                 isSubmitting,
               }) => (
-                <Box>
+                <Box flex={1}>
                   <Input
                     value={values.password}
                     onChangeText={handleChange('password')}
@@ -239,6 +251,7 @@ const BackupSheet = ({ visible, onClose }: Props) => {
                     activeOpacity={0.8}
                     onPress={() => submit()}
                     disabled={isSubmitting}
+                    style={{ marginTop: 'auto' }}
                   >
                     <Box
                       height={64}

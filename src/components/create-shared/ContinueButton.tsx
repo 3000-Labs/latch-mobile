@@ -7,7 +7,14 @@ interface ContinueButtonProps {
 }
 
 const ContinueButton: React.FC<ContinueButtonProps> = ({ onPress, disabled = false }) => {
-  return <Button label="Continue" disabled={disabled} onPress={onPress} />;
+  return (
+    <Button
+      label="Continue"
+      bg={disabled ? 'btnDisabled' : 'primary'}
+      disabled={disabled}
+      onPress={onPress}
+    />
+  );
 };
 
 export default ContinueButton;
