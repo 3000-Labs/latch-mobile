@@ -1,10 +1,11 @@
 import * as Updates from 'expo-updates';
 import { useEffect } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
+import Toast from 'react-native-toast-message';
 
-// Collapses the two-launch OTA quirk: on cold launch (and on each
-// foreground), fetch any pending update and reload into it in the same
-// session instead of waiting for the user to force-quit twice.
+// Industry-standard OTA flow: silently download a pending update in the
+// background, then surface a non-blocking "tap to restart" prompt instead
+// of force-reloading mid-session. The user picks the moment to apply it.
 export function useOtaUpdate() {
   useEffect(() => {
     if (__DEV__ || !Updates.isEnabled) {
@@ -12,9 +13,31 @@ export function useOtaUpdate() {
     }
 
     let checking = false;
+    // One prompt per fetched update — avoids re-toasting on every foreground.
+    let prompted = false;
 
-    const checkAndApply = async () => {
-      if (checking) {
+    const promptRestart = () => {
+      if (prompted) {
+        return;
+      }
+      prompted = true;
+      Toast.show({
+        type: 'update',
+        text1: 'Update ready',
+        text2: 'A new version is ready to install.',
+        autoHide: false,
+        props: {
+          actionLabel: 'Restart',
+          onAction: () => {
+            Toast.hide();
+            void Updates.reloadAsync();
+          },
+        },
+      });
+    };
+
+    const checkAndFetch = async () => {
+      if (checking || prompted) {
         return;
       }
       checking = true;
@@ -24,20 +47,20 @@ export function useOtaUpdate() {
           return;
         }
         await Updates.fetchUpdateAsync();
-        await Updates.reloadAsync();
+        promptRestart();
       } catch {
-        // Network/availability errors are non-fatal — the default
-        // background fetch still applies the update on next cold launch.
+        // Non-fatal — the default background fetch still applies the update
+        // on the next cold launch.
       } finally {
         checking = false;
       }
     };
 
-    void checkAndApply();
+    void checkAndFetch();
 
     const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
       if (state === 'active') {
-        void checkAndApply();
+        void checkAndFetch();
       }
     });
 

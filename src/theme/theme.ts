@@ -204,6 +204,7 @@ const sharedColors = {
   gray800: palette.gray800,
   gray900: palette.gray900,
 
+  primary7: '#F0A300',
   primary50: palette.primary50,
   primary100: palette.primary100,
   primary200: palette.primary200,

@@ -112,13 +112,16 @@ pressing home, not locking the phone, not closing TestFlight. Those leave
 the app suspended in memory; the next "open" is a warm resume, not a cold
 launch.
 
-**Now collapsed in-session.** `useOtaUpdate` (`src/hooks/use-ota-update.ts`,
-wired in `app/_layout.tsx`) runs `Updates.checkForUpdateAsync()` →
-`fetchUpdateAsync()` → `reloadAsync()` on cold launch and on every
-foreground. So a pending update applies within the current session — no
-second force-quit needed. Disabled in `__DEV__` / Expo Go (where
+**Surfaced via a tap-to-restart prompt.** `useOtaUpdate`
+(`src/hooks/use-ota-update.ts`, wired in `app/_layout.tsx`) runs
+`Updates.checkForUpdateAsync()` → `fetchUpdateAsync()` on cold launch and on
+every foreground. The download is silent; once it lands, a non-blocking
+Toast ("Update ready — tap to restart") appears. The update is applied via
+`Updates.reloadAsync()` only when the user taps it — never force-reloaded
+mid-session. If the user ignores the prompt, the update still applies on the
+next cold launch (default behavior). Disabled in `__DEV__` / Expo Go (where
 `Updates.isEnabled` is false); errors are swallowed and fall back to the
-default next-cold-launch behavior described above.
+default next-cold-launch behavior.
 
 ---
 
