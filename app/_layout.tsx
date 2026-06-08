@@ -16,6 +16,7 @@ import '../shim';
 import { Buffer } from 'buffer';
 import { Stack } from 'expo-router';
 import { install } from 'react-native-quick-crypto';
+import { toastConfig } from '../src/components/toast/toastConfig';
 import { queryClient } from '../src/api/client';
 import { useOtaUpdate } from '../src/hooks/use-ota-update';
 import { AppThemeProvider, useAppTheme } from '../src/theme/ThemeContext';
@@ -56,7 +57,7 @@ function RootLayoutContent() {
         <Stack.Screen name="pending-approval" options={{ headerShown: false }} />
       </Stack>
       <StatusBar style={isDark ? 'light' : 'dark'} />
-      <Toast />
+      <Toast config={toastConfig} />
     </>
   );
 }
