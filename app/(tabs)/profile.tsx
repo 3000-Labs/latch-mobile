@@ -1,4 +1,5 @@
 import AccountSwitcherSheet from '@/src/components/account/AccountSwitcherSheet';
+import SharedWalletWizardSheet from '@/src/components/account/SharedWalletWizardSheet';
 import AboutSheet from '@/src/components/profile/AboutSheet';
 import AccountInfoSheet from '@/src/components/profile/AccountInfoSheet';
 import AddressBookSheet from '@/src/components/profile/AddressBookSheet';
@@ -15,7 +16,6 @@ import RecoveryPhraseSheet from '@/src/components/profile/RecoveryPhraseSheet';
 import SettingItem from '@/src/components/profile/SettingItem';
 import SignersSheet from '@/src/components/profile/SignersSheet';
 import Box from '@/src/components/shared/Box';
-import Switch from '@/src/components/shared/Switch';
 import Text from '@/src/components/shared/Text';
 import { useDrawer } from '@/src/context/drawer-context';
 import { useWalletStore } from '@/src/store/wallet';
@@ -54,6 +54,7 @@ const Profile = () => {
   const [privacyVisible, setPrivacyVisible] = useState(false);
   const [logoutVisible, setLogoutVisible] = useState(false);
   const [backupVisible, setBackupVisible] = useState(false);
+  const [sharedWalletVisible, setSharedWalletVisible] = useState(false);
 
   const activeAccount = accounts[activeAccountIndex];
   const isPasskeyAccount = !activeAccount?.gAddress;
@@ -136,6 +137,10 @@ const Profile = () => {
           onConfirm={handleLogout}
         />
         <BackupSheet visible={backupVisible} onClose={() => setBackupVisible(false)} />
+        <SharedWalletWizardSheet
+          visible={sharedWalletVisible}
+          onClose={() => setSharedWalletVisible(false)}
+        />
 
         <Box paddingHorizontal="m">
           {/* Account Section */}
@@ -155,6 +160,17 @@ const Profile = () => {
               onPress={() => setSwitcherVisible(true)}
               image={require('@/src/assets/icon/users.png')}
             />
+            <SettingItem
+              icon="people-circle-outline"
+              image={require('@/src/assets/icon/wallet-customer-group.png')}
+              label="Multisig Wallets"
+              onPress={() => setSharedWalletVisible(true)}
+            />
+            {/* <SettingItem
+              icon="checkmark-done-outline"
+              label="Approve Shared Transfer"
+              onPress={() => router.push('/cosign-review')}
+            /> */}
             <SettingItem
               icon="book-outline"
               label="Address Book"
@@ -207,12 +223,12 @@ const Profile = () => {
             <Text variant="p7" color="textSecondary" mb="m" style={{ marginLeft: 4 }}>
               Preferences
             </Text>
-            <SettingItem
+            {/* <SettingItem
               icon={isDark ? 'moon-outline' : 'sunny-outline'}
               label="Dark Mode"
               showChevron={false}
               rightElement={<Switch value={isDark} onValueChange={toggleTheme} />}
-            />
+            /> */}
             <SettingItem
               icon="globe-outline"
               label="Network"
@@ -248,6 +264,19 @@ const Profile = () => {
               onPress={() => setPrivacyVisible(true)}
             />
           </Box>
+
+          {__DEV__ && (
+            <Box mb="l">
+              <Text variant="p7" color="textSecondary" mb="s" style={{ marginLeft: 4 }}>
+                Dev tools
+              </Text>
+              <SettingItem
+                icon="construct-outline"
+                label="Multisig states (preview)"
+                onPress={() => router.push('/dev/multisig-states')}
+              />
+            </Box>
+          )}
 
           <LogoutItem onPress={() => setLogoutVisible(true)} bottomInset={insets.bottom} />
         </Box>
