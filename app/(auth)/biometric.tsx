@@ -2,7 +2,7 @@ import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import Box from '@/src/components/shared/Box';
 import Button from '@/src/components/shared/Button';
 import Text from '@/src/components/shared/Text';
-import { fetchPendingCosignOnce } from '@/src/hooks/use-pending-cosign-requests';
+import { fetchPendingPacketsOnce } from '@/src/hooks/use-pending-packets';
 import { createPasskeyCredential, storePasskeyCredential } from '@/src/lib/passkey-webauthn';
 import { SECURE_KEYS } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
@@ -126,7 +126,7 @@ const Biometrics = () => {
     try {
       const smart = await SecureStore.getItemAsync(SECURE_KEYS.SMART_ACCOUNT);
       if (smart) {
-        const pending = await fetchPendingCosignOnce(smart);
+        const pending = await fetchPendingPacketsOnce(smart);
         if (pending.length > 0) {
           router.replace('/pending-approval');
           return;
@@ -583,6 +583,7 @@ const Biometrics = () => {
           onPress={() => setShowModal(true)}
           bg="primary700"
           labelColor="black"
+          // shadowColor="gradientDark"
           disabled={isProcessing}
         />
         <Button
@@ -591,7 +592,7 @@ const Biometrics = () => {
           // mt="s"
           bg={'btnDisabled'}
           shadowOffset={{ width: 0, height: 4 }}
-          shadowColor="primary500"
+          shadowColor="gradientDark"
           shadowRadius={15}
           shadowOpacity={0.12}
           labelColor={statusBarStyle === 'light' ? 'textWhite' : 'black'}
@@ -622,10 +623,10 @@ const Biometrics = () => {
               resizeMode="contain"
             />
             <Text variant="h8" color="text200" fontSize={24} mt="l">
-              Do you want to allow &quot;Latch&quot; to use {biometricLabel}?
+              Do you want to allow &quot;Latch&quot; to use biometric?
             </Text>
             <Text variant="p5" color="textTertiary" mt="xs">
-              Allow Latch to access your {biometricLabel} biometric data..
+              Allow Latch to access your biometric data..
             </Text>
             <Box flexDirection="row" gap="m" mt="xl" width="100%">
               <Button
