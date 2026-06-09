@@ -57,7 +57,14 @@ const Input: React.FC<Props> = ({
           onBlur?.(e);
         }}
         placeholderTextColor={theme.colors.gray600}
-        style={{ flex: 1, color: theme.colors.textPrimary, fontSize: 16, padding: 0 }}
+        style={{
+          flex: 1,
+          color: theme.colors.textPrimary,
+          fontFamily: 'SFproRegular',
+          fontSize: 16,
+          letterSpacing: -0.32,
+          padding: 0,
+        }}
       />
       {rightElement}
       {showPasswordToggle && secureTextEntry && (

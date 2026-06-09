@@ -18,7 +18,7 @@ interface Props {
 
 const RecipientStep = ({ onSelectWallet, initialAddress }: Props) => {
   const theme = useTheme<Theme>();
-  const { isDark } = useAppTheme()
+  const { isDark } = useAppTheme();
   const [address, setAddress] = useState(initialAddress ?? '');
   const { entries } = useAddressBook();
 

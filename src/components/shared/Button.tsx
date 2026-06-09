@@ -56,7 +56,7 @@ const Button: React.FC<Props> = ({
 
   return (
     <ButtonContainer
-      variant={disabled ? 'disabled' : variant}
+      variant={disabled || loading ? 'disabled' : variant}
       // @ts-ignore
       onPress={onPress}
       disabled={disabled || loading}

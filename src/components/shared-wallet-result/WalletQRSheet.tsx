@@ -6,7 +6,7 @@ import QRCode from 'react-native-qrcode-svg';
 import { captureRef } from 'react-native-view-shot';
 import Box from '../shared/Box';
 
-const LATCH_LOGO = require('@/src/assets/images/logosym.png');
+const LATCH_LOGO = require('@/src/assets/images/logoLoading.png');
 const STELLAR_LOGO = require('@/src/assets/token/stellar.png');
 
 interface WalletQRSheetProps {

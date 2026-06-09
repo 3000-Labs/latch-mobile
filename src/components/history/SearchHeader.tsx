@@ -7,7 +7,7 @@ import Box from '../shared/Box';
 import Input from '../shared/Input';
 import Text from '../shared/Text';
 
-const FILTERS = ['All', 'Sent', 'Received', 'Contract'];
+const FILTERS = ['All', 'Pending', 'Sent', 'Received', 'Contract'];
 
 const SearchHeader = ({
   search,
@@ -15,12 +15,14 @@ const SearchHeader = ({
   activeFilter,
   setActiveFilter,
   theme,
+  pendingCount = 0,
 }: {
   search: string;
   setSearch: (t: string) => void;
   activeFilter: string;
   setActiveFilter: (f: string) => void;
   theme: Theme;
+  pendingCount?: number;
 }) => (
   <Box paddingHorizontal="m" mt="s">
     <Box flexDirection="row" alignItems="center" mb="m">
@@ -48,23 +50,46 @@ const SearchHeader = ({
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.filterContainer}
     >
-      {FILTERS.map((filter) => (
-        <TouchableOpacity
-          key={filter}
-          onPress={() => setActiveFilter(filter)}
-          style={[
-            styles.filterChip,
-            activeFilter === filter && {
-              borderColor: theme.colors.primary700,
-              backgroundColor: 'transparent',
-            },
-          ]}
-        >
-          <Text variant="p8" color={activeFilter === filter ? 'primary700' : 'textSecondary'}>
-            {filter}
-          </Text>
-        </TouchableOpacity>
-      ))}
+      {FILTERS.map((filter) => {
+        const isPending = filter === 'Pending';
+        const showBadge = isPending && pendingCount > 0;
+        return (
+          <TouchableOpacity
+            key={filter}
+            onPress={() => setActiveFilter(filter)}
+            style={[
+              styles.filterChip,
+              activeFilter === filter && {
+                borderColor: theme.colors.primary700,
+                backgroundColor: 'transparent',
+              },
+            ]}
+          >
+            <Box flexDirection="row" alignItems="center">
+              <Text
+                variant="p8"
+                color={activeFilter === filter ? 'primary700' : 'textSecondary'}
+              >
+                {filter}
+              </Text>
+              {showBadge && (
+                <Box
+                  ml="xs"
+                  backgroundColor="primary700"
+                  borderRadius={8}
+                  paddingHorizontal="xs"
+                  minWidth={18}
+                  alignItems="center"
+                >
+                  <Text variant="p8" color="black" style={{ fontWeight: '700' }}>
+                    {pendingCount}
+                  </Text>
+                </Box>
+              )}
+            </Box>
+          </TouchableOpacity>
+        );
+      })}
     </ScrollView>
   </Box>
 );

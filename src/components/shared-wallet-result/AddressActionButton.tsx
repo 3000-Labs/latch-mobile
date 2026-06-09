@@ -30,7 +30,7 @@ const styles = StyleSheet.create({
   },
   iconBox: {
     width: '100%',
-    backgroundColor: '#EEEEEE',
+    backgroundColor: '#1D1D1D',
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
