@@ -68,7 +68,7 @@ export async function onChainThreshold(multisigAddress: string): Promise<number>
     return t;
   } catch (err) {
     throw new Error(
-      `Could not confirm this shared wallet's approval threshold on-chain. ${
+      `Could not confirm this multisig wallet's approval threshold on-chain. ${
         err instanceof Error ? err.message : String(err)
       }`,
     );
@@ -121,7 +121,7 @@ export interface CreateTransferPacketParams {
 export async function createTransferPacket(p: CreateTransferPacketParams): Promise<CosignPacket> {
   const { multisigAccount } = p;
   if (!multisigAccount.smartAccountAddress) {
-    throw new Error('This shared wallet is not deployed yet.');
+    throw new Error('This multisig wallet is not deployed yet.');
   }
   const me = pickSigner();
   if (!me) {

@@ -1,17 +1,17 @@
 /**
  * cosign-backend-flow.ts — the encrypted-backend transport for multisig
- * approvals (docs/multisig-encrypted-queue.md, Phase 2 step 4).
+ * approvals (docs/multisig-encrypted-queue.md). Lets members fetch pending
+ * transactions for a shared wallet asynchronously, without anyone sharing a
+ * packet.
  *
  * Same signing core as the P2P path (buildAssembledTransfer / signSharedEntry /
- * aggregateAndSubmit + the AUTHORITATIVE on-chain threshold read), but the
- * pending request lives in the wallet-backend queue instead of a local packet.
- * Payloads are E2E-encrypted by src/api/cosign.ts (the WCK never reaches the
- * server). Every function returns a CosignPacket-shaped object so the UI
- * (cosign-review / use-pending-packets) is identical across transports.
+ * aggregateAndSubmit + the AUTHORITATIVE on-chain threshold read). This module
+ * owns ALL the crypto: it encrypts payloads with the wallet's WCK, derives the
+ * blind queue_index / blind_signer_id, and resolves which of the device's
+ * wallets a fetched request belongs to (by matching its queue_index). The server
+ * (src/api/cosign.ts) only ever sees ciphertext + opaque blind ids.
  *
- * Auth: the email-scope Latch JWT (ACCESS_TOKEN). The cosign endpoints accept
- * it (Phase A1); the wallet-scope token is for the personal account and isn't
- * needed here. No refresh-on-401 yet — surfaced as an error for now.
+ * Auth: the email-scope Latch JWT (ACCESS_TOKEN). No refresh-on-401 yet.
  */
 
 import * as SecureStore from 'expo-secure-store';
@@ -24,17 +24,24 @@ import {
   getCosignRequest,
   listCosignRequests,
   markCosignSubmitted,
-  type CosignRequest,
+  type CosignRequestRaw,
 } from '@/src/api/cosign';
 import { ACTIVE_NETWORK } from '@/src/constants/config';
+import { blindSignerId, decryptForWallet, encryptForWallet, queueIndexFor } from '@/src/lib/cosign-crypto';
 import type { CosignPacket } from '@/src/lib/cosign-packet';
 import {
-  type CreateTransferPacketParams,
   getMySignerKey,
   onChainThreshold,
   pickSigner,
+  type CreateTransferPacketParams,
 } from '@/src/lib/cosign-packet-flow';
-import { aggregateAndSubmit, buildAssembledTransfer, signSharedEntry } from '@/src/lib/multisig-send';
+import {
+  aggregateAndSubmit,
+  buildAssembledTransfer,
+  signSharedEntry,
+  type CollectedEntry,
+} from '@/src/lib/multisig-send';
+import { getWalletCosignKey } from '@/src/lib/wallet-cosign-key';
 import { SECURE_KEYS, useWalletStore } from '@/src/store/wallet';
 
 const NETWORK: 'testnet' | 'mainnet' = ACTIVE_NETWORK.network === 'TESTNET' ? 'testnet' : 'mainnet';
@@ -47,31 +54,76 @@ async function token(): Promise<string> {
   return t;
 }
 
-/** Adapt a decrypted backend request into the transport-agnostic packet shape. */
-function toPacket(r: CosignRequest): CosignPacket {
+interface ResolvedWallet {
+  address: string;
+  wck: Uint8Array;
+}
+
+async function wckForOrThrow(account: string): Promise<Uint8Array> {
+  const wck = await getWalletCosignKey(account);
+  if (!wck) {
+    throw new Error("This wallet's encryption key isn't on this device. Import it from the wallet-key link first.");
+  }
+  return wck;
+}
+
+/**
+ * Identify which of this device's shared wallets a fetched request belongs to,
+ * by matching its (opaque) queue_index against each wallet's computed index.
+ * Returns null if none match (not ours, or we don't hold the key).
+ */
+async function resolveWallet(queueIndex: string): Promise<ResolvedWallet | null> {
+  const { accounts } = useWalletStore.getState();
+  for (const a of accounts) {
+    if (!a.isMultisig || !a.smartAccountAddress) continue;
+    const wck = await getWalletCosignKey(a.smartAccountAddress);
+    if (wck && queueIndexFor(wck, a.smartAccountAddress) === queueIndex) {
+      return { address: a.smartAccountAddress, wck };
+    }
+  }
+  return null;
+}
+
+/** Decrypt a raw request into the transport-agnostic packet shape. */
+function decryptToPacket(raw: CosignRequestRaw, w: ResolvedWallet): CosignPacket {
   return {
     v: 1,
-    id: r.id,
-    network: r.network === 'mainnet' ? 'mainnet' : 'testnet',
-    smartAccountAddress: r.smartAccountAddress,
-    unsignedTxXdr: r.unsignedTxXdr,
-    threshold: r.threshold,
-    signatures: r.signatures.map((s) => ({ signerKey: s.signerKey, authEntryXdr: s.authEntryXdr })),
-    // The backend tracks expiry as expiresAt (ISO); the ledger number isn't
-    // stored. Unused downstream (display uses createdAt; submit re-reads chain).
+    id: raw.id,
+    network: raw.network === 'mainnet' ? 'mainnet' : 'testnet',
+    smartAccountAddress: w.address,
+    unsignedTxXdr: decryptForWallet(w.wck, raw.unsignedTxXdr, w.address),
+    threshold: raw.threshold,
+    // signerKey carries the blind id here (the real device key is never stored
+    // server-side). aggregateAndSubmit dedupes via the decrypted entry, not this
+    // field, so submit is unaffected; "have I signed" is checked via blind id in
+    // approveRequest.
+    signatures: raw.signatures.map((s) => ({
+      signerKey: s.blindSignerId,
+      authEntryXdr: decryptForWallet(w.wck, s.authEntryXdr, w.address),
+    })),
     expiresLedger: 0,
-    createdAt: r.createdAt,
+    createdAt: raw.createdAt,
   };
+}
+
+function decryptedEntries(raw: CosignRequestRaw, w: ResolvedWallet): CollectedEntry[] {
+  return raw.signatures.map((s) => ({
+    signerKey: s.blindSignerId,
+    authEntryXdr: decryptForWallet(w.wck, s.authEntryXdr, w.address),
+  }));
 }
 
 export async function createTransferRequest(p: CreateTransferPacketParams): Promise<CosignPacket> {
   const account = p.multisigAccount.smartAccountAddress;
-  if (!account) throw new Error('This shared wallet is not deployed yet.');
+  if (!account) throw new Error('This multisig wallet is not deployed yet.');
   const me = pickSigner();
   if (!me) throw new Error('No personal account on this device to sign with.');
 
   const t = await token();
+  const wck = await wckForOrThrow(account);
+  const w: ResolvedWallet = { address: account, wck };
   const threshold = await onChainThreshold(account);
+
   const assembled = await buildAssembledTransfer({
     multisigAddress: account,
     sacContractId: p.sacContractId,
@@ -79,47 +131,60 @@ export async function createTransferRequest(p: CreateTransferPacketParams): Prom
     amount: p.amount,
   });
 
-  let req = await createCosignRequest(t, {
-    smartAccountAddress: account,
-    unsignedTxXdr: assembled.unsignedTxXdr,
+  let raw = await createCosignRequest(t, {
+    queueIndex: queueIndexFor(wck, account),
+    unsignedTxXdr: encryptForWallet(wck, assembled.unsignedTxXdr, account),
     network: NETWORK,
     threshold,
   });
 
-  // Sign our own member entry and attach it.
+  // Sign our own member entry and attach it (encrypted, blind-id'd).
   const entry = await signSharedEntry(
     assembled.unsignedTxXdr,
     me.account,
     me.listIndex,
     useWalletStore.getState().mnemonic,
   );
-  req = await addCosignSignature(t, req.id, account, entry.signerKey, entry.authEntryXdr);
-  return toPacket(req);
+  raw = await addCosignSignature(
+    t,
+    raw.id,
+    blindSignerId(wck, entry.signerKey),
+    encryptForWallet(wck, entry.authEntryXdr, account),
+  );
+  return decryptToPacket(raw, w);
 }
 
 export async function getRequest(id: string): Promise<CosignPacket | null> {
   const t = await token();
+  let raw: CosignRequestRaw;
   try {
-    return toPacket(await getCosignRequest(t, id));
+    raw = await getCosignRequest(t, id);
   } catch (e) {
     if (e instanceof CosignApiError && e.status === 404) return null;
     throw e;
   }
+  const w = await resolveWallet(raw.queueIndex);
+  return w ? decryptToPacket(raw, w) : null;
 }
 
 export async function approveRequest(id: string): Promise<CosignPacket> {
   const t = await token();
-  const req = await getCosignRequest(t, id);
+  const raw = await getCosignRequest(t, id);
+  const w = await resolveWallet(raw.queueIndex);
+  if (!w) throw new Error("This wallet's encryption key isn't on this device.");
+
   const me = pickSigner();
   if (!me) throw new Error('No personal account on this device to sign with.');
 
   const myKey = await getMySignerKey();
-  if (myKey && req.signatures.some((s) => s.signerKey === myKey)) {
+  const myBlind = myKey ? blindSignerId(w.wck, myKey) : null;
+  if (myBlind && raw.signatures.some((s) => s.blindSignerId === myBlind)) {
     throw new Error('You have already approved this transfer.');
   }
 
+  const unsignedTxXdr = decryptForWallet(w.wck, raw.unsignedTxXdr, w.address);
   const entry = await signSharedEntry(
-    req.unsignedTxXdr,
+    unsignedTxXdr,
     me.account,
     me.listIndex,
     useWalletStore.getState().mnemonic,
@@ -127,11 +192,10 @@ export async function approveRequest(id: string): Promise<CosignPacket> {
   const updated = await addCosignSignature(
     t,
     id,
-    req.smartAccountAddress,
-    entry.signerKey,
-    entry.authEntryXdr,
+    blindSignerId(w.wck, entry.signerKey),
+    encryptForWallet(w.wck, entry.authEntryXdr, w.address),
   );
-  return toPacket(updated);
+  return decryptToPacket(updated, w);
 }
 
 /**
@@ -140,21 +204,29 @@ export async function approveRequest(id: string): Promise<CosignPacket> {
  */
 export async function submitRequest(id: string): Promise<{ hash: string }> {
   const t = await token();
-  const req = await getCosignRequest(t, id);
-  const threshold = await onChainThreshold(req.smartAccountAddress);
-  if (req.signatures.length < threshold) {
-    throw new Error(`Not enough approvals yet (${req.signatures.length}/${threshold}).`);
+  const raw = await getCosignRequest(t, id);
+  const w = await resolveWallet(raw.queueIndex);
+  if (!w) throw new Error("This wallet's encryption key isn't on this device.");
+
+  const threshold = await onChainThreshold(w.address);
+  if (raw.signatures.length < threshold) {
+    throw new Error(`Not enough approvals yet (${raw.signatures.length}/${threshold}).`);
   }
-  const { hash } = await aggregateAndSubmit(req.unsignedTxXdr, req.signatures);
+
+  const unsignedTxXdr = decryptForWallet(w.wck, raw.unsignedTxXdr, w.address);
+  const { hash } = await aggregateAndSubmit(unsignedTxXdr, decryptedEntries(raw, w));
   await markCosignSubmitted(t, id, hash);
   return { hash };
 }
 
 /** All pending requests for one shared wallet (decrypted, packet-shaped). */
 export async function listForAccount(account: string): Promise<CosignPacket[]> {
+  const wck = await getWalletCosignKey(account);
+  if (!wck) return []; // no key for this wallet on this device → nothing to show
   const t = await token();
-  const reqs = await listCosignRequests(t, account);
-  return reqs.map(toPacket);
+  const raws = await listCosignRequests(t, queueIndexFor(wck, account));
+  const w: ResolvedWallet = { address: account, wck };
+  return raws.map((r) => decryptToPacket(r, w));
 }
 
 export async function cancelRequest(id: string): Promise<void> {

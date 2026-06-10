@@ -146,7 +146,7 @@ const SharedWalletReview = () => {
       // (mirroring the passkey convention) since there's no BIP-44 derivation.
       const newAccount: WalletAccount = {
         index: -1,
-        name: params.walletName?.trim() || 'Shared Wallet',
+        name: params.walletName?.trim() || 'Multisig Wallet',
         gAddress: '',
         publicKeyHex: '',
         smartAccountAddress: result.smartAccountAddress,

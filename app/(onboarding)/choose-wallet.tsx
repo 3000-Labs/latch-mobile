@@ -59,7 +59,7 @@ const ChooseWallet = () => {
           />
 
           <WalletOptionCard
-            title="Shared Wallet"
+            title="Multisig Wallet"
             description="Create a wallet that multiple people can approve"
             isSelected={selectedType === 'shared'}
             onPress={() => setSelectedType('shared')}

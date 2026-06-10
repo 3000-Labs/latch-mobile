@@ -14,6 +14,12 @@
  * tap-tested on a device without a second phone. Testnet + __DEV__ only.
  */
 
+import {
+  deployMultiSigSmartAccount,
+  parseSimResult,
+  sorobanCall,
+  txToBase64,
+} from '@/src/api/smart-account';
 import AwaitingSetupRow from '@/src/components/multisig/AwaitingSetupRow';
 import CancelledBanner from '@/src/components/multisig/CancelledBanner';
 import DeployedAccountRow from '@/src/components/multisig/DeployedAccountRow';
@@ -21,15 +27,6 @@ import InvitationCard from '@/src/components/multisig/InvitationCard';
 import PendingWalletCard from '@/src/components/multisig/PendingWalletCard';
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
-import {
-  mockCancelledWallet,
-  mockDeployedWallet,
-  mockInvitationForMe,
-  mockPendingInvitesWallet,
-  mockReadyToDeployWallet,
-} from '@/src/lib/multisig-mocks';
-import { Theme } from '@/src/theme/theme';
-import { deployMultiSigSmartAccount, parseSimResult, sorobanCall, txToBase64 } from '@/src/api/smart-account';
 import { STELLAR_NETWORK_PASSPHRASE, STELLAR_RPC_URL } from '@/src/constants/config';
 import type { AccountSigner } from '@/src/lib/account-signers';
 import {
@@ -38,6 +35,13 @@ import {
   generateWalletCosignKey,
 } from '@/src/lib/cosign-crypto';
 import {
+  mockCancelledWallet,
+  mockDeployedWallet,
+  mockInvitationForMe,
+  mockPendingInvitesWallet,
+  mockReadyToDeployWallet,
+} from '@/src/lib/multisig-mocks';
+import {
   aggregateAndSubmit,
   buildAssembledTransfer,
   signSharedEntry,
@@ -45,6 +49,7 @@ import {
 import { deriveWalletAtIndex } from '@/src/lib/seed-wallet';
 import { loadAccount, toBaseUnits } from '@/src/services/send-token';
 import { useWalletStore, type WalletAccount } from '@/src/store/wallet';
+import { Theme } from '@/src/theme/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
 import {
@@ -86,7 +91,9 @@ async function fundMultisigXlm(multisig: string, amount: string): Promise<void> 
     )
     .setTimeout(120)
     .build();
-  const raw = await sorobanCall(STELLAR_RPC_URL, 'simulateTransaction', { transaction: txToBase64(tx) });
+  const raw = await sorobanCall(STELLAR_RPC_URL, 'simulateTransaction', {
+    transaction: txToBase64(tx),
+  });
   if (raw.error) throw new Error(`fund sim: ${raw.error}`);
   const assembled = rpc.assembleTransaction(tx, parseSimResult(raw)).build();
   assembled.sign(bundler);
@@ -188,7 +195,9 @@ const MultisigStatesSandbox = () => {
       addLog('✓ funded');
 
       const sac = Asset.native().contractId(STELLAR_NETWORK_PASSPHRASE);
-      const bundlerPk = Keypair.fromSecret(process.env.EXPO_PUBLIC_BUNDLER_SECRET ?? '').publicKey();
+      const bundlerPk = Keypair.fromSecret(
+        process.env.EXPO_PUBLIC_BUNDLER_SECRET ?? '',
+      ).publicKey();
 
       addLog('building transfer (1 XLM → bundler)…');
       const assembled = await buildAssembledTransfer({
@@ -257,7 +266,9 @@ const MultisigStatesSandbox = () => {
           ok(name, true);
         }
       };
-      expectThrow('wrong key throws', () => decryptForWallet(generateWalletCosignKey(), env, account));
+      expectThrow('wrong key throws', () =>
+        decryptForWallet(generateWalletCosignKey(), env, account),
+      );
       expectThrow('wrong account (AAD) throws', () => decryptForWallet(wck, env, 'CWRONGADDRESS'));
       const tampered = env.slice(0, -4) + (env.slice(-4) === 'AAAA' ? 'BBBB' : 'AAAA');
       expectThrow('tampered ciphertext throws', () => decryptForWallet(wck, tampered, account));
@@ -298,8 +309,8 @@ const MultisigStatesSandbox = () => {
       >
         <Box px="m">
           <Text variant="p7" color="textSecondary" mt="xs" mb="m">
-            Dev preview of every state in the shared-wallet activation flow. Components are the
-            real shipping primitives — content is mocked.
+            Dev preview of every state in the shared-wallet activation flow. Components are the real
+            shipping primitives — content is mocked.
           </Text>
 
           {/* ------- pending_invites ------- */}
@@ -312,10 +323,7 @@ const MultisigStatesSandbox = () => {
             role="creator"
             description="Wallet sits in your Pending Wallets section with per-row status."
           />
-          <PendingWalletCard
-            wallet={pending}
-            onCancel={() => undefined}
-          />
+          <PendingWalletCard wallet={pending} onCancel={() => undefined} />
 
           <RoleLabel
             role="invitee"
@@ -337,11 +345,7 @@ const MultisigStatesSandbox = () => {
             role="creator"
             description="Deploy CTA replaces the pending status; cancel still available."
           />
-          <PendingWalletCard
-            wallet={ready}
-            onCancel={() => undefined}
-            onDeploy={() => undefined}
-          />
+          <PendingWalletCard wallet={ready} onCancel={() => undefined} onDeploy={() => undefined} />
 
           <RoleLabel
             role="invitee"
@@ -427,7 +431,9 @@ const MultisigStatesSandbox = () => {
                   params: { account: acct.smartAccountAddress },
                 });
               } else {
-                setLogs(['Active account is not a deployed shared wallet — switch to one first.']);
+                setLogs([
+                  'Active account is not a deployed multisig wallet — switch to one first.',
+                ]);
               }
             }}
             activeOpacity={0.85}

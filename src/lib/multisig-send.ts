@@ -113,6 +113,13 @@ function describeAuthEntries(label: string, entries: xdr.SorobanAuthorizationEnt
  */
 export const SIGNATURE_VALIDITY_LEDGERS = 1440;
 
+/**
+ * Fresh tx time-bound window (seconds) applied at SUBMIT time. The tx is
+ * broadcast immediately, so a few minutes is ample — and it's independent of
+ * how long approval collection took.
+ */
+const SUBMIT_TIMEBOUND_SECONDS = 300;
+
 export interface BuildTransferParams {
   /** The multisig C-address funds move FROM. */
   multisigAddress: string;
@@ -163,7 +170,10 @@ export async function buildAssembledTransfer(p: BuildTransferParams): Promise<As
         nativeToScVal(toBaseUnits(amount), { type: 'i128' }),
       ),
     )
-    .setTimeout(300)
+    // Match the tx time bound to the signature window (~2h). Multi-member
+    // approval (build → sign → share → approve → submit) easily exceeds the old
+    // 5-min default, which failed at submit with txTooLate. ~5s/ledger.
+    .setTimeout(SIGNATURE_VALIDITY_LEDGERS * 5)
     .build();
   log('built transfer tx, simulating…');
 
@@ -293,8 +303,16 @@ export async function aggregateAndSubmit(
   // the merged, signed entry (its nonce/expiration/signatures must be preserved).
   // setOpAuth round-trips through toBase64 (the SDK's toXDR('base64') is broken
   // under the RN Buffer polyfill — see buildAssembledTransfer).
+  const withAuth = setOpAuth(txToBase64(reassembled), [merged]);
+
+  // Reset the tx time bound at SUBMIT time. Member auth signatures cover the
+  // auth entry (nonce/invocation/signatureExpirationLedger), NOT the tx time
+  // bounds — only the bundler's envelope signature (applied next) does — so the
+  // broadcaster sets a fresh window here. This prevents txTooLate when collecting
+  // approvals took a while, as long as the auth is still valid (the enforcing sim
+  // above already confirmed that).
   const finalTx = new Transaction(
-    setOpAuth(txToBase64(reassembled), [merged]),
+    setMaxTime(withAuth, SUBMIT_TIMEBOUND_SECONDS),
     STELLAR_NETWORK_PASSPHRASE,
   );
   finalTx.sign(Keypair.fromSecret(bundlerSecret()));
@@ -343,6 +361,27 @@ function setOpAuth(unsignedTxXdr: string, entries: xdr.SorobanAuthorizationEntry
     throw new Error(`multisig broadcast: expected invokeHostFunction op, got ${body.switch().name}`);
   }
   body.invokeHostFunctionOp().auth(entries);
+  return toBase64(new Uint8Array(env.toXDR()));
+}
+
+/**
+ * Set a fresh upper time bound (now + secondsFromNow) on a v1 tx envelope.
+ * Safe to call after signing the member auth entries: their signatures cover the
+ * auth payload, not the tx time bounds (only the bundler's envelope signature
+ * does, applied after this). Leaves operations + Soroban data untouched.
+ */
+function setMaxTime(txXdr: string, secondsFromNow: number): string {
+  const env = xdr.TransactionEnvelope.fromXDR(txXdr, 'base64');
+  if (env.switch().name !== 'envelopeTypeTx') return txXdr;
+  const maxTime = Math.floor(Date.now() / 1000) + secondsFromNow;
+  env.v1().tx().cond(
+    xdr.Preconditions.precondTime(
+      new xdr.TimeBounds({
+        minTime: xdr.Uint64.fromString('0'),
+        maxTime: xdr.Uint64.fromString(String(maxTime)),
+      }),
+    ),
+  );
   return toBase64(new Uint8Array(env.toXDR()));
 }
 

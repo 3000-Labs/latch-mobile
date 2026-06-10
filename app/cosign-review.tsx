@@ -125,6 +125,7 @@ const CosignReview = () => {
     try {
       apply(await approve(packet.id));
     } catch (e) {
+      console.log({ e });
       setError(friendlyTxError(e));
     } finally {
       setBusy(false);
@@ -153,6 +154,7 @@ const CosignReview = () => {
       Toast.show({ type: 'success', text1: 'Transfer submitted', text2: `${hash.slice(0, 10)}…` });
       router.replace('/(tabs)/history');
     } catch (e) {
+      console.log({ submit: e });
       setError(friendlyTxError(e));
     } finally {
       setBusy(false);
@@ -232,7 +234,7 @@ const CosignReview = () => {
                   <Text variant="title" color="textPrimary" mt="xs" mb="m">
                     {formatUnits(summary.amountBaseUnits)}
                   </Text>
-                  <Row label="From (shared wallet)" value={truncate(summary.from)} />
+                  <Row label="From (multisig wallet)" value={truncate(summary.from)} />
                   <Row label="To" value={truncate(summary.to)} />
                   <Row label="Token (SAC)" value={truncate(summary.sacContractId)} />
                 </>

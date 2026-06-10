@@ -99,7 +99,9 @@ export async function importWalletCosignKey(account: string, wckParam: string): 
   const mine = myKey.toLowerCase();
   const isMember = rule.signers.some((s) => s.keyDataHex && s.keyDataHex.toLowerCase() === mine);
   if (!isMember) {
-    throw new Error("This device isn't a signer on that shared wallet, so it can't hold its key.");
+    throw new Error(
+      "This device isn't a signer on that multisig wallet, so it can't hold its key.",
+    );
   }
 
   await setWalletCosignKey(account, wck);

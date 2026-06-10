@@ -17,6 +17,8 @@
  * stays in native Uint8Array, since QuickCrypto rejects the RN Buffer polyfill.
  */
 
+import { hmac } from '@noble/hashes/hmac.js';
+import { sha256 } from '@noble/hashes/sha2.js';
 import QuickCrypto from 'react-native-quick-crypto';
 
 import { toBase64 } from '@/src/api/smart-account';
@@ -94,6 +96,34 @@ function b64urlToBytes(s: string): Uint8Array {
 /** A fresh 32-byte Wallet Cosign Key. */
 export function generateWalletCosignKey(): Uint8Array {
   return u8(QuickCrypto.randomBytes(KEY_LEN));
+}
+
+// ─── blind indexes (server-side scoping without leaking identifiers) ──────────
+// @noble/hashes hmac (pure JS, RN-safe — same reason cosign uses it for sha256).
+
+function hmacHex(wck: Uint8Array, message: string): string {
+  const mac = hmac(sha256, wck, asciiToBytes(message));
+  let s = '';
+  for (let i = 0; i < mac.length; i++) s += mac[i].toString(16).padStart(2, '0');
+  return s;
+}
+
+/**
+ * Blind queue id for a shared wallet = HMAC(WCK, "cosign-queue:"+address). Every
+ * member computes the same value; the server can't reverse it to the wallet
+ * address or link rosters. Doubles as the access capability — non-members can't
+ * compute it, so they can't find the queue.
+ */
+export function queueIndexFor(wck: Uint8Array, account: string): string {
+  return hmacHex(wck, `cosign-queue:${account}`);
+}
+
+/**
+ * Blind signer id = HMAC(WCK, "cosign-signer:"+signerKey). A per-signer dedupe
+ * token that doesn't expose the device key server-side.
+ */
+export function blindSignerId(wck: Uint8Array, signerKey: string): string {
+  return hmacHex(wck, `cosign-signer:${signerKey}`);
 }
 
 /**

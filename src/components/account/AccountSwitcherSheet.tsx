@@ -1,9 +1,9 @@
 import { deploySmartAccount as deploySmartAccountPasskey } from '@/src/api/passkey';
 import { deploySmartAccount as deploySmartAccountEd25519 } from '@/src/api/smart-account';
 import BottomSheetHandle from '@/src/components/shared/BottomSheetHandle';
+import { SHEET_HEIGHT } from '@/src/constants/constants';
 import { createPasskeyCredential, storePasskeyCredentialAtIndex } from '@/src/lib/passkey-webauthn';
 import { SECURE_KEYS, useWalletStore, WalletAccount } from '@/src/store/wallet';
-import { SHEET_HEIGHT } from '@/src/constants/constants';
 import { Theme } from '@/src/theme/theme';
 import { useAppTheme } from '@/src/theme/ThemeContext';
 import { useTheme } from '@shopify/restyle';
@@ -23,6 +23,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
+import { addSharedWalletByAddress } from '@/src/lib/add-shared-wallet';
 import LoadingBlur from '../shared/LoadingBlur';
 import AccountItem from './AccountItem';
 import AccountSectionHeader from './AccountSectionHeader';
@@ -31,7 +32,6 @@ import AddAccountInfo from './AddAccountInfo';
 import AddAccountPrompt from './AddAccountPrompt';
 import AddSharedWalletForm from './AddSharedWalletForm';
 import MultisigSignersSection from './MultisigSignersSection';
-import { addSharedWalletByAddress } from '@/src/lib/add-shared-wallet';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -115,7 +115,9 @@ const AccountSwitcherSheet = ({ visible, onClose }: Props) => {
         await renameAccount(currentLength, name);
         if (image) await setAccountImage(currentLength, image);
 
-        const result = await deploySmartAccountEd25519(newAccount.publicKeyHex, { skipFunding: true });
+        const result = await deploySmartAccountEd25519(newAccount.publicKeyHex, {
+          skipFunding: true,
+        });
         await updateAccountSmartAddress(newAccount.index, result.smartAccountAddress);
       } else {
         const requiresBiometric = await SecureStore.getItemAsync(
@@ -155,13 +157,13 @@ const AccountSwitcherSheet = ({ visible, onClose }: Props) => {
     setIsAddingShared(true);
     try {
       const account = await addSharedWalletByAddress(address, name);
-      Toast.show({ type: 'success', text1: 'Shared wallet added', text2: account.name });
+      Toast.show({ type: 'success', text1: 'Multisig wallet added', text2: account.name });
       onClose();
     } catch (err: any) {
       Toast.show({
         type: 'error',
         text1: 'Could not add wallet',
-        text2: err?.message || 'Failed to add shared wallet',
+        text2: err?.message || 'Failed to add multisig wallet',
       });
     } finally {
       setIsAddingShared(false);

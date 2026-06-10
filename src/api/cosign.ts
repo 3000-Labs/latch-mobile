@@ -1,45 +1,34 @@
 /**
- * cosign.ts — REST client for the wallet-backend cosign request queue, with a
- * client-side E2E encryption boundary (docs/multisig-encrypted-queue.md, step 3).
+ * cosign.ts — raw REST client for the latch-api cosign queue. Transport only:
+ * it sends/receives the already-encrypted XDR plus the blind identifiers and
+ * does NO crypto itself. All encryption + blind-index derivation + wallet
+ * resolution live in cosign-backend-flow.ts.
  *
- * Endpoints: docs/multisig-build-plan.md Phase B1. Auth (Phase A1): every
- * endpoint takes a Bearer token but authorization is NOT principal-scoped —
- * on-chain __check_auth is the authoritative signer check at submit. Token is
- * supplied by the caller; this module does not refresh on 401.
+ * Scoping is by an opaque queue_index = HMAC(WCK, wallet address): the server
+ * never sees the wallet address, the device keys (blind_signer_id), or the tx
+ * contents (encrypted). See docs/multisig-encrypted-queue.md.
  *
- * ── Encryption boundary ─────────────────────────────────────────────────────
- * `unsigned_tx_xdr` and each `auth_entry_xdr` are AES-256-GCM encrypted under
- * the wallet's WCK (src/lib/cosign-crypto + wallet-cosign-key) before they leave
- * the device, and decrypted on read. The server stores ciphertext only. Callers
- * of this module always see PLAINTEXT base64 XDR — the crypto is internal.
- *
- * `smart_account_address` (the WCK lookup key), `signer_key`, `network`, and
- * `threshold` stay plaintext: all are public on-chain, and signer_key must stay
- * clear so the backend's dedupe constraint works.
- *
- * Transport: raw XHR (Android TLS via OkHttp), matching the rest of the API.
+ * Auth: an email-scope Latch JWT (ACCESS_TOKEN), supplied by the caller. No
+ * refresh on 401. Transport: raw XHR (Android TLS via OkHttp).
  */
 
-import { decryptForWallet, encryptForWallet } from '@/src/lib/cosign-crypto';
-import { getWalletCosignKey } from '@/src/lib/wallet-cosign-key';
-
-const API_ROOT = process.env.EXPO_PUBLIC_WALLET_BACKEND_URL ?? '';
+const API_ROOT = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 const API_BASE = `${API_ROOT}/v1/cosign/requests`;
 
-export interface CosignSignature {
+export type CosignStatus = 'pending' | 'submitted' | 'cancelled' | 'expired';
+
+export interface CosignSignatureRaw {
   id: string;
-  signerKey: string;
-  /** PLAINTEXT base64 SorobanAuthorizationEntry XDR (decrypted on read). */
+  blindSignerId: string;
+  /** Ciphertext (AES-GCM envelope) of a SorobanAuthorizationEntry. */
   authEntryXdr: string;
   createdAt: string;
 }
 
-export type CosignStatus = 'pending' | 'submitted' | 'cancelled' | 'expired';
-
-export interface CosignRequest {
+export interface CosignRequestRaw {
   id: string;
-  smartAccountAddress: string;
-  /** PLAINTEXT assembled tx base64 XDR (decrypted on read). */
+  queueIndex: string;
+  /** Ciphertext (AES-GCM envelope) of the assembled tx. */
   unsignedTxXdr: string;
   network: string;
   threshold: number;
@@ -48,7 +37,7 @@ export interface CosignRequest {
   expiresAt: string;
   createdAt: string;
   updatedAt: string;
-  signatures: CosignSignature[];
+  signatures: CosignSignatureRaw[];
   signatureCount: number;
 }
 
@@ -62,16 +51,16 @@ export class CosignApiError extends Error {
   }
 }
 
-interface RawCosignSignature {
+interface RawSig {
   id: string;
-  signer_key: string;
+  blind_signer_id: string;
   auth_entry_xdr: string;
   created_at: string;
 }
 
-interface RawCosignRequest {
+interface RawReq {
   id: string;
-  smart_account_address: string;
+  queue_index: string;
   unsigned_tx_xdr: string;
   network: string;
   threshold: number;
@@ -80,32 +69,15 @@ interface RawCosignRequest {
   expires_at: string;
   created_at: string;
   updated_at: string;
-  signatures: RawCosignSignature[];
+  signatures: RawSig[];
   signature_count: number;
 }
 
-// ─── crypto boundary ──────────────────────────────────────────────────────────
-
-async function wckFor(account: string): Promise<Uint8Array> {
-  const wck = await getWalletCosignKey(account);
-  if (!wck) {
-    throw new CosignApiError(
-      "This wallet's encryption key isn't on this device. Import it from the wallet-key link first.",
-      'WCK_MISSING',
-      0,
-    );
-  }
-  return wck;
-}
-
-/** Adapt + decrypt a raw request into the plaintext shape callers consume. */
-async function decryptRequest(r: RawCosignRequest): Promise<CosignRequest> {
-  const account = r.smart_account_address; // plaintext — the WCK lookup key + AAD
-  const wck = await wckFor(account);
+function adaptReq(r: RawReq): CosignRequestRaw {
   return {
     id: r.id,
-    smartAccountAddress: account,
-    unsignedTxXdr: decryptForWallet(wck, r.unsigned_tx_xdr, account),
+    queueIndex: r.queue_index,
+    unsignedTxXdr: r.unsigned_tx_xdr,
     network: r.network,
     threshold: r.threshold,
     status: r.status,
@@ -115,8 +87,8 @@ async function decryptRequest(r: RawCosignRequest): Promise<CosignRequest> {
     updatedAt: r.updated_at,
     signatures: (r.signatures ?? []).map((s) => ({
       id: s.id,
-      signerKey: s.signer_key,
-      authEntryXdr: decryptForWallet(wck, s.auth_entry_xdr, account),
+      blindSignerId: s.blind_signer_id,
+      authEntryXdr: s.auth_entry_xdr,
       createdAt: s.created_at,
     })),
     signatureCount: r.signature_count,
@@ -184,8 +156,8 @@ async function call<T>(
 // ─── endpoints ────────────────────────────────────────────────────────────────
 
 export interface CreateCosignRequestParams {
-  smartAccountAddress: string;
-  /** PLAINTEXT assembled tx base64 XDR — encrypted here before it's sent. */
+  queueIndex: string;
+  /** Ciphertext of the assembled tx. */
   unsignedTxXdr: string;
   network: 'testnet' | 'mainnet';
   threshold: number;
@@ -194,71 +166,56 @@ export interface CreateCosignRequestParams {
 export async function createCosignRequest(
   token: string,
   params: CreateCosignRequestParams,
-): Promise<CosignRequest> {
-  const wck = await wckFor(params.smartAccountAddress);
-  const raw = await call<RawCosignRequest>(
+): Promise<CosignRequestRaw> {
+  const raw = await call<RawReq>(
     'POST',
     '',
     {
-      smart_account_address: params.smartAccountAddress,
-      unsigned_tx_xdr: encryptForWallet(wck, params.unsignedTxXdr, params.smartAccountAddress),
+      queue_index: params.queueIndex,
+      unsigned_tx_xdr: params.unsignedTxXdr,
       network: params.network,
       threshold: params.threshold,
     },
     token,
   );
   if (!raw) throw new CosignApiError('empty create response', 'INTERNAL_ERROR', 500);
-  return decryptRequest(raw);
+  return adaptReq(raw);
 }
 
-/**
- * List non-terminal cosign requests for a smart account. The
- * `smart_account_address` query param is required (Phase A1 scoping).
- */
+/** List pending requests for a blind queue index. */
 export async function listCosignRequests(
   token: string,
-  smartAccountAddress: string,
-): Promise<CosignRequest[]> {
-  const path = `?smart_account_address=${encodeURIComponent(smartAccountAddress)}`;
-  const raw = await call<{ requests: RawCosignRequest[] }>('GET', path, null, token);
-  return Promise.all((raw?.requests ?? []).map(decryptRequest));
+  queueIndex: string,
+): Promise<CosignRequestRaw[]> {
+  const path = `?queue_index=${encodeURIComponent(queueIndex)}`;
+  const raw = await call<{ requests: RawReq[] }>('GET', path, null, token);
+  return (raw?.requests ?? []).map(adaptReq);
 }
 
-export async function getCosignRequest(token: string, id: string): Promise<CosignRequest> {
-  const raw = await call<RawCosignRequest>('GET', `/${id}`, null, token);
+export async function getCosignRequest(token: string, id: string): Promise<CosignRequestRaw> {
+  const raw = await call<RawReq>('GET', `/${id}`, null, token);
   if (!raw) throw new CosignApiError('not found', 'NOT_FOUND', 404);
-  return decryptRequest(raw);
+  return adaptReq(raw);
 }
 
 /**
- * Attach a partial signature. `account` is needed to locate the WCK that
- * encrypts `authEntryXdr` and must equal the request's smart-account address.
- * The backend de-dupes by `signerKey` (kept plaintext).
- *
- * @param signerKey     Canonical signer id (hex device pubkey) — must match the
- *                      Signer the contract accepts on-chain.
- * @param authEntryXdr  PLAINTEXT base64 SorobanAuthorizationEntry XDR; encrypted
- *                      here before it's sent.
+ * Attach a partial signature. `authEntryXdr` is ciphertext; `blindSignerId` is
+ * HMAC(WCK, signerKey) — the server dedupes on it without seeing the device key.
  */
 export async function addCosignSignature(
   token: string,
   id: string,
-  account: string,
-  signerKey: string,
+  blindSignerId: string,
   authEntryXdr: string,
-): Promise<CosignRequest> {
-  const wck = await wckFor(account);
-  const raw = await call<RawCosignRequest>(
+): Promise<CosignRequestRaw> {
+  const raw = await call<RawReq>(
     'POST',
     `/${id}/signatures`,
-    {
-      signer_key: signerKey,
-      auth_entry_xdr: encryptForWallet(wck, authEntryXdr, account),
-    },
+    { blind_signer_id: blindSignerId, auth_entry_xdr: authEntryXdr },
     token,
   );
   if (!raw) throw new CosignApiError('empty add-signature response', 'INTERNAL_ERROR', 500);
-  return decryptRequest(raw);
+  return adaptReq(raw);
 }
 
 /** Record the on-chain submission tx hash; request transitions to `submitted`. */
@@ -266,7 +223,7 @@ export async function markCosignSubmitted(token: string, id: string, txHash: str
   await call<void>('POST', `/${id}/submission`, { tx_hash: txHash }, token);
 }
 
-/** Cancel a pending request. Idempotent (cancelling twice still returns 204). */
+/** Cancel a pending request. Idempotent. */
 export async function cancelCosignRequest(token: string, id: string): Promise<void> {
   await call<void>('DELETE', `/${id}`, null, token);
 }

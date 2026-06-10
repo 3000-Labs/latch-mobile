@@ -95,7 +95,7 @@ const AddAccountPrompt = ({ onBack, onCreatePress, onAddSharedPress }: AddAccoun
         </TouchableOpacity>
 
         {/* Connect Existing Option */}
-        <TouchableOpacity activeOpacity={0.8} onPress={() => handlePress('connect')}>
+        {/* <TouchableOpacity activeOpacity={0.8} onPress={() => handlePress('connect')}>
           <Box
             padding="l"
             borderRadius={24}
@@ -112,7 +112,7 @@ const AddAccountPrompt = ({ onBack, onCreatePress, onAddSharedPress }: AddAccoun
               already own.
             </Text>
           </Box>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
       </Box>
     </Box>
   );

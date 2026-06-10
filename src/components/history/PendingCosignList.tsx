@@ -1,5 +1,6 @@
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
+import { SHEET_HEIGHT } from '@/src/constants/constants';
 import type { PendingPacketView } from '@/src/hooks/use-pending-packets';
 import { Theme } from '@/src/theme/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,6 +19,8 @@ interface Props {
 
 const truncate = (addr: string): string =>
   addr.length > 10 ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : addr;
+
+const height = SHEET_HEIGHT / 1.6;
 
 const formatExpiry = (iso: string): string => {
   const d = new Date(iso);
@@ -83,7 +86,7 @@ const PendingCosignList: React.FC<Props> = ({
       }
     >
       {requests.length === 0 ? (
-        <Box flex={1} paddingTop="xl" alignItems="center">
+        <Box flex={1} justifyContent={'center'} height={height} paddingTop="xl" alignItems="center">
           <Box
             width={64}
             height={64}

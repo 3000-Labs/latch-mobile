@@ -14,11 +14,7 @@ import Box from '@/src/components/shared/Box';
 import Button from '@/src/components/shared/Button';
 import Text from '@/src/components/shared/Text';
 import { friendlyTxError } from '@/src/lib/tx-errors';
-import {
-  encodeWck,
-  getWalletCosignKey,
-  importWalletCosignKey,
-} from '@/src/lib/wallet-cosign-key';
+import { encodeWck, getWalletCosignKey, importWalletCosignKey } from '@/src/lib/wallet-cosign-key';
 import { Theme } from '@/src/theme/theme';
 import { useAppTheme } from '@/src/theme/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
@@ -113,11 +109,18 @@ const CosignKey = () => {
         ) : status === 'success' ? (
           <Box alignItems="center">
             <Ionicons name="shield-checkmark" size={48} color={theme.colors.success900} />
-            <Text variant="h10" color="textPrimary" fontWeight="700" mt="m" mb="xs" textAlign="center">
+            <Text
+              variant="h10"
+              color="textPrimary"
+              fontWeight="700"
+              mt="m"
+              mb="xs"
+              textAlign="center"
+            >
               Wallet key saved
             </Text>
             <Text variant="p7" color="textSecondary" textAlign="center" mb="l">
-              This device can now send and receive encrypted approvals for this shared wallet.
+              This device can now send and receive encrypted approvals for this multisig wallet.
             </Text>
             <Box width="100%">
               <Button label="Done" variant="primary" onPress={() => router.back()} />
@@ -126,7 +129,14 @@ const CosignKey = () => {
         ) : status === 'share' ? (
           <Box alignItems="center" width="100%">
             <Ionicons name="key" size={48} color={theme.colors.primary} />
-            <Text variant="h10" color="textPrimary" fontWeight="700" mt="m" mb="xs" textAlign="center">
+            <Text
+              variant="h10"
+              color="textPrimary"
+              fontWeight="700"
+              mt="m"
+              mb="xs"
+              textAlign="center"
+            >
               Share this wallet&apos;s key
             </Text>
             <Text variant="p7" color="textSecondary" textAlign="center" mb="s">

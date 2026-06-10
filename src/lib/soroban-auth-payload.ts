@@ -142,6 +142,18 @@ interface ParsedAuthPayload {
   signerEntries: xdr.ScMapEntry[];
 }
 
+// stellar-sdk's ScSymbol is a Buffer, and Buffer.prototype.toString() is broken
+// under the RN/Hermes polyfill (returns comma-joined decimal bytes instead of
+// the string). Symbol names are ASCII, so decode via charCodes — same flaw as
+// the toXDR('base64') / functionName() reads fixed elsewhere.
+function scSymbolName(sym: unknown): string {
+  if (typeof sym === 'string') return sym;
+  const bytes = sym instanceof Uint8Array ? sym : new Uint8Array(sym as ArrayBufferLike);
+  let s = '';
+  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+  return s;
+}
+
 function parseAuthPayload(signature: xdr.ScVal, entryIndex: number): ParsedAuthPayload {
   if (signature.switch().name !== 'scvMap') {
     throw new Error(
@@ -158,7 +170,7 @@ function parseAuthPayload(signature: xdr.ScVal, entryIndex: number): ParsedAuthP
   for (const e of entries) {
     const key = e.key();
     if (key.switch().name !== 'scvSymbol') continue;
-    const sym = key.sym().toString();
+    const sym = scSymbolName(key.sym());
     if (sym === 'context_rule_ids') contextRuleIds = e.val();
     else if (sym === 'signers') signersMap = e.val();
   }

@@ -14,7 +14,7 @@ import { Theme } from '@/src/theme/theme';
 const Schema = Yup.object().shape({
   address: Yup.string()
     .trim()
-    .required('Shared wallet address is required')
+    .required('Multisig wallet address is required')
     .matches(/^C[A-Z2-7]{55}$/, 'Enter a valid wallet address (starts with C)'),
   name: Yup.string().max(40, 'Name is too long'),
 });
@@ -87,7 +87,7 @@ const AddSharedWalletForm = ({ onBack, onSubmit, isSubmitting }: Props) => {
                   value={values.name}
                   onChangeText={handleChange('name')}
                   onBlur={handleBlur('name')}
-                  placeholder="Shared Wallet"
+                  placeholder="Multisig Wallet"
                   status={touched.name && errors.name ? 'danger' : 'basic'}
                 />
                 {touched.name && errors.name && (
@@ -105,8 +105,8 @@ const AddSharedWalletForm = ({ onBack, onSubmit, isSubmitting }: Props) => {
                   style={{ marginRight: 8, marginTop: 1 }}
                 />
                 <Text variant="p8" color="textSecondary" style={{ flex: 1 }} lineHeight={18}>
-                  This is a shared wallet — you don&apos;t solely control it. Transfers need approvals
-                  from enough members to meet its threshold.
+                  This is a multisig wallet — you don&apos;t solely control it. Transfers need
+                  approvals from enough members to meet its threshold.
                 </Text>
               </Box>
             </ScrollView>
