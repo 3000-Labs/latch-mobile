@@ -29,6 +29,9 @@ import AccountSectionHeader from './AccountSectionHeader';
 import AccountSheetHeader from './AccountSheetHeader';
 import AddAccountInfo from './AddAccountInfo';
 import AddAccountPrompt from './AddAccountPrompt';
+import AddSharedWalletForm from './AddSharedWalletForm';
+import MultisigSignersSection from './MultisigSignersSection';
+import { addSharedWalletByAddress } from '@/src/lib/add-shared-wallet';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -37,7 +40,7 @@ interface Props {
   onClose: () => void;
 }
 
-type SheetStep = 'list' | 'add-prompt' | 'add-info';
+type SheetStep = 'list' | 'add-prompt' | 'add-info' | 'add-shared' | 'signers';
 
 const AccountSwitcherSheet = ({ visible, onClose }: Props) => {
   const theme = useTheme<Theme>();
@@ -60,7 +63,9 @@ const AccountSwitcherSheet = ({ visible, onClose }: Props) => {
   const [step, setStep] = useState<SheetStep>('list');
   const [deployingIndex, setDeployingIndex] = useState<number | null>(null);
   const [isAddingAccount, setIsAddingAccount] = useState(false);
+  const [isAddingShared, setIsAddingShared] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
+  const [signersFor, setSignersFor] = useState<{ name: string; address: string } | null>(null);
 
   // Slide-up animation
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
@@ -145,6 +150,24 @@ const AccountSwitcherSheet = ({ visible, onClose }: Props) => {
     }
   };
 
+  const handleAddSharedWallet = async (address: string, name: string) => {
+    if (isAddingShared) return;
+    setIsAddingShared(true);
+    try {
+      const account = await addSharedWalletByAddress(address, name);
+      Toast.show({ type: 'success', text1: 'Shared wallet added', text2: account.name });
+      onClose();
+    } catch (err: any) {
+      Toast.show({
+        type: 'error',
+        text1: 'Could not add wallet',
+        text2: err?.message || 'Failed to add shared wallet',
+      });
+    } finally {
+      setIsAddingShared(false);
+    }
+  };
+
   const handleDeploy = async (account: WalletAccount, listIndex: number) => {
     setDeployingIndex(listIndex);
     try {
@@ -182,8 +205,25 @@ const AccountSwitcherSheet = ({ visible, onClose }: Props) => {
           <AddAccountPrompt
             onBack={() => setStep('list')}
             onCreatePress={() => setStep('add-info')}
+            onAddSharedPress={() => setStep('add-shared')}
           />
         );
+      case 'add-shared':
+        return (
+          <AddSharedWalletForm
+            onBack={() => setStep('add-prompt')}
+            onSubmit={handleAddSharedWallet}
+            isSubmitting={isAddingShared}
+          />
+        );
+      case 'signers':
+        return signersFor ? (
+          <MultisigSignersSection
+            walletName={signersFor.name}
+            address={signersFor.address}
+            onBack={() => setStep('list')}
+          />
+        ) : null;
       case 'add-info':
         return (
           <AddAccountInfo
@@ -216,6 +256,17 @@ const AccountSwitcherSheet = ({ visible, onClose }: Props) => {
             isActive={listIndex === activeAccountIndex}
             onPress={() => handleSwitch(listIndex)}
             onDeploy={() => handleDeploy(account, listIndex)}
+            onShowSigners={
+              account.isMultisig && account.smartAccountAddress
+                ? () => {
+                    setSignersFor({
+                      name: account.name,
+                      address: account.smartAccountAddress as string,
+                    });
+                    setStep('signers');
+                  }
+                : undefined
+            }
             isDeploying={deployingIndex === listIndex}
             avatarDataUri={avatars[account.publicKeyHex]}
           />

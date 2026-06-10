@@ -16,11 +16,20 @@ interface AccountItemProps {
   isActive: boolean;
   onPress: () => void;
   onDeploy?: () => void;
+  onShowSigners?: () => void;
   isDeploying?: boolean;
   avatarDataUri?: string;
 }
 
-const AccountItem = ({ account, isActive, onPress, onDeploy, isDeploying, avatarDataUri }: AccountItemProps) => {
+const AccountItem = ({
+  account,
+  isActive,
+  onPress,
+  onDeploy,
+  onShowSigners,
+  isDeploying,
+  avatarDataUri,
+}: AccountItemProps) => {
   const theme = useTheme<Theme>();
   const { isDark } = useAppTheme();
 
@@ -78,6 +87,16 @@ const AccountItem = ({ account, isActive, onPress, onDeploy, isDeploying, avatar
             </TouchableOpacity>
           </Box>
         </Box>
+
+        {/* Signers (multisig only) */}
+        {onShowSigners && (
+          <TouchableOpacity
+            onPress={onShowSigners}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="people-outline" size={20} color={theme.colors.textSecondary} />
+          </TouchableOpacity>
+        )}
 
         {/* Selection Indicator */}
         <Box

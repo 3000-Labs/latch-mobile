@@ -10,9 +10,10 @@ import { Theme } from '@/src/theme/theme';
 interface AddAccountPromptProps {
   onBack: () => void;
   onCreatePress: () => void;
+  onAddSharedPress: () => void;
 }
 
-const AddAccountPrompt = ({ onBack, onCreatePress }: AddAccountPromptProps) => {
+const AddAccountPrompt = ({ onBack, onCreatePress, onAddSharedPress }: AddAccountPromptProps) => {
   const theme = useTheme<Theme>();
 
   return (
@@ -50,6 +51,21 @@ const AddAccountPrompt = ({ onBack, onCreatePress }: AddAccountPromptProps) => {
             <Text variant="p7" color="textSecondary" lineHeight={22}>
               Set up a fresh account powered by smart contracts. Enjoy advanced security like
               multisig and session keys.
+            </Text>
+          </Box>
+        </TouchableOpacity>
+
+        {/* Add Shared Wallet Option */}
+        <TouchableOpacity activeOpacity={0.8} onPress={onAddSharedPress}>
+          <Box padding="l" borderRadius={24} borderWidth={1.5} borderColor="primary700">
+            <Box mb="s">
+              <Text variant="h9" color="textPrimary" fontWeight="700">
+                Add Shared Wallet
+              </Text>
+            </Box>
+            <Text variant="p7" color="textSecondary" lineHeight={22}>
+              Already a signer on a multisig wallet? Add it by address to view it and co-sign
+              transfers from this device.
             </Text>
           </Box>
         </TouchableOpacity>

@@ -187,6 +187,13 @@ interface WalletStore {
    */
   addPasskeyAccount: (credentialId: string, publicKeyHex: string) => Promise<WalletAccount>;
 
+  /**
+   * Append a fully-formed account (e.g. a shared/multisig wallet the device is a
+   * signer on) to the list. Deduplicates by smart-account address. Pass
+   * makeActive to switch to it. Returns the appended (or pre-existing) account.
+   */
+  appendAccount: (account: WalletAccount, makeActive?: boolean) => Promise<WalletAccount>;
+
   /** Switch the active account to the given list position. */
   switchAccount: (listIndex: number) => Promise<void>;
 
@@ -380,12 +387,34 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
     return newAccount;
   },
 
+  appendAccount: async (account, makeActive = false) => {
+    const { accounts } = get();
+    // Dedupe by smart-account address — re-adding the same shared wallet is a no-op.
+    const existingIndex = accounts.findIndex(
+      (a) => a.smartAccountAddress && a.smartAccountAddress === account.smartAccountAddress,
+    );
+    if (existingIndex >= 0) {
+      if (makeActive) await get().switchAccount(existingIndex);
+      return accounts[existingIndex];
+    }
+
+    const updated = [...accounts, account];
+    const newIndex = updated.length - 1;
+    await persistAccounts(updated);
+    set({ accounts: updated });
+    if (makeActive) await get().switchAccount(newIndex);
+    return account;
+  },
+
   switchAccount: (listIndex) => {
     const { mnemonic, accounts } = get();
     const account = accounts[listIndex];
     if (!account) return Promise.resolve();
 
-    const activeWallet = mnemonic ? getCachedWallet(mnemonic, account.index) : null;
+    // index < 0 is the sentinel for passkey + multisig accounts, which have no
+    // BIP-44-derived keypair. Guard like rehydrate does — deriving at a negative
+    // index would be invalid.
+    const activeWallet = mnemonic && account.index >= 0 ? getCachedWallet(mnemonic, account.index) : null;
 
     // Update store first so the UI responds immediately, then persist in the background.
     // Awaiting Keychain writes before set() was causing 3–5 s UI freezes on iOS.
