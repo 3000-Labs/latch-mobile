@@ -15,6 +15,17 @@ interface AddAccountPromptProps {
 
 const AddAccountPrompt = ({ onBack, onCreatePress, onAddSharedPress }: AddAccountPromptProps) => {
   const theme = useTheme<Theme>();
+  const [selected, setSelected] = React.useState<'create' | 'shared' | 'connect' | null>(null);
+
+  const handlePress = (option: 'create' | 'shared' | 'connect', callback?: () => void) => {
+    setSelected(option);
+    setTimeout(() => {
+      if (callback) {
+        callback();
+      }
+      setSelected(null);
+    }, 400);
+  };
 
   return (
     <Box paddingHorizontal="m" paddingBottom="xl">
@@ -31,10 +42,15 @@ const AddAccountPrompt = ({ onBack, onCreatePress, onAddSharedPress }: AddAccoun
       </Box>
 
       {/* Options List */}
-      <Box gap="xs">
+      <Box gap="s">
         {/* Create Smart Account Option */}
-        <TouchableOpacity activeOpacity={0.8} onPress={onCreatePress}>
-          <Box padding="l" borderRadius={24} borderWidth={1.5} borderColor="primary700">
+        <TouchableOpacity activeOpacity={0.8} onPress={() => handlePress('create', onCreatePress)}>
+          <Box
+            padding="l"
+            borderRadius={24}
+            borderWidth={1.5}
+            borderColor={selected === 'create' ? 'primary700' : 'gray800'}
+          >
             <Box flexDirection="row" justifyContent="space-between" alignItems="center" mb="s">
               <Text variant="h9" color="textPrimary" fontWeight="700">
                 Create Smart Account
@@ -56,11 +72,19 @@ const AddAccountPrompt = ({ onBack, onCreatePress, onAddSharedPress }: AddAccoun
         </TouchableOpacity>
 
         {/* Add Shared Wallet Option */}
-        <TouchableOpacity activeOpacity={0.8} onPress={onAddSharedPress}>
-          <Box padding="l" borderRadius={24} borderWidth={1.5} borderColor="primary700">
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={() => handlePress('shared', onAddSharedPress)}
+        >
+          <Box
+            padding="l"
+            borderRadius={24}
+            borderWidth={1.5}
+            borderColor={selected === 'shared' ? 'primary700' : 'gray800'}
+          >
             <Box mb="s">
               <Text variant="h9" color="textPrimary" fontWeight="700">
-                Add Shared Wallet
+                Add Multisig Wallet
               </Text>
             </Box>
             <Text variant="p7" color="textSecondary" lineHeight={22}>
@@ -71,13 +95,12 @@ const AddAccountPrompt = ({ onBack, onCreatePress, onAddSharedPress }: AddAccoun
         </TouchableOpacity>
 
         {/* Connect Existing Option */}
-        <TouchableOpacity activeOpacity={0.8}>
+        <TouchableOpacity activeOpacity={0.8} onPress={() => handlePress('connect')}>
           <Box
             padding="l"
-            // backgroundColor="bg11"
             borderRadius={24}
-            // borderWidth={1.5}
-            // borderColor="primary700"
+            borderWidth={1.5}
+            borderColor={selected === 'connect' ? 'primary700' : 'gray800'}
           >
             <Box mb="s">
               <Text variant="h9" color="textPrimary" fontWeight="700">

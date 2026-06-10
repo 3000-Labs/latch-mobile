@@ -29,14 +29,14 @@ const AddSharedWalletForm = ({ onBack, onSubmit, isSubmitting }: Props) => {
   const theme = useTheme<Theme>();
 
   return (
-    <Box paddingHorizontal="m" paddingBottom="xl">
+    <Box flex={1} paddingHorizontal="m" paddingBottom="xl">
       {/* Header */}
       <Box flexDirection="row" alignItems="center" justifyContent="space-between" py="xs" mb="m">
         <TouchableOpacity onPress={onBack} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <Ionicons name="chevron-back" size={24} color={theme.colors.textPrimary} />
         </TouchableOpacity>
         <Text variant="h7" color="textPrimary" fontWeight="800">
-          Add Shared Wallet
+          Add Multisig Wallet
         </Text>
         <Box width={40} />
       </Box>
@@ -47,71 +47,79 @@ const AddSharedWalletForm = ({ onBack, onSubmit, isSubmitting }: Props) => {
         onSubmit={(values) => onSubmit(values.address.trim(), values.name.trim())}
       >
         {({ handleChange, handleBlur, handleSubmit, values, errors, touched }) => (
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-            <Text variant="p7" color="textSecondary" mb="l" lineHeight={22}>
-              Add a multisig wallet you&apos;re already a signer on. We verify on-chain that this
-              device is a signer, then it appears in your account list so you can view it and
-              co-sign transfers.
-            </Text>
-
-            <Box mb="l">
-              <Text variant="h10" color="textPrimary" mb="s" fontWeight="700">
-                Wallet Address
+          <Box flex={1} justifyContent="space-between">
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ paddingBottom: 24 }}
+            >
+              <Text variant="p7" color="textSecondary" mb="l" lineHeight={22}>
+                Add a multisig wallet you&apos;re already a signer on. We verify on-chain that this
+                device is a signer, then it appears in your account list so you can view it and
+                co-sign transfers.
               </Text>
-              <Input
-                value={values.address}
-                onChangeText={handleChange('address')}
-                onBlur={handleBlur('address')}
-                placeholder="C..."
-                autoCapitalize="characters"
-                autoCorrect={false}
-                status={touched.address && errors.address ? 'danger' : 'basic'}
-              />
-              {touched.address && errors.address && (
-                <Text variant="h12" color="inputError" mt="xs">
-                  {errors.address}
+
+              <Box mb="l">
+                <Text variant="h10" color="textPrimary" mb="s" fontWeight="700">
+                  Wallet Address
                 </Text>
-              )}
-            </Box>
+                <Input
+                  value={values.address}
+                  onChangeText={handleChange('address')}
+                  onBlur={handleBlur('address')}
+                  placeholder="C..."
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  status={touched.address && errors.address ? 'danger' : 'basic'}
+                />
+                {touched.address && errors.address && (
+                  <Text variant="h12" color="inputError" mt="xs">
+                    {errors.address}
+                  </Text>
+                )}
+              </Box>
 
-            <Box mb="l">
-              <Text variant="h10" color="textPrimary" mb="s" fontWeight="700">
-                Name (optional)
-              </Text>
-              <Input
-                value={values.name}
-                onChangeText={handleChange('name')}
-                onBlur={handleBlur('name')}
-                placeholder="Shared Wallet"
-                status={touched.name && errors.name ? 'danger' : 'basic'}
-              />
-              {touched.name && errors.name && (
-                <Text variant="h12" color="inputError" mt="xs">
-                  {errors.name}
+              <Box mb="l">
+                <Text variant="h10" color="textPrimary" mb="s" fontWeight="700">
+                  Name (optional)
                 </Text>
-              )}
-            </Box>
+                <Input
+                  value={values.name}
+                  onChangeText={handleChange('name')}
+                  onBlur={handleBlur('name')}
+                  placeholder="Shared Wallet"
+                  status={touched.name && errors.name ? 'danger' : 'basic'}
+                />
+                {touched.name && errors.name && (
+                  <Text variant="h12" color="inputError" mt="xs">
+                    {errors.name}
+                  </Text>
+                )}
+              </Box>
 
-            <Box backgroundColor="bg11" borderRadius={14} p="m" mb="l" flexDirection="row">
-              <Ionicons
-                name="information-circle-outline"
-                size={18}
-                color={theme.colors.textSecondary}
-                style={{ marginRight: 8, marginTop: 1 }}
+              <Box backgroundColor="bg11" borderRadius={14} p="m" mb="l" flexDirection="row">
+                <Ionicons
+                  name="information-circle-outline"
+                  size={18}
+                  color={theme.colors.textSecondary}
+                  style={{ marginRight: 8, marginTop: 1 }}
+                />
+                <Text variant="p8" color="textSecondary" style={{ flex: 1 }} lineHeight={18}>
+                  This is a shared wallet — you don&apos;t solely control it. Transfers need approvals
+                  from enough members to meet its threshold.
+                </Text>
+              </Box>
+            </ScrollView>
+
+            <Box>
+              <Button
+                label="Add Wallet"
+                variant="primary"
+                onPress={() => handleSubmit()}
+                loading={isSubmitting}
               />
-              <Text variant="p8" color="textSecondary" style={{ flex: 1 }} lineHeight={18}>
-                This is a shared wallet — you don&apos;t solely control it. Transfers need approvals
-                from enough members to meet its threshold.
-              </Text>
             </Box>
-
-            <Button
-              label="Add Wallet"
-              variant="primary"
-              onPress={() => handleSubmit()}
-              loading={isSubmitting}
-            />
-          </ScrollView>
+          </Box>
         )}
       </Formik>
     </Box>

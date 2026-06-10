@@ -317,7 +317,8 @@ const AccountSwitcherSheet = ({ visible, onClose }: Props) => {
               backgroundColor: isDark ? theme.colors.cardbg : theme.colors.mainBackground,
               paddingBottom: Math.max(insets.bottom, 16),
               transform: [{ translateY }],
-              height: SHEET_HEIGHT,
+              flex: 1,
+              marginTop: SCREEN_HEIGHT - SHEET_HEIGHT,
             },
           ]}
         >

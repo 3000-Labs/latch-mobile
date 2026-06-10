@@ -49,6 +49,16 @@ function formatUnits(base: string): string {
   return `${neg ? '-' : ''}${int}${frac ? `.${frac}` : ''}`;
 }
 
+// A packet is safe to act on only when its bytes decode as a transfer FROM this
+// exact shared wallet. Anything else — an admin op, an unknown invocation, or a
+// `from` that doesn't match — must not be signable/submittable: the member can't
+// see what they'd authorize (docs/multisig-p2p-cosign.md: decode-and-display,
+// never trust a sidecar). The on-chain __check_auth is the final gate, but the
+// client must never let a member sign blind. Gates both the UI and the handlers.
+function isReviewable(packet: CosignPacket | null, summary: TransferSummary | null): boolean {
+  return !!packet && !!summary && summary.from === packet.smartAccountAddress;
+}
+
 const CosignReview = () => {
   const theme = useTheme<Theme>();
   const { isDark } = useAppTheme();
@@ -110,7 +120,7 @@ const CosignReview = () => {
   };
 
   const handleApprove = async () => {
-    if (!packet) return;
+    if (!packet || !isReviewable(packet, summary)) return;
     setBusy(true);
     try {
       apply(await approve(packet.id));
@@ -136,7 +146,7 @@ const CosignReview = () => {
   };
 
   const handleSubmit = async () => {
-    if (!packet) return;
+    if (!packet || !isReviewable(packet, summary)) return;
     setBusy(true);
     try {
       const { hash } = await submit(packet.id);
@@ -150,6 +160,7 @@ const CosignReview = () => {
   };
 
   const thresholdMet = !!packet && packet.signatures.length >= packet.threshold;
+  const reviewable = isReviewable(packet, summary);
 
   return (
     <Box flex={1} backgroundColor="mainBackground" style={{ paddingTop: insets.top }}>
@@ -262,33 +273,48 @@ const CosignReview = () => {
             <Box flex={1} />
 
             <Box style={{ paddingBottom: insets.bottom + 12 }}>
-              {thresholdMet ? (
-                <Button
-                  label="Submit transfer"
-                  variant="primary"
-                  onPress={handleSubmit}
-                  loading={busy}
-                  mb="s"
-                />
-              ) : mayApprove ? (
-                <Button
-                  label="Approve"
-                  variant="primary"
-                  onPress={handleApprove}
-                  loading={busy}
-                  mb="s"
-                />
+              {!reviewable ? (
+                <Box backgroundColor="danger50" borderRadius={14} p="m">
+                  <Text variant="p7" color="danger900" mb="xs" style={{ fontWeight: '700' }}>
+                    Can&apos;t safely review this request
+                  </Text>
+                  <Text variant="p8" color="danger900">
+                    This packet doesn&apos;t decode as a transfer from this shared wallet, so
+                    approving, submitting, and sharing are blocked. Only approve transfers you can
+                    read in full.
+                  </Text>
+                </Box>
               ) : (
-                <Text variant="p8" color="textSecondary" textAlign="center" mb="s">
-                  You&apos;ve approved. Share with the remaining members to reach the threshold.
-                </Text>
+                <>
+                  {thresholdMet ? (
+                    <Button
+                      label="Submit transfer"
+                      variant="primary"
+                      onPress={handleSubmit}
+                      loading={busy}
+                      mb="s"
+                    />
+                  ) : mayApprove ? (
+                    <Button
+                      label="Approve"
+                      variant="primary"
+                      onPress={handleApprove}
+                      loading={busy}
+                      mb="s"
+                    />
+                  ) : (
+                    <Text variant="p8" color="textSecondary" textAlign="center" mb="s">
+                      You&apos;ve approved. Share with the remaining members to reach the threshold.
+                    </Text>
+                  )}
+                  <Button
+                    label="Share with next signer"
+                    variant="outline"
+                    onPress={handleShare}
+                    disabled={busy}
+                  />
+                </>
               )}
-              <Button
-                label="Share with next signer"
-                variant="outline"
-                onPress={handleShare}
-                disabled={busy}
-              />
             </Box>
           </Box>
         )}
