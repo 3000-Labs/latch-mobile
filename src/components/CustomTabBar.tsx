@@ -2,6 +2,7 @@ import { useTheme } from '@shopify/restyle';
 import { BlurView } from 'expo-blur';
 import React from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { useAppTheme } from '../theme/ThemeContext';
 import { Theme } from '../theme/theme';
@@ -16,9 +17,25 @@ const TAB_ITEMS = [
 export function CustomTabBar({ state, navigation }: any) {
   const theme = useTheme<Theme>();
   const { isDark } = useAppTheme();
+  const insets = useSafeAreaInsets();
+
+  // iOS keeps its hardcoded home-indicator spacing; Android lifts the bar by the
+  // system nav-bar inset so it isn't drawn behind the navigation buttons under
+  // edge-to-edge (gesture nav reports ~0, so this collapses cleanly there).
+  const isIOS = Platform.OS === 'ios';
+  const bottomInset = isIOS ? 0 : insets.bottom;
 
   return (
-    <View style={[styles.container, { backgroundColor: isDark ? 'rgba(0,0,0,0.85)' : '#F6F6F6' }]}>
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: isDark ? 'rgba(0,0,0,0.85)' : '#F6F6F6',
+          height: (isIOS ? 90 : 70) + bottomInset,
+          paddingBottom: isIOS ? 20 : bottomInset,
+        },
+      ]}
+    >
       <BlurView
         intensity={Platform.OS === 'ios' ? 80 : 100}
         style={StyleSheet.absoluteFill}
