@@ -3,11 +3,15 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import ApprovalNumberChips from '@/src/components/approval-number/ApprovalNumberChips';
+import ApprovalSegmentedBar from '@/src/components/approval-number/ApprovalSegmentedBar';
 import ApprovalSlider from '@/src/components/approval-number/ApprovalSlider';
+import ApprovalStepper from '@/src/components/approval-number/ApprovalStepper';
 import ContinueButton from '@/src/components/approval-number/ContinueButton';
 import Header from '@/src/components/approval-number/Header';
 import TitleSection from '@/src/components/approval-number/TitleSection';
 import Box from '@/src/components/shared/Box';
+import Text from '@/src/components/shared/Text';
 import { Theme } from '@/src/theme/theme';
 import { useTheme } from '@shopify/restyle';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -25,7 +29,8 @@ const ApprovalNumber = () => {
     members: string;
   }>();
 
-  const memberCount = Math.max(1, parseInt(params.memberCount ?? '1', 10));
+  // +1 for the creator, who is always the first signer (see shared-wallet-review).
+  const totalSigners = Math.max(1, parseInt(params.memberCount ?? '0', 10)) + 1;
   const [approvals, setApprovals] = useState(1);
 
   const handleContinue = () => {
@@ -35,7 +40,7 @@ const ApprovalNumber = () => {
         walletName: params.walletName,
         purpose: params.purpose,
         approvals: String(approvals),
-        memberCount: String(memberCount),
+        memberCount: String(totalSigners),
         members: params.members,
       },
     });
@@ -56,7 +61,18 @@ const ApprovalNumber = () => {
 
       <Box flex={1} px="m" mt="xs">
         <TitleSection />
-        <ApprovalSlider value={approvals} total={memberCount} onChange={setApprovals} />
+        <ApprovalSlider value={approvals} total={totalSigners} onChange={setApprovals} />
+        <ApprovalNumberChips value={approvals} total={totalSigners} onChange={setApprovals} />
+        <ApprovalSegmentedBar value={approvals} total={totalSigners} onChange={setApprovals} />
+        <ApprovalStepper value={approvals} total={totalSigners} onChange={setApprovals} />
+        {approvals === totalSigners && totalSigners > 2 && (
+          <Box mt="s" px="m">
+            <Text variant="p7" color="textSecondary" textAlign="center">
+              Recommended: require fewer approvals than total members so one offline member
+              doesn&apos;t lock the wallet.
+            </Text>
+          </Box>
+        )}
       </Box>
 
       <Box

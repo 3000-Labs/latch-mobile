@@ -13,7 +13,7 @@
  * via QR codes directly without backend mediation.
  */
 
-import { CosignApiError } from './cosign';
+import { ApiError } from './api-error';
 
 const API_ROOT = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 const API_BASE = `${API_ROOT}/v1/pair-codes`;
@@ -115,7 +115,7 @@ async function call<T>(
     return (resp?.data ?? null) as T | null;
   }
   const err = resp?.error;
-  throw new CosignApiError(
+  throw new ApiError(
     err?.message ?? `Request failed (${status})`,
     err?.code ?? `HTTP_${status}`,
     status,
@@ -141,7 +141,7 @@ export async function createPairCode(
     },
     token,
   );
-  if (!raw) throw new CosignApiError('empty create response', 'INTERNAL_ERROR', 500);
+  if (!raw) throw new ApiError('empty create response', 'INTERNAL_ERROR', 500);
   return adaptMeta(raw);
 }
 
@@ -149,13 +149,13 @@ export async function createPairCode(
  * Joiner reads the pair code metadata. Each call increments a read-attempts
  * counter on the backend; the code is exhausted after 5 attempts.
  *
- * Throws CosignApiError with code "EXHAUSTED" (HTTP 410) when the attempt
+ * Throws ApiError with code "EXHAUSTED" (HTTP 410) when the attempt
  * cap is hit, "EXPIRED" (410) when the TTL has lapsed, "NOT_FOUND" (404)
  * for unknown codes.
  */
 export async function getPairCodeMeta(token: string, code: string): Promise<PairCodeMeta> {
   const raw = await call<RawPairCodeMeta>('GET', `/${code}`, null, token);
-  if (!raw) throw new CosignApiError('not found', 'NOT_FOUND', 404);
+  if (!raw) throw new ApiError('not found', 'NOT_FOUND', 404);
   return adaptMeta(raw);
 }
 
@@ -178,18 +178,18 @@ export async function submitPairCodeResponse(
     },
     token,
   );
-  if (!raw) throw new CosignApiError('empty submit response', 'INTERNAL_ERROR', 500);
+  if (!raw) throw new ApiError('empty submit response', 'INTERNAL_ERROR', 500);
   return adaptResponse(raw);
 }
 
 /**
  * Initiator polls for the joiner's response.
  *
- * Returns CosignApiError with code "NOT_READY" (HTTP 425) when the joiner
+ * Returns ApiError with code "NOT_READY" (HTTP 425) when the joiner
  * hasn't submitted yet — callers should treat this as "keep polling".
  */
 export async function pollPairCodeResponse(token: string, code: string): Promise<PairCodeResponse> {
   const raw = await call<RawPairCodeResponse>('GET', `/${code}/response`, null, token);
-  if (!raw) throw new CosignApiError('not found', 'NOT_FOUND', 404);
+  if (!raw) throw new ApiError('not found', 'NOT_FOUND', 404);
   return adaptResponse(raw);
 }

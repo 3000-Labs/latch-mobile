@@ -1,5 +1,11 @@
+import {
+  fetchDefaultContextRule,
+  isVerifierCompatible,
+  type ChainSigner,
+} from '@/src/api/account-admin';
 import { uploadBackup } from '@/src/api/latch-auth';
 import { deployMultiSigSmartAccount } from '@/src/api/smart-account';
+import { ensureWalletCosignKey } from '@/src/lib/wallet-cosign-key';
 import AddMemberButton from '@/src/components/add-members/AddMemberButton';
 import ChooseMethodSheet from '@/src/components/add-members/ChooseMethodSheet';
 import AddMembersContinueButton from '@/src/components/add-members/ContinueButton';
@@ -18,11 +24,15 @@ import WalletNameCard from '@/src/components/shared-wallet-review/WalletNameCard
 import BottomSheetHandle from '@/src/components/shared/BottomSheetHandle';
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
-import { fetchDefaultContextRule, isVerifierCompatible, type ChainSigner } from '@/src/api/account-admin';
-import { SHEET_HEIGHT } from '@/src/constants/constants';
 import { STELLAR_NETWORK_PASSPHRASE, STELLAR_RPC_URL } from '@/src/constants/config';
+import { SHEET_HEIGHT } from '@/src/constants/constants';
 import { AccountSigner, computeMajorityThreshold } from '@/src/lib/account-signers';
-import { getPasskeyStorageKeys, SECURE_KEYS, useWalletStore, type WalletAccount } from '@/src/store/wallet';
+import {
+  getPasskeyStorageKeys,
+  SECURE_KEYS,
+  useWalletStore,
+  type WalletAccount,
+} from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
 import { useAppTheme } from '@/src/theme/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
@@ -161,7 +171,10 @@ const SharedWalletWizardSheet = ({ visible, onClose }: Props) => {
     // never deploys a 1-of-N "multisig" any single member can drain. A value
     // the user already raised above the old default of 1 is preserved.
     setApprovals((prev) => {
-      const safeDefault = Math.min(Math.max(computeMajorityThreshold(totalSigners), 2), totalSigners);
+      const safeDefault = Math.min(
+        Math.max(computeMajorityThreshold(totalSigners), 2),
+        totalSigners,
+      );
       return Math.min(Math.max(prev > 1 ? prev : safeDefault, 1), totalSigners);
     });
     setStep('threshold');
@@ -328,6 +341,13 @@ const SharedWalletWizardSheet = ({ visible, onClose }: Props) => {
 
       await useWalletStore.getState().rehydrateWallet();
 
+      // Generate this wallet's encryption key (WCK) so the creator can later
+      // bootstrap it to members via latch://cosign-key. Non-fatal: wallet
+      // creation succeeds even if key generation hiccups (regenerate later).
+      ensureWalletCosignKey(deployResult.smartAccountAddress).catch((err) => {
+        if (__DEV__) console.log('[wck] generate failed:', err?.message);
+      });
+
       uploadBackup().catch((err) => {
         if (__DEV__) console.log('[backup] upload failed:', err?.message);
       });
@@ -396,6 +416,14 @@ const SharedWalletWizardSheet = ({ visible, onClose }: Props) => {
                         : undefined
                     }
                     autoFocus
+                    style={{
+                      flex: 1,
+                      color: theme.colors.textPrimary,
+                      fontFamily: 'SFproRegular',
+                      fontSize: 16,
+                      letterSpacing: -0.32,
+                      padding: 0,
+                    }}
                   />
                   <InputField
                     label="Purpose"

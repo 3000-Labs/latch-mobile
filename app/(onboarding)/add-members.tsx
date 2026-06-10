@@ -11,6 +11,7 @@ import Header from '@/src/components/add-members/Header';
 import MemberList, { Member } from '@/src/components/add-members/MemberList';
 import RemoveMemberSheet from '@/src/components/add-members/RemoveMemberSheet';
 import ScanQRSheet from '@/src/components/add-members/ScanQRSheet';
+import SelfMemberCard from '@/src/components/add-members/SelfMemberCard';
 import TitleSection from '@/src/components/add-members/TitleSection';
 import Box from '@/src/components/shared/Box';
 import { Theme } from '@/src/theme/theme';
@@ -68,6 +69,10 @@ const AddMembers = () => {
       <Box flex={1} px="m">
         <TitleSection />
         <AddMemberButton onPress={() => setSheetVisible(true)} />
+
+        {/* The creator is always the first signer; their signer is read from the
+            local credential at deploy time, so this row is fixed and unremovable. */}
+        <SelfMemberCard />
 
         {members.length === 0 ? (
           <EmptyState />

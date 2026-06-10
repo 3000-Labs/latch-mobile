@@ -15,6 +15,7 @@ import {
   Vibration,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import Box from '@/src/components/shared/Box';
 import Button from '@/src/components/shared/Button';
@@ -29,6 +30,7 @@ const VerifyPhrase = () => {
   const theme = useTheme<Theme>();
   const statusBarStyle = useStatusBarStyle();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const { pendingWallet, clearPendingWallet } = useWalletStore();
   const recoveryPhrase = useMemo(
@@ -251,7 +253,12 @@ const VerifyPhrase = () => {
         </ScrollView>
 
         {/* Verify Button - Always at Bottom */}
-        <Box padding="m" mb="l" backgroundColor="mainBackground">
+        <Box
+          paddingHorizontal="m"
+          paddingTop="m"
+          backgroundColor="mainBackground"
+          style={{ paddingBottom: Math.max(insets.bottom, 24) }}
+        >
           <Button
             label="Verify"
             variant={isAllFilled ? 'primary' : 'disabled'}

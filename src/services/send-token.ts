@@ -60,7 +60,7 @@ function hashAuthPayload(entry: xdr.SorobanAuthorizationEntry): Buffer {
 // do_check_auth computes authDigest = sha256(payloadHash || toXDR(Vec[u32(0)])) and
 // passes it to verifier.verify(authDigest, pk, sig). The verifier then checks
 // ed25519_verify(pk, "Stellar Smart Account Auth:\n" + hex(authDigest), sig).
-function signSmartAccountAuthEntry(
+export function signSmartAccountAuthEntry(
   entry: xdr.SorobanAuthorizationEntry,
   keypair: Keypair,
   validUntilLedger: number,
@@ -109,7 +109,7 @@ function signSmartAccountAuthEntry(
   addrCreds.signature(signaturesScVal);
 }
 
-async function loadAccount(gAddress: string): Promise<Account> {
+export async function loadAccount(gAddress: string): Promise<Account> {
   const res = await fetch(`${HORIZON_URL}/accounts/${gAddress}`);
   if (!res.ok) throw new Error(`Horizon ${res.status}: account not found (${gAddress})`);
   const data = await res.json();
@@ -118,7 +118,7 @@ async function loadAccount(gAddress: string): Promise<Account> {
 
 // Convert a human-readable token amount (e.g. "1.5") to SAC base units (7 decimals).
 // Uses string arithmetic to avoid floating-point precision loss.
-function toBaseUnits(amount: string): bigint {
+export function toBaseUnits(amount: string): bigint {
   const [intPart = '0', fracPart = ''] = amount.split('.');
   const paddedFrac = fracPart.padEnd(7, '0').slice(0, 7);
   return BigInt(intPart) * 10_000_000n + BigInt(paddedFrac);
@@ -254,7 +254,7 @@ export async function sendTokenFromSmartAccount(params: SendTokenParams): Promis
 // FactoryConfig.webauthn_verifier directly from the factory's persistent storage.
 // The factory stores separate verifier addresses per signer type; using the wrong
 // one (e.g. the Ed25519 verifier) produces a signer-mismatch error (#3002).
-async function fetchWebAuthnVerifier(): Promise<string> {
+export async function fetchWebAuthnVerifier(): Promise<string> {
   const factoryAddress = process.env.EXPO_PUBLIC_FACTORY_ADDRESS;
   if (!factoryAddress) throw new Error('EXPO_PUBLIC_FACTORY_ADDRESS not set');
 
@@ -299,7 +299,7 @@ async function fetchWebAuthnVerifier(): Promise<string> {
   throw new Error('Config not found in factory instance storage');
 }
 
-async function signPasskeyAuthEntry(
+export async function signPasskeyAuthEntry(
   entry: xdr.SorobanAuthorizationEntry,
   listIndex: number,
   validUntilLedger: number,

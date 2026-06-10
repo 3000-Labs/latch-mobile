@@ -1,5 +1,7 @@
+import { fetchDefaultContextRule } from '@/src/api/account-admin';
 import { deriveWalletAtIndex, restoreStellarWallet, StellarWallet } from '@/src/lib/seed-wallet';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Networks } from '@stellar/stellar-sdk';
 import * as SecureStore from 'expo-secure-store';
 import { create } from 'zustand';
 
@@ -96,6 +98,26 @@ export interface WalletAccount {
    * device is paired and the admin rule is installed.
    */
   adminRuleId?: number | null;
+  /**
+   * True for shared (multisig) wallets created via the shared-wallet wizard.
+   * These have `index: -1` and empty `gAddress`/`publicKeyHex` like passkey
+   * accounts, but their signers are delegated member C-addresses with a
+   * threshold — so they have NO local passkey/mnemonic credential and cannot
+   * sign transfers single-handedly. Used to route away from the single-device
+   * signing paths (see send-token.tsx). Absent/false on personal accounts.
+   */
+  isMultisig?: boolean;
+  /**
+   * Number of member approvals required to authorize a transfer from this
+   * shared wallet (the on-chain threshold). Set at creation. Multisig only.
+   */
+  multisigThreshold?: number;
+  /**
+   * Delegated signer addresses (member personal-account C-addresses,
+   * including the creator's). Used as the cosign roster and to match each
+   * member's nested auth entry during signing. Multisig only.
+   */
+  multisigSigners?: string[];
 }
 
 /**
@@ -190,6 +212,35 @@ interface WalletStore {
     devices: Device[],
     adminRuleId?: number | null,
   ) => Promise<void>;
+
+  /**
+   * Tag an account (by array position) as a shared/multisig wallet and store
+   * its delegated signer roster + threshold. Used to recover accounts created
+   * before the `isMultisig` flag existed, once an on-chain read confirms the
+   * account's rule holds delegated signers (see lib/tx-diagnostics.ts). The
+   * on-chain rule is the source of truth, so this is a correction, not a guess.
+   */
+  markAccountMultisig: (
+    listIndex: number,
+    threshold: number,
+    signers: string[],
+  ) => Promise<void>;
+
+  /**
+   * Reconcile an account's local `devices` list against the on-chain signer
+   * set of its Default context rule. The chain is the source of truth for
+   * which signers exist; local fields (label, isLocal, pairedAt,
+   * onChainSignerId) are preserved by matching on signerKey. Newly
+   * discovered signers are added as non-local devices.
+   *
+   * Takes the account's position in `accounts` (NOT its `index` field, which
+   * is the non-unique `-1` sentinel for passkey/multisig accounts).
+   *
+   * No-op (resolves false) when the account has no deployed smart account.
+   * Network/parse failures are swallowed and logged — the cached list stays.
+   * Returns true if a reconcile ran (regardless of whether anything changed).
+   */
+  syncSignersFromChain: (accountListIndex: number) => Promise<boolean>;
 
   /**
    * Restore wallet + accounts from SecureStore.
@@ -405,6 +456,16 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
     });
   },
 
+  markAccountMultisig: async (listIndex, threshold, signers) => {
+    const { accounts } = get();
+    if (!accounts[listIndex]) return;
+    const updated = accounts.map((a, i) =>
+      i === listIndex ? { ...a, isMultisig: true, multisigThreshold: threshold, multisigSigners: signers } : a,
+    );
+    await persistAccounts(updated);
+    set({ accounts: updated });
+  },
+
   updateAccountDevices: async (bip44Index, devices, adminRuleId) => {
     const { accounts } = get();
     const updated = accounts.map((a) =>
@@ -419,6 +480,112 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
     );
     await persistAccounts(updated);
     set({ accounts: updated });
+  },
+
+  syncSignersFromChain: async (accountListIndex) => {
+    // Locate by array position, NOT by `index`: shared/multisig and passkey
+    // accounts both use the `-1` sentinel, so `index` is not unique and a
+    // find() can resolve to the wrong account.
+    const account = get().accounts[accountListIndex];
+    if (!account?.smartAccountAddress) {
+      if (__DEV__) {
+        console.log(
+          `[syncSigners] abort: no smartAccountAddress (listIndex=${accountListIndex}, account=${account ? account.name : 'undefined'})`,
+        );
+      }
+      return false;
+    }
+
+    const factoryAddress = process.env.EXPO_PUBLIC_FACTORY_ADDRESS;
+    if (!factoryAddress) {
+      if (__DEV__) console.log('[syncSigners] abort: EXPO_PUBLIC_FACTORY_ADDRESS not set in bundle');
+      return false;
+    }
+    if (__DEV__) {
+      console.log(
+        `[syncSigners] start: account=${account.smartAccountAddress.slice(0, 8)}… factory=${factoryAddress.slice(0, 8)}…`,
+      );
+    }
+    const rpcUrl =
+      process.env.EXPO_PUBLIC_SOROBAN_RPC_URL || 'https://soroban-testnet.stellar.org';
+    const networkPassphrase = process.env.EXPO_PUBLIC_NETWORK_PASSPHRASE || Networks.TESTNET;
+
+    let rule;
+    try {
+      rule = await fetchDefaultContextRule(
+        { rpcUrl, networkPassphrase, factoryAddress },
+        account.smartAccountAddress,
+      );
+    } catch (e) {
+      if (__DEV__) console.warn('syncSignersFromChain failed:', e);
+      return false;
+    }
+
+    // Reconcile against chain truth. Existing local metadata (label, isLocal,
+    // pairedAt, onChainSignerId) is preserved by matching on signerKey; newly
+    // discovered signers are added as remote devices.
+    const existing = account.devices ?? [];
+    const byKey = new Map(existing.map((d) => [d.signerKey, d]));
+    const hadLocal = existing.some((d) => d.isLocal);
+
+    // Candidate signer keys that identify THIS device, so we can mark the
+    // local signer (vs. members) and not mislabel it. Seed accounts sign with
+    // an Ed25519 key; passkey/shared accounts sign with the device's WebAuthn
+    // credential stored in SecureStore.
+    const localKeys = new Set<string>();
+    if (account.gAddress && account.publicKeyHex) {
+      localKeys.add(`ed25519:${account.publicKeyHex}`);
+    }
+    try {
+      const selfPasskey = await SecureStore.getItemAsync(SECURE_KEYS.KEY_DATA_HEX);
+      if (selfPasskey) localKeys.add(`webauthn:${selfPasskey}`);
+    } catch {
+      // best-effort; isLocal labelling degrades gracefully without it
+    }
+
+    const reconciled: Device[] = rule.signers.map((s) => {
+      const prev = byKey.get(s.signerKey);
+      if (prev) return prev;
+      const isLocal = !hadLocal && localKeys.has(s.signerKey);
+      const label = isLocal
+        ? 'This Device'
+        : s.kind === 'delegated'
+          ? 'Member wallet'
+          : 'Paired device';
+      return {
+        signerKey: s.signerKey,
+        label,
+        kind: s.kind,
+        keyDataHex: s.keyDataHex,
+        onChainSignerId: null,
+        isLocal,
+        pairedAt: new Date().toISOString(),
+      };
+    });
+
+    // Stable order: local device(s) first, then the rest.
+    reconciled.sort((a, b) => Number(b.isLocal) - Number(a.isLocal));
+
+    const changed =
+      reconciled.length !== existing.length ||
+      reconciled.some(
+        (d, i) => existing[i]?.signerKey !== d.signerKey || existing[i]?.isLocal !== d.isLocal,
+      );
+    if (__DEV__) {
+      console.log(
+        `[syncSigners] ${account.smartAccountAddress?.slice(0, 6)}… chain=${rule.signers.length} local=${existing.length} changed=${changed}`,
+      );
+    }
+    if (changed) {
+      // Update positionally so we touch only this account (see lookup note).
+      const accounts = get().accounts;
+      const updated = accounts.map((a, i) =>
+        i === accountListIndex ? { ...a, devices: reconciled } : a,
+      );
+      await persistAccounts(updated);
+      set({ accounts: updated });
+    }
+    return true;
   },
 
   // ─── Rehydration ──────────────────────────────────────────────────────────
@@ -451,6 +618,24 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
           devices: a.devices ?? [],
           adminRuleId: a.adminRuleId ?? null,
         }));
+
+        // Backfill `isMultisig` for shared wallets created before the flag
+        // existed. A multisig and a passkey account both have index -1 + empty
+        // gAddress, so we can't tell them apart by shape. But a passkey account
+        // always stores a credential; a multisig never does. keyDataHex is the
+        // PUBLIC half, so reading it never triggers Face ID. Absent credential
+        // on an index -1, non-G account ⇒ it's a shared wallet. Without this,
+        // an old multisig routes through the passkey send path and the on-chain
+        // __check_auth rejects the unrecognized signer (Error(Contract,#3016)).
+        accounts = await Promise.all(
+          accounts.map(async (a, listIndex) => {
+            if (a.isMultisig || a.index !== -1 || a.gAddress || a.credentialId) return a;
+            const keyData = await SecureStore.getItemAsync(
+              getPasskeyStorageKeys(listIndex).keyDataHex,
+            );
+            return keyData ? a : { ...a, isMultisig: true };
+          }),
+        );
         activeAccountIndex = activeIndexStr ? parseInt(activeIndexStr, 10) : 0;
       } else {
         // ── Case 3: migrate old single-account format ─────────────────────────

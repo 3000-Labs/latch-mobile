@@ -1,7 +1,9 @@
 import HistoryItem from '@/src/components/history/HistoryItem';
+import PendingCosignList from '@/src/components/history/PendingCosignList';
 import SearchHeader from '@/src/components/history/SearchHeader';
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
+import { usePendingPackets } from '@/src/hooks/use-pending-packets';
 import { StellarPayment, useStellarTransactions } from '@/src/hooks/use-stellar-transactions';
 import { useWalletStore } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
@@ -62,10 +64,17 @@ const History = () => {
     isFetching,
     isError,
     refetch,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
+    // fetchNextPage,
+    // hasNextPage,
+    // isFetchingNextPage,
   } = useStellarTransactions(smartAccountAddress);
+
+  const {
+    requests: pendingCosign,
+    count: pendingCount,
+    isLoading: pendingLoading,
+    refetch: refetchPending,
+  } = usePendingPackets();
 
   const filtered = useMemo(() => {
     const all = transactions ?? [];
@@ -176,6 +185,7 @@ const History = () => {
         activeFilter={activeFilter}
         setActiveFilter={setActiveFilter}
         theme={theme}
+        pendingCount={pendingCount}
       />
 
       {isError && !isLoading && (
@@ -201,7 +211,16 @@ const History = () => {
         </Box>
       )}
 
-      {isLoading ? (
+      {activeFilter === 'Pending' ? (
+        <PendingCosignList
+          requests={pendingCosign}
+          loading={pendingLoading}
+          onRefresh={refetchPending}
+          insetBottom={insets.bottom}
+          theme={theme}
+          isDark={isDark}
+        />
+      ) : isLoading ? (
         <Box flex={1} justifyContent="center" alignItems="center">
           <ActivityIndicator
             size="large"
@@ -249,15 +268,16 @@ const History = () => {
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: insets.bottom + 280 }}
             onEndReached={() => {
-              if (hasNextPage && !isFetchingNextPage) fetchNextPage();
+              // if (hasNextPage && !isFetchingNextPage) fetchNextPage();
             }}
             onEndReachedThreshold={0.5}
             ListFooterComponent={
-              isFetchingNextPage ? (
-                <Box paddingVertical="m" alignItems="center">
-                  <ActivityIndicator color={theme.colors.primary700} />
-                </Box>
-              ) : null
+              // isFetchingNextPage ? (
+              //   <Box paddingVertical="m" alignItems="center">
+              //     <ActivityIndicator color={theme.colors.primary700} />
+              //   </Box>
+              // ) : null
+              null
             }
             refreshControl={
               <RefreshControl

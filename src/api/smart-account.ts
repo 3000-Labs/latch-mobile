@@ -54,7 +54,7 @@ export function txToBase64(tx: { toEnvelope(): { toXDR(): Uint8Array } }): strin
   return toBase64(new Uint8Array(tx.toEnvelope().toXDR()));
 }
 
-function ledgerKeyToBase64(key: xdr.LedgerKey): string {
+export function ledgerKeyToBase64(key: xdr.LedgerKey): string {
   return toBase64(new Uint8Array(key.toXDR()));
 }
 
@@ -309,7 +309,8 @@ export async function deploySmartAccount(
       );
       if (__DEV__) console.log(`Simulation preview. Predicted Account: ${smartAccountAddress}`);
     } catch {
-      if (__DEV__) console.log('Could not pre-read address from simulation — will parse from settled tx.');
+      if (__DEV__)
+        console.log('Could not pre-read address from simulation — will parse from settled tx.');
     }
 
     const assembledTx = rpc.assembleTransaction(deployTx, parseSimResult(rawSim)).build();
@@ -582,10 +583,14 @@ export async function deployMultiSigSmartAccount(
   threshold: number,
 ): Promise<MultiSigDeployResult> {
   if (signers.length < 2) {
-    throw new Error('deployMultiSigSmartAccount: requires ≥ 2 signers; use deploySmartAccount for single-signer');
+    throw new Error(
+      'deployMultiSigSmartAccount: requires ≥ 2 signers; use deploySmartAccount for single-signer',
+    );
   }
   if (threshold < 1 || threshold > signers.length) {
-    throw new Error(`deployMultiSigSmartAccount: threshold ${threshold} out of range for ${signers.length} signers`);
+    throw new Error(
+      `deployMultiSigSmartAccount: threshold ${threshold} out of range for ${signers.length} signers`,
+    );
   }
 
   const config = getTestnetConfig();
@@ -619,6 +624,7 @@ export async function deployMultiSigSmartAccount(
   const rawSim = await sorobanCall(config.rpcUrl, 'simulateTransaction', {
     transaction: txToBase64(deployTx),
   });
+  console.log({ error: rawSim.error });
   if (rawSim.error) throw new Error(`multisig deploy simulation failed: ${rawSim.error}`);
 
   let predicted = '';

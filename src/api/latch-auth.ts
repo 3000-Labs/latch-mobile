@@ -62,9 +62,24 @@ async function silentRefresh(): Promise<string | null> {
   }
 }
 
+// Error thrown by latchFetch for any 4xx/5xx. Carries the HTTP status and the
+// server-provided error code so callers can branch on specific failures (e.g.
+// 409 ADDRESS_MISMATCH for the "email linked to another wallet" case) without
+// resorting to message string matching.
+export class LatchAPIError extends Error {
+  status: number;
+  code?: string;
+  constructor(status: number, code: string | undefined, message: string) {
+    super(message);
+    this.name = 'LatchAPIError';
+    this.status = status;
+    this.code = code;
+  }
+}
+
 // latchFetch wraps xhrRaw with a single 401 → refresh → retry cycle.
 // On a 401, it calls silentRefresh and retries once with the new token.
-// All other 4xx/5xx statuses throw immediately.
+// All other 4xx/5xx statuses throw LatchAPIError carrying the status + code.
 async function latchFetch(path: string, options: RequestInit = {}, token?: string): Promise<any> {
   let { status, body } = await xhrRaw(path, options, token);
 
@@ -76,9 +91,27 @@ async function latchFetch(path: string, options: RequestInit = {}, token?: strin
   }
 
   if (status >= 400) {
-    throw new Error(body?.error?.message ?? `Request failed (${status})`);
+    throw new LatchAPIError(
+      status,
+      body?.error?.code,
+      body?.error?.message ?? `Request failed (${status})`,
+    );
   }
   return body?.data;
+}
+
+/**
+ * Clear the email-scope session from SecureStore. Used when we discover the
+ * email the user authenticated against is anchored to a different wallet:
+ * leaving the tokens behind would mean the device is "logged in" to an
+ * identity it can't actually back up against.
+ */
+export async function clearEmailSession(): Promise<void> {
+  await Promise.all([
+    SecureStore.deleteItemAsync(SECURE_KEYS.ACCESS_TOKEN),
+    SecureStore.deleteItemAsync(SECURE_KEYS.REFRESH_TOKEN),
+    SecureStore.deleteItemAsync(SECURE_KEYS.USER_EMAIL),
+  ]);
 }
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
@@ -92,6 +125,25 @@ export async function registerEmail(email: string): Promise<void> {
     method: 'POST',
     body: JSON.stringify({ email }),
   });
+}
+
+/**
+ * Pre-OTP check: does this email already anchor a stored wallet backup? Used
+ * at registration time so the user can be prompted with "this email is tied
+ * to another wallet" before an OTP is sent. Returns false on network errors
+ * to fail open — the post-OTP check in collect-email and the 409 from upload
+ * still catch any collision we miss here.
+ */
+export async function checkEmailHasBackup(email: string): Promise<boolean> {
+  try {
+    const data = await latchFetch(
+      `/auth/email-status?email=${encodeURIComponent(email)}`,
+      { method: 'GET' },
+    );
+    return data?.has_backup === true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -153,11 +205,25 @@ export async function uploadBackup(): Promise<void> {
       SecureStore.getItemAsync(SECURE_KEYS.ACCOUNTS),
     ]);
 
+  // The backend tracks recovery against a single wallet per user. With multi-
+  // account support, SECURE_KEYS.SMART_ACCOUNT follows the *active* account, so
+  // we resolve the index-0 (primary) account explicitly and register that one.
+  let primarySmartAccount: string | null = null;
+  if (accountsJson) {
+    try {
+      const parsed = JSON.parse(accountsJson) as WalletAccount[];
+      primarySmartAccount = parsed[0]?.smartAccountAddress ?? null;
+    } catch {
+      // fall through — primarySmartAccount stays null
+    }
+  }
+  const registeredSmartAccount = primarySmartAccount ?? smartAccount ?? '';
+
   const blob: Record<string, string> = { version: '2' };
   if (passkeyPrivateKey) blob.passkey_private_key = passkeyPrivateKey;
   if (credentialId) blob.credential_id = credentialId;
   if (keyDataHex) blob.key_data_hex = keyDataHex;
-  if (smartAccount) blob.smart_account = smartAccount;
+  if (registeredSmartAccount) blob.smart_account = registeredSmartAccount;
   if (mnemonic) blob.mnemonic = mnemonic;
   if (accountsJson) blob.accounts = accountsJson;
 
@@ -192,7 +258,7 @@ export async function uploadBackup(): Promise<void> {
       method: 'POST',
       body: JSON.stringify({
         encrypted_blob: encryptedBlob,
-        smart_account_address: smartAccount ?? '',
+        smart_account_address: registeredSmartAccount,
       }),
     },
     accessToken,
@@ -299,14 +365,34 @@ export async function fetchAndRestoreBackup(
 
 // ─── Backup (continued) ───────────────────────────────────────────────────────
 
+export interface BackupStatus {
+  exists: boolean;
+  /** Wallet address the existing backup is bound to. Empty when !exists. */
+  smartAccountAddress: string;
+}
+
+/**
+ * Returns the authenticated user's backup status: whether one exists, and
+ * which wallet address it's bound to. The address lets callers detect that
+ * the email is already anchored to a different wallet and prompt for a
+ * different email before attempting to upload.
+ */
+export async function getBackupStatus(): Promise<BackupStatus> {
+  const accessToken = await SecureStore.getItemAsync(SECURE_KEYS.ACCESS_TOKEN);
+  if (!accessToken) return { exists: false, smartAccountAddress: '' };
+  const data = await latchFetch('/backup', {}, accessToken);
+  return {
+    exists: data?.exists === true,
+    smartAccountAddress: data?.smart_account_address ?? '',
+  };
+}
+
 /**
  * Returns true if the authenticated user has a stored credential backup.
  */
 export async function checkBackupExists(): Promise<boolean> {
-  const accessToken = await SecureStore.getItemAsync(SECURE_KEYS.ACCESS_TOKEN);
-  if (!accessToken) return false;
-  const data = await latchFetch('/backup', {}, accessToken);
-  return data.exists === true;
+  const status = await getBackupStatus();
+  return status.exists;
 }
 
 // ─── Market ───────────────────────────────────────────────────────────────────

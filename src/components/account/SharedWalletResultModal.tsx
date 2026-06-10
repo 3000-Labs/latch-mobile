@@ -30,6 +30,7 @@ const SharedWalletResultModal = ({
   const insets = useSafeAreaInsets();
   const theme = useTheme<Theme>();
   const [qrVisible, setQrVisible] = useState(false);
+  console.log({ errorMessage });
 
   return (
     <Modal

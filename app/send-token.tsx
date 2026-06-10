@@ -16,8 +16,11 @@ import { useAddressBook } from '@/src/hooks/use-address-book';
 import { usePortfolio } from '@/src/hooks/use-portfolio';
 import { usePrices } from '@/src/hooks/use-prices';
 import { useTrackedTokens } from '@/src/hooks/use-tracked-tokens';
+import { createTransfer } from '@/src/lib/cosign-transport';
+import { diagnoseAuthFailure, isAuthFailure } from '@/src/lib/tx-diagnostics';
+import { friendlyTxError } from '@/src/lib/tx-errors';
 import { sendTokenFromPasskeyAccount, sendTokenFromSmartAccount } from '@/src/services/send-token';
-import { useWalletStore } from '@/src/store/wallet';
+import { getPasskeyStorageKeys, useWalletStore } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
 import { useAppTheme } from '@/src/theme/ThemeContext';
 import { maskAddress } from '@/src/utils';
@@ -25,6 +28,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
 import { StatusBar } from 'expo-status-bar';
 import React, { useRef, useState } from 'react';
 import { Dimensions, Image, TouchableOpacity } from 'react-native';
@@ -144,6 +148,48 @@ const SendToken = () => {
     }
 
     const activeAccount = accounts[activeAccountIndex];
+
+    // Shared (multisig) wallets can't be signed from one device — their
+    // signers are delegated member accounts with a threshold. Instead of
+    // signing inline, open a cosign request that members approve, then any
+    // member broadcasts (see src/lib/multisig-send.ts + /pending-approval).
+    if (activeAccount?.isMultisig) {
+      setStatus('sending');
+      try {
+        if (__DEV__) {
+          console.log('[multisig-send] Send tapped on multisig', {
+            multisig: smartAccountAddress,
+            token: selectedToken.code,
+            sac: selectedToken.sacContractId,
+            to: selectedWallet.address,
+            amount,
+            threshold: activeAccount.multisigThreshold,
+            signers: activeAccount.multisigSigners,
+          });
+        }
+        // Backend-free P2P path: build an assembled transfer, sign our own
+        // member entry, and open the review screen to collect the rest +
+        // submit (docs/multisig-p2p-cosign.md).
+        const packet = await createTransfer({
+          multisigAccount: activeAccount,
+          sacContractId: selectedToken.sacContractId,
+          destinationAddress: selectedWallet.address,
+          amount,
+        });
+        router.replace({ pathname: '/cosign-review', params: { id: packet.id } });
+      } catch (err) {
+        if (__DEV__) {
+          console.log(
+            '[multisig-send] send threw:',
+            err instanceof Error ? (err.stack ?? err.message) : err,
+          );
+        }
+        setErrorMessage(friendlyTxError(err));
+        setStatus('error');
+      }
+      return;
+    }
+
     const isPasskeyAccount = !activeAccount?.gAddress;
 
     setStatus('sending');
@@ -173,12 +219,59 @@ const SendToken = () => {
       queryClient.invalidateQueries({ queryKey: ['portfolio'] });
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Transaction failed';
+
+      // On-chain auth rejection (Error(Auth, InvalidAction) / #3016) means the
+      // device's signer isn't registered on the account. Read the account's
+      // real signers to tell WHICH case it is, then guide the user.
+      if (isAuthFailure(err) && !msg.startsWith('PASSKEY_KEY_MISMATCH')) {
+        const presentedKeyDataHex = isPasskeyAccount
+          ? await SecureStore.getItemAsync(getPasskeyStorageKeys(activeAccountIndex).keyDataHex)
+          : (activeAccount?.publicKeyHex ?? null);
+        const diag = await diagnoseAuthFailure(smartAccountAddress, presentedKeyDataHex);
+        if (diag.kind === 'key-drift') {
+          // The account expects a key this device no longer has — same remedy
+          // as a passkey mismatch, so surface the "Re-initialize" CTA.
+          setIsKeyMismatch(true);
+          setErrorMessage(
+            "This device's key isn't registered on this account anymore. Re-initialize the account to restore signing.",
+          );
+          setStatus('error');
+          return;
+        }
+        if (diag.kind === 'multisig') {
+          // On-chain truth: this account's rule holds delegated member signers,
+          // so it's a shared wallet that was created before the isMultisig flag
+          // (the passkey-credential heuristic mis-cleared it). Tag it from the
+          // chain data and turn this Send into an approval request — which is
+          // the pending/awaiting-signatures flow the user expects.
+          const delegated = diag.registered
+            .filter((s) => s.kind === 'delegated' && s.address)
+            .map((s) => s.address as string);
+          const threshold = delegated.length || 2;
+          try {
+            await useWalletStore
+              .getState()
+              .markAccountMultisig(activeAccountIndex, threshold, delegated);
+            // Re-read the now-tagged account and open the backend-free flow.
+            const tagged = useWalletStore.getState().accounts[activeAccountIndex];
+            const packet = await createTransfer({
+              multisigAccount: tagged,
+              sacContractId: selectedToken.sacContractId,
+              destinationAddress: selectedWallet.address,
+              amount,
+            });
+            router.replace({ pathname: '/cosign-review', params: { id: packet.id } });
+          } catch (e2) {
+            setErrorMessage(friendlyTxError(e2));
+            setStatus('error');
+          }
+          return;
+        }
+      }
+
+      // Keep the key-mismatch branch so the "Re-initialize" CTA still shows.
       setIsKeyMismatch(msg.startsWith('PASSKEY_KEY_MISMATCH'));
-      setErrorMessage(
-        msg.startsWith('PASSKEY_KEY_MISMATCH')
-          ? 'Your account credential has changed. Re-initialize to continue.'
-          : msg,
-      );
+      setErrorMessage(friendlyTxError(err));
       setStatus('error');
     }
   };
@@ -285,7 +378,7 @@ const SendToken = () => {
       />
     );
   };
-
+  // yes, wire pending-approval to the delegated signer
   return (
     <Box
       flex={1}
@@ -351,7 +444,7 @@ const SendToken = () => {
       <LoadingBlur
         visible={status === 'sending'}
         text="Sending..."
-        subText={`${amount}${selectedToken?.code} was successfully sent to ${maskAddress(selectedWallet?.address || '')} `}
+        subText={`Sending ${amount}${selectedToken?.code} to ${maskAddress(selectedWallet?.address || '')} `}
       />
     </Box>
   );

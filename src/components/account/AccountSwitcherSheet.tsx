@@ -25,6 +25,7 @@ import Toast from 'react-native-toast-message';
 
 import LoadingBlur from '../shared/LoadingBlur';
 import AccountItem from './AccountItem';
+import AccountSectionHeader from './AccountSectionHeader';
 import AccountSheetHeader from './AccountSheetHeader';
 import AddAccountInfo from './AddAccountInfo';
 import AddAccountPrompt from './AddAccountPrompt';
@@ -192,7 +193,34 @@ const AccountSwitcherSheet = ({ visible, onClose }: Props) => {
             isSubmitting={isAddingAccount}
           />
         );
-      default:
+      default: {
+        // Split into regular and multisig groups while preserving each
+        // account's ORIGINAL array position — handleSwitch/handleDeploy/isActive
+        // all key off listIndex, so the index must survive the grouping.
+        const regular: { account: WalletAccount; listIndex: number }[] = [];
+        const multisig: { account: WalletAccount; listIndex: number }[] = [];
+        accounts.forEach((account, listIndex) => {
+          (account.isMultisig ? multisig : regular).push({ account, listIndex });
+        });
+
+        const renderAccount = ({
+          account,
+          listIndex,
+        }: {
+          account: WalletAccount;
+          listIndex: number;
+        }) => (
+          <AccountItem
+            key={account.index}
+            account={account}
+            isActive={listIndex === activeAccountIndex}
+            onPress={() => handleSwitch(listIndex)}
+            onDeploy={() => handleDeploy(account, listIndex)}
+            isDeploying={deployingIndex === listIndex}
+            avatarDataUri={avatars[account.publicKeyHex]}
+          />
+        );
+
         return (
           <>
             <AccountSheetHeader onClose={onClose} onAdd={() => setStep('add-prompt')} />
@@ -201,20 +229,22 @@ const AccountSwitcherSheet = ({ visible, onClose }: Props) => {
               contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}
               style={{ flexShrink: 1 }}
             >
-              {accounts.map((account, listIndex) => (
-                <AccountItem
-                  key={account.index}
-                  account={account}
-                  isActive={listIndex === activeAccountIndex}
-                  onPress={() => handleSwitch(listIndex)}
-                  onDeploy={() => handleDeploy(account, listIndex)}
-                  isDeploying={deployingIndex === listIndex}
-                  avatarDataUri={avatars[account.publicKeyHex]}
-                />
-              ))}
+              {regular.length > 0 && (
+                <>
+                  <AccountSectionHeader label="Regular accounts" count={regular.length} />
+                  {regular.map(renderAccount)}
+                </>
+              )}
+              {multisig.length > 0 && (
+                <>
+                  <AccountSectionHeader label="Multisig accounts" count={multisig.length} />
+                  {multisig.map(renderAccount)}
+                </>
+              )}
             </ScrollView>
           </>
         );
+      }
     }
   };
 

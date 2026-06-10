@@ -289,7 +289,17 @@ const CollectEmail = () => {
                 autoCorrect={false}
                 returnKeyType="send"
                 onSubmitEditing={handleSendCode}
-                style={[styles.input, { color: theme.colors.textPrimary }]}
+                style={[
+                  styles.input,
+                  {
+                    flex: 1,
+                    color: theme.colors.textPrimary,
+                    fontFamily: 'SFproRegular',
+                    fontSize: 16,
+                    letterSpacing: -0.32,
+                    padding: 0,
+                  },
+                ]}
               />
             </Box>
             <Text variant="caption" color="textSecondary" mb="m">
@@ -327,7 +337,7 @@ const CollectEmail = () => {
               maxLength={6}
               // returnKeyType="done"
               onSubmitEditing={handleVerify}
-              style={[styles.input, { color: theme.colors.textPrimary, letterSpacing: 8 }]}
+              style={[styles.input, { color: theme.colors.textPrimary }]}
             />
           </Box>
         )}

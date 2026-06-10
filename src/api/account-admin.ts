@@ -30,14 +30,13 @@ import {
   Account,
   Address,
   Contract,
-  Keypair,
   scValToNative,
   TransactionBuilder,
   xdr,
 } from '@stellar/stellar-sdk';
 
 import { AccountSigner } from '@/src/lib/account-signers';
-import { sorobanCall, txToBase64 } from './smart-account';
+import { ledgerKeyToBase64, sorobanCall, txToBase64 } from './smart-account';
 
 /**
  * Runtime form of the on-chain `Signer` enum (post-init).
@@ -276,14 +275,29 @@ export async function fetchFactoryVerifiers(p: SimulationParams): Promise<Factor
   return { ed25519, webauthn, secp256k1, thresholdPolicy };
 }
 
-async function simulateScalarCall(
+/**
+ * Fixed source account for read-only simulations (the all-zero Ed25519 seed's
+ * public key). Simulations are never signed or submitted, so the source only
+ * needs to be a syntactically valid address — this avoids a CSPRNG dependency.
+ */
+const SIM_SOURCE_ACCOUNT = 'GA5WUJ54Z23KILLCUOUNAKTPBVZWKMQVO4O6EQ5GHLAERIMLLHNCSKYH';
+
+/**
+ * Run a read-only contract call via `simulateTransaction` and return its
+ * return value as a native JS value. Used for view getters on either the
+ * factory or an account contract.
+ */
+async function simulateRead(
   p: SimulationParams,
+  contractAddress: string,
   method: string,
   args: xdr.ScVal[],
-): Promise<string> {
-  const dummyKp = Keypair.random();
-  const dummyAccount = new Account(dummyKp.publicKey(), '0');
-  const contract = new Contract(p.factoryAddress);
+): Promise<any> {
+  // Read-only simulation: nothing is signed, so any valid source address
+  // works. Use a fixed, deterministic one rather than Keypair.random(), which
+  // needs crypto.getRandomValues — not polyfilled in every RN context.
+  const dummyAccount = new Account(SIM_SOURCE_ACCOUNT, '0');
+  const contract = new Contract(contractAddress);
   const tx = new TransactionBuilder(dummyAccount, {
     fee: '100',
     networkPassphrase: p.networkPassphrase,
@@ -294,6 +308,212 @@ async function simulateScalarCall(
 
   const raw = await sorobanCall(p.rpcUrl, 'simulateTransaction', { transaction: txToBase64(tx) });
   if (raw.error) throw new Error(`${method} simulation failed: ${raw.error}`);
-  const retval = xdr.ScVal.fromXDR(raw.results?.[0]?.retval ?? 'AAAAAA==', 'base64');
-  return scValToNative(retval);
+  // Soroban RPC returns the call's return value under `results[0].xdr`.
+  // (`retval` is kept as a defensive fallback for older RPC shapes.)
+  const encoded = raw.results?.[0]?.xdr ?? raw.results?.[0]?.retval;
+  if (!encoded) throw new Error(`${method}: no return value in simulation result`);
+  return scValToNative(xdr.ScVal.fromXDR(encoded, 'base64'));
+}
+
+async function simulateScalarCall(
+  p: SimulationParams,
+  method: string,
+  args: xdr.ScVal[],
+): Promise<string> {
+  return simulateRead(p, p.factoryAddress, method, args);
+}
+
+// ─── On-chain signer reads ────────────────────────────────────────────────
+
+/** A signer as it currently exists on-chain in a context rule. */
+export interface ChainSigner {
+  kind: 'ed25519' | 'webauthn' | 'delegated';
+  /** Canonical signer key, matching `signerKeyOf()` in pairing-context.ts. */
+  signerKey: string;
+  /** Hex key material for external signers; '' for delegated. */
+  keyDataHex: string;
+  /** Contract/account address for delegated signers; undefined otherwise. */
+  address?: string;
+  /** Verifier contract this External signer is registered under; undefined for delegated. */
+  verifierAddress?: string;
+  /**
+   * True when `verifierAddress` is NOT one of the CURRENT factory's verifiers —
+   * i.e. the account was deployed under a different (older) factory. The `kind`
+   * is then inferred from key shape, and the caller MUST verify the verifier is
+   * byte-compatible (isVerifierCompatible) before re-registering this signer.
+   */
+  foreignVerifier?: boolean;
+}
+
+export interface DefaultContextRule {
+  /** On-chain id of the Default rule — discovered, not assumed to be 0 or 1. */
+  ruleId: number;
+  /** Signers currently attached to the Default rule. */
+  signers: ChainSigner[];
+}
+
+function bytesToHex(value: unknown): string {
+  if (typeof value === 'string') return value; // already hex (defensive)
+  return Buffer.from(value as Uint8Array).toString('hex');
+}
+
+/** Reverse of `encodeRuntimeSigner` — decode a `Signer` enum native back to a ChainSigner. */
+function decodeChainSigner(native: any, verifiers: FactoryVerifiers): ChainSigner {
+  // Signer enum natives: ["Delegated", address] | ["External", verifier, bytes]
+  const variant = Array.isArray(native) ? native[0] : undefined;
+  if (variant === 'Delegated') {
+    const address = String(native[1]);
+    return { kind: 'delegated', signerKey: `delegated:${address}`, keyDataHex: '', address };
+  }
+  if (variant === 'External') {
+    const verifierAddress = String(native[1]);
+    const keyDataHex = bytesToHex(native[2]);
+    if (verifierAddress === verifiers.ed25519) {
+      return { kind: 'ed25519', signerKey: `ed25519:${keyDataHex}`, keyDataHex, verifierAddress };
+    }
+    if (verifierAddress === verifiers.webauthn) {
+      return { kind: 'webauthn', signerKey: `webauthn:${keyDataHex}`, keyDataHex, verifierAddress };
+    }
+    // Foreign verifier (account deployed under a different factory). Don't give
+    // up — infer the kind from the key shape so the caller can decide, after a
+    // wasm-compatibility check, whether the signer is still usable.
+    const kind = inferExternalKindFromKey(keyDataHex);
+    if (!kind) {
+      throw new Error(
+        `unrecognized signer key shape for foreign verifier ${verifierAddress}`,
+      );
+    }
+    return {
+      kind,
+      signerKey: `${kind}:${keyDataHex}`,
+      keyDataHex,
+      verifierAddress,
+      foreignVerifier: true,
+    };
+  }
+  throw new Error(`unrecognised Signer variant: ${JSON.stringify(variant)}`);
+}
+
+/**
+ * Infer an External signer's kind from its raw key bytes when the verifier
+ * address is unrecognized. Ed25519 keys are exactly 32 bytes; WebAuthn keys are
+ * a 65-byte uncompressed P-256 point (0x04 prefix) with the credential id
+ * appended (so > 65 bytes). A bare 65-byte 0x04 point is Secp256k1, which Latch
+ * doesn't use as a member signer — returns null so the caller rejects it.
+ */
+function inferExternalKindFromKey(keyDataHex: string): 'ed25519' | 'webauthn' | null {
+  const len = keyDataHex.length / 2;
+  if (len === 32) return 'ed25519';
+  if (len > 65 && keyDataHex.startsWith('04')) return 'webauthn';
+  return null;
+}
+
+function isDefaultRuleType(contextType: any): boolean {
+  if (Array.isArray(contextType)) return contextType[0] === 'Default';
+  return contextType === 'Default';
+}
+
+/**
+ * Read the account's Default context rule — the normal-operations rule that
+ * holds every paired device — directly from chain via read-only simulation.
+ *
+ * The Default rule id is discovered by enumerating `get_context_rule(i)`, NOT
+ * assumed to be 0 or 1: the admin rule installed during the first pairing
+ * occupies its own id, so hardcoding the default id is a latent bug.
+ */
+export async function fetchDefaultContextRule(
+  p: SimulationParams,
+  accountAddress: string,
+): Promise<DefaultContextRule> {
+  const verifiers = await fetchFactoryVerifiers(p);
+  const count = Number(await simulateRead(p, accountAddress, 'get_context_rules_count', []));
+
+  for (let i = 0; i < count; i++) {
+    let rule: any;
+    try {
+      rule = await simulateRead(p, accountAddress, 'get_context_rule', [xdr.ScVal.scvU32(i)]);
+    } catch {
+      continue; // id gap left by a prior rule removal — skip
+    }
+    if (rule && isDefaultRuleType(rule.context_type)) {
+      const ruleId = typeof rule.id === 'number' ? rule.id : i;
+      const signers = (rule.signers as any[]).map((s) => decodeChainSigner(s, verifiers));
+      return { ruleId, signers };
+    }
+  }
+  throw new Error('no Default context rule found on account');
+}
+
+/**
+ * Read the AUTHORITATIVE on-chain approval threshold for a context rule by
+ * querying the factory's threshold-policy contract (`get_threshold(rule_id,
+ * account)`). This is the single source of truth for "how many signatures
+ * does a transfer from this account need" — the client must gate submission
+ * on THIS value, never on a locally-cached field that can drift from chain
+ * (the drift is what let a 1-of-N transfer through; see the multisig audit).
+ *
+ * Throws if the rule has no threshold policy installed (i.e. a single-signer
+ * account) — callers that might hit a non-multisig account should catch and
+ * treat the absence as "no multisig threshold to enforce".
+ */
+export async function fetchRuleThreshold(
+  p: SimulationParams,
+  accountAddress: string,
+  ruleId: number,
+): Promise<number> {
+  const verifiers = await fetchFactoryVerifiers(p);
+  const threshold = await simulateRead(p, verifiers.thresholdPolicy, 'get_threshold', [
+    xdr.ScVal.scvU32(ruleId),
+    new Address(accountAddress).toScVal(),
+  ]);
+  return Number(threshold);
+}
+
+/**
+ * Read a contract's installed Wasm hash (hex) from its instance ledger entry.
+ * Used to compare two verifier contracts for byte-identical implementation.
+ */
+export async function fetchContractWasmHash(
+  p: SimulationParams,
+  contractId: string,
+): Promise<string> {
+  const key = xdr.LedgerKey.contractData(
+    new xdr.LedgerKeyContractData({
+      contract: new Address(contractId).toScAddress(),
+      key: xdr.ScVal.scvLedgerKeyContractInstance(),
+      durability: xdr.ContractDataDurability.persistent(),
+    }),
+  );
+  const raw = await sorobanCall(p.rpcUrl, 'getLedgerEntries', { keys: [ledgerKeyToBase64(key)] });
+  const entryXdr = raw.entries?.[0]?.xdr;
+  if (!entryXdr) throw new Error(`contract ${contractId}: no instance ledger entry`);
+  const data = xdr.LedgerEntryData.fromXDR(entryXdr, 'base64');
+  const exec = data.contractData().val().instance().executable();
+  if (exec.switch().name !== 'contractExecutableWasm') {
+    throw new Error(`contract ${contractId}: not a wasm contract`);
+  }
+  return exec.wasmHash().toString('hex');
+}
+
+/**
+ * Whether `verifierAddress` is safe to treat as the current factory's verifier
+ * of `kind`. True when it IS the current verifier, or when it's a different
+ * contract address with a byte-identical Wasm (same verification logic — e.g. a
+ * factory redeployed pointing at the same verifier code). A different Wasm means
+ * a member's device signatures may not verify under our verifier, so callers
+ * must reject those signers rather than register a broken one.
+ */
+export async function isVerifierCompatible(
+  p: SimulationParams,
+  verifierAddress: string,
+  kind: 'ed25519' | 'webauthn',
+): Promise<boolean> {
+  const verifiers = await fetchFactoryVerifiers(p);
+  const current = kind === 'ed25519' ? verifiers.ed25519 : verifiers.webauthn;
+  if (verifierAddress === current) return true;
+  const [foreign, cur] = await Promise.all([
+    fetchContractWasmHash(p, verifierAddress),
+    fetchContractWasmHash(p, current),
+  ]);
+  return foreign === cur;
 }
