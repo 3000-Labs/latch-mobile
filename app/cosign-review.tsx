@@ -23,7 +23,13 @@ import {
   type TransferSummary,
 } from '@/src/lib/cosign-packet';
 import { importPacket } from '@/src/lib/cosign-packet-flow';
-import { approve, canApprove, getEntry, submit } from '@/src/lib/cosign-transport';
+import {
+  approveAndMaybeSubmit,
+  canApprove,
+  getEntry,
+  isBackendEnabled,
+  submit,
+} from '@/src/lib/cosign-transport';
 import { friendlyTxError } from '@/src/lib/tx-errors';
 import { Theme } from '@/src/theme/theme';
 import { useAppTheme } from '@/src/theme/ThemeContext';
@@ -107,6 +113,25 @@ const CosignReview = () => {
     })();
   }, [id, data, d]);
 
+  // Backend mode: other members' approvals land asynchronously in the queue —
+  // refresh the open screen every 15s so the x/y progress row tracks them.
+  // P2P mode has nothing to poll (progress only changes via local actions).
+  useEffect(() => {
+    if (!isBackendEnabled() || !packet) return;
+    if (packet.signatures.length >= packet.threshold) return;
+    const t = setInterval(() => {
+      getEntry(packet.id)
+        .then((p) => {
+          if (p) apply(p);
+        })
+        .catch(() => {
+          /* transient poll failure — next tick retries */
+        });
+    }, 15_000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [packet?.id, packet?.signatures.length]);
+
   const handleImportPaste = async () => {
     setBusy(true);
     try {
@@ -123,7 +148,20 @@ const CosignReview = () => {
     if (!packet || !isReviewable(packet, summary)) return;
     setBusy(true);
     try {
-      apply(await approve(packet.id));
+      const outcome = await approveAndMaybeSubmit(packet.id);
+      if (outcome.submitted) {
+        Toast.show({
+          type: 'success',
+          text1: 'Transfer submitted',
+          text2: `${outcome.submitted.hash.slice(0, 10)}…`,
+        });
+        router.replace('/(tabs)/history');
+        return;
+      }
+      apply(outcome.packet);
+      // The approval landed; only the auto-submit failed. The manual Submit
+      // button renders once thresholdMet, so the user still has a path.
+      if (outcome.submitError) setError(outcome.submitError);
     } catch (e) {
       console.log({ e });
       setError(friendlyTxError(e));
@@ -176,7 +214,10 @@ const CosignReview = () => {
       <StatusBar style={isDark ? 'light' : 'dark'} />
 
       <Box flexDirection="row" alignItems="center" px="m" py="s">
-        <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
+        <TouchableOpacity
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))}
+          hitSlop={12}
+        >
           <Ionicons name="chevron-back" size={24} color={theme.colors.textPrimary} />
         </TouchableOpacity>
         <Text variant="headline" color="textPrimary" ml="s">
@@ -306,15 +347,20 @@ const CosignReview = () => {
                     />
                   ) : (
                     <Text variant="p8" color="textSecondary" textAlign="center" mb="s">
-                      You&apos;ve approved. Share with the remaining members to reach the threshold.
+                      {isBackendEnabled()
+                        ? "You've approved. Other members are notified — their approvals appear here automatically."
+                        : "You've approved. Share with the remaining members to reach the threshold."}
                     </Text>
                   )}
-                  <Button
-                    label="Share with next signer"
-                    variant="outline"
-                    onPress={handleShare}
-                    disabled={busy}
-                  />
+                  {/* Backend mode needs no manual relay — the queue is the transport. */}
+                  {!isBackendEnabled() && (
+                    <Button
+                      label="Share with next signer"
+                      variant="outline"
+                      onPress={handleShare}
+                      disabled={busy}
+                    />
+                  )}
                 </>
               )}
             </Box>

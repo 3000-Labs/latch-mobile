@@ -267,7 +267,7 @@ export default function MigrationSweep() {
       <Box flexDirection="row" alignItems="center" paddingHorizontal="m" height={56}>
         {!isRunning && (
           <TouchableOpacity
-            onPress={() => router.back()}
+            onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Ionicons name="arrow-back" size={24} color={theme.colors.textPrimary} />

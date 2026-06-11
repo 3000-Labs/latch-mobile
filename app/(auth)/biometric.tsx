@@ -2,7 +2,6 @@ import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import Box from '@/src/components/shared/Box';
 import Button from '@/src/components/shared/Button';
 import Text from '@/src/components/shared/Text';
-import { fetchPendingPacketsOnce } from '@/src/hooks/use-pending-packets';
 import { createPasskeyCredential, storePasskeyCredential } from '@/src/lib/passkey-webauthn';
 import { SECURE_KEYS } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
@@ -123,18 +122,18 @@ const Biometrics = () => {
     // cosign requests waiting on this device, surface them immediately
     // instead of landing on the home tab. The banner on (tabs)/index.tsx
     // covers the warm-foreground case.
-    try {
-      const smart = await SecureStore.getItemAsync(SECURE_KEYS.SMART_ACCOUNT);
-      if (smart) {
-        const pending = await fetchPendingPacketsOnce(smart);
-        if (pending.length > 0) {
-          router.replace('/pending-approval');
-          return;
-        }
-      }
-    } catch {
-      // Network blip — fall through to the normal landing.
-    }
+    // try {
+    //   const smart = await SecureStore.getItemAsync(SECURE_KEYS.SMART_ACCOUNT);
+    //   if (smart) {
+    //     const pending = await fetchPendingPacketsOnce(smart);
+    //     if (pending.length > 0) {
+    //       router.replace('/pending-approval');
+    //       return;
+    //     }
+    //   }
+    // } catch {
+    //   // Network blip — fall through to the normal landing.
+    // }
     router.replace('/(tabs)');
   }, [router]);
 
@@ -528,7 +527,12 @@ const Biometrics = () => {
 
       {/* Header */}
       <Box flexDirection="row" justifyContent="space-between" alignItems="center" mb="m">
-        <TouchableOpacity onPress={() => router.back()} disabled={isProcessing}>
+        <TouchableOpacity
+          onPress={() => {
+            if (router.canGoBack()) router.back();
+          }}
+          disabled={isProcessing}
+        >
           <Ionicons
             name="chevron-back"
             size={24}

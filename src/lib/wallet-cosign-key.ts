@@ -11,12 +11,18 @@
  * as hex; hex is also the link param encoding (URL-safe, no base64 padding).
  */
 
+import { sha256 } from '@noble/hashes/sha2.js';
 import * as SecureStore from 'expo-secure-store';
 
 import { fetchDefaultContextRule } from '@/src/api/account-admin';
+import { fetchWckBundle, uploadWckBundle } from '@/src/api/wck-bundle';
 import { STELLAR_NETWORK_PASSPHRASE, STELLAR_RPC_URL } from '@/src/constants/config';
 import { generateWalletCosignKey } from '@/src/lib/cosign-crypto';
-import { getMySignerKey } from '@/src/lib/cosign-packet-flow';
+import { getMySignerKey, pickSigner } from '@/src/lib/cosign-packet-flow';
+import { buildWckBundle, openWckBundle, type WckRecipient } from '@/src/lib/sealed-wck';
+import { deriveWalletAtIndex } from '@/src/lib/seed-wallet';
+import { ensureWalletSession } from '@/src/lib/wallet-auth';
+import { SECURE_KEYS } from '@/src/store/wallet';
 
 const WCK_PREFIX = 'latch_wck_';
 const KEY_LEN = 32;
@@ -104,5 +110,103 @@ export async function importWalletCosignKey(account: string, wckParam: string): 
     );
   }
 
+  await setWalletCosignKey(account, wck);
+}
+
+// ─── sealed bundle distribution (no trusted channel needed) ───────────────────
+
+/**
+ * Build a sealed bundle of this wallet's WCK for every ed25519 member on chain —
+ * one blob with a copy encrypted to each member's signer key. Safe to send over
+ * ANY channel: only each member's device can open its own entry. (Passkey
+ * members are skipped until the passkey path lands.)
+ */
+export async function buildWckBundleForMembers(
+  account: string,
+): Promise<{ bundle: string; recipientCount: number }> {
+  const wck = await getWalletCosignKey(account);
+  if (!wck) throw new Error("This wallet's key isn't on this device.");
+
+  const rule = await fetchDefaultContextRule(simParams(), account);
+  const recipients: WckRecipient[] = rule.signers
+    .filter((s) => s.kind === 'ed25519' && s.keyDataHex)
+    .map((s) => ({ keyDataHex: s.keyDataHex }));
+  if (recipients.length === 0) {
+    throw new Error('No ed25519 members to share the key with yet.');
+  }
+  return { bundle: buildWckBundle(wck, recipients), recipientCount: recipients.length };
+}
+
+// ─── server-side pickup (zero-touch bootstrap) ────────────────────────────────
+
+/**
+ * Deterministic, secret-free pickup key for a wallet's sealed bundle:
+ * sha256("latch-wck-pickup:v1:" + C-address), hex. A joining member knows only
+ * the C-address, so the key can't require the WCK (chicken-and-egg). The
+ * C-address is public on-chain data, and the bundle behind the key is sealed —
+ * possession of the key yields only ciphertext members alone can open.
+ */
+export function pickupKeyFor(account: string): string {
+  return bytesToHex(sha256(new TextEncoder().encode(`latch-wck-pickup:v1:${account}`)));
+}
+
+async function walletToken(): Promise<string> {
+  const me = pickSigner();
+  if (!me) throw new Error('No personal account on this device to authenticate with.');
+  return ensureWalletSession(me.account);
+}
+
+/**
+ * Seal this wallet's WCK to every on-chain ed25519 member and store the bundle
+ * server-side, so members pick it up automatically (no manual key link).
+ * Non-fatal by design — callers fire-and-forget after deploy; the manual
+ * latch://cosign-key link remains the fallback path.
+ */
+export async function publishWckBundle(account: string): Promise<void> {
+  const { bundle } = await buildWckBundleForMembers(account);
+  await uploadWckBundle(await walletToken(), pickupKeyFor(account), bundle);
+}
+
+/**
+ * Try to fetch + import this wallet's WCK from the server-side sealed bundle.
+ * Resolves true when the key landed (or was already present), false when no
+ * bundle exists for the wallet. All importWalletCosignKeyFromBundle gates
+ * apply: the entry must be sealed to THIS device's key, and the device must be
+ * a current on-chain signer.
+ */
+export async function autoFetchWalletCosignKey(account: string): Promise<boolean> {
+  if (await hasWalletCosignKey(account)) return true;
+  const bundle = await fetchWckBundle(await walletToken(), pickupKeyFor(account));
+  if (!bundle) return false;
+  await importWalletCosignKeyFromBundle(account, bundle);
+  return true;
+}
+
+/**
+ * Import the WCK from a sealed bundle: open this device's entry with its ed25519
+ * key, confirm we're a current on-chain signer, then cache it. Throws a
+ * user-facing message on any failure. Ed25519 devices only.
+ */
+export async function importWalletCosignKeyFromBundle(account: string, bundle: string): Promise<void> {
+  const me = pickSigner();
+  if (!me || me.account.index < 0 || !me.account.gAddress) {
+    throw new Error('This device has no ed25519 signer to receive the key.');
+  }
+  const myKey = await getMySignerKey();
+  if (!myKey) throw new Error('No signing key on this device.');
+
+  const mnemonic = await SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC);
+  if (!mnemonic) throw new Error('Unlock your wallet, then open the link again.');
+  const seed = Uint8Array.from(deriveWalletAtIndex(mnemonic, me.account.index).keypair.rawSecretKey());
+
+  const wck = openWckBundle(bundle, myKey, seed);
+  if (!wck) throw new Error("This key bundle isn't sealed for your device.");
+
+  // Defense in depth: confirm this device is actually a current signer on-chain.
+  const rule = await fetchDefaultContextRule(simParams(), account);
+  const mine = myKey.toLowerCase();
+  if (!rule.signers.some((s) => s.keyDataHex && s.keyDataHex.toLowerCase() === mine)) {
+    throw new Error("This device isn't a signer on that multisig wallet.");
+  }
   await setWalletCosignKey(account, wck);
 }

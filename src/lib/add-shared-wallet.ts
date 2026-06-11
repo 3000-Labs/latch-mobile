@@ -15,6 +15,7 @@ import { StrKey } from '@stellar/stellar-sdk';
 import { fetchDefaultContextRule, fetchRuleThreshold } from '@/src/api/account-admin';
 import { STELLAR_NETWORK_PASSPHRASE, STELLAR_RPC_URL } from '@/src/constants/config';
 import { getMySignerKey } from '@/src/lib/cosign-packet-flow';
+import { autoFetchWalletCosignKey } from '@/src/lib/wallet-cosign-key';
 import { useWalletStore, type WalletAccount } from '@/src/store/wallet';
 
 function simParams() {
@@ -86,6 +87,13 @@ export async function addSharedWalletByAddress(
     multisigThreshold: threshold,
     multisigSigners: rule.signers.map((s) => s.signerKey),
   };
+
+  // Zero-touch WCK pickup: membership was just verified, so try importing the
+  // wallet's sealed key bundle in the background. Non-fatal — the pending list
+  // self-heals via listForAccount, and the manual link remains the fallback.
+  autoFetchWalletCosignKey(address).catch((err) => {
+    if (__DEV__) console.log('[wck] auto-fetch failed:', err?.message);
+  });
 
   return useWalletStore.getState().appendAccount(account, true);
 }

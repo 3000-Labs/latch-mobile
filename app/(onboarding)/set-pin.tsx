@@ -118,7 +118,7 @@ const SetPin = () => {
       setPhase('set');
       setConfirmPin('');
       setError(false);
-    } else {
+    } else if (router.canGoBack()) {
       router.back();
     }
   };

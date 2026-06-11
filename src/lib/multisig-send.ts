@@ -102,16 +102,17 @@ function describeAuthEntries(label: string, entries: xdr.SorobanAuthorizationEnt
 
 /**
  * How far ahead to pin the signatures' on-chain expiration. ~5s/ledger, so
- * 1440 ledgers ≈ 2 hours — the window in which all members must collect + the
- * tx must be submitted. Multi-party approval can't realistically finish in the
- * old ~8-minute (100-ledger) window. The packet TTL shown in the pending list
+ * 17280 ledgers ≈ 24 hours — the async-approval window in which all members
+ * must sign + the tx must be submitted. The backend queue's TTL (latch-api
+ * cosignRequestTTL = 23h) deliberately sits under this, so a listed request
+ * always has live signatures. The packet TTL shown in the pending list
  * (use-pending-packets.ts) derives from this so display + reality stay in sync.
  *
- * NOTE: the assembled tx also pins the bundler's sequence number; if the bundler
- * submits other txs before the quorum broadcasts, the envelope's seq goes stale
- * regardless of this window (concerns §5f). Fine for low-volume testnet.
+ * The bundler's sequence number is NOT pinned for this window: aggregateAndSubmit
+ * rebuilds the envelope on a fresh sequence at submit time (member signatures
+ * cover only the auth entry), so delayed approvals can't die with txBadSeq.
  */
-export const SIGNATURE_VALIDITY_LEDGERS = 1440;
+export const SIGNATURE_VALIDITY_LEDGERS = 17280;
 
 /**
  * Fresh tx time-bound window (seconds) applied at SUBMIT time. The tx is
@@ -280,7 +281,29 @@ export async function aggregateAndSubmit(
   );
   const merged = aggregateAuthEntries(decoded);
 
-  const patchedXdr = setOpAuth(unsignedTxXdr, [merged]);
+  // Rebuild the envelope on a FRESH bundler sequence. The original envelope
+  // pinned the bundler's seq at build time; over a multi-hour approval window
+  // the shared bundler account will have advanced, and submitting the stale
+  // envelope dies with txBadSeq. Member signatures cover only the auth entry
+  // (nonce / invocation / signatureExpirationLedger) — never the envelope — so
+  // wrapping the same operation + merged auth in a new tx is legal (the same
+  // property setMaxTime already exploits for time bounds).
+  const bundler = Keypair.fromSecret(bundlerSecret());
+  const source = await loadAccount(bundler.publicKey());
+  log('fresh bundler seq', source.sequenceNumber());
+  const original = new Transaction(unsignedTxXdr, STELLAR_NETWORK_PASSPHRASE);
+  const op = original.operations[0] as Operation.InvokeHostFunction | undefined;
+  if (!op || op.type !== 'invokeHostFunction') {
+    throw new Error('multisig broadcast: unsignedTxXdr has no invokeHostFunction op');
+  }
+  const rebuilt = new TransactionBuilder(source, {
+    fee: '1000000',
+    networkPassphrase: STELLAR_NETWORK_PASSPHRASE,
+  })
+    .addOperation(Operation.invokeHostFunction({ func: op.func, auth: [merged] }))
+    .setTimeout(SUBMIT_TIMEBOUND_SECONDS)
+    .build();
+  const patchedXdr = txToBase64(rebuilt);
 
   // Enforcing simulation. The recording sim that produced unsignedTxXdr STUBS
   // __check_auth, so its footprint/resources omit the multisig's
@@ -315,7 +338,7 @@ export async function aggregateAndSubmit(
     setMaxTime(withAuth, SUBMIT_TIMEBOUND_SECONDS),
     STELLAR_NETWORK_PASSPHRASE,
   );
-  finalTx.sign(Keypair.fromSecret(bundlerSecret()));
+  finalTx.sign(bundler);
   log('enforcing-sim ok, bundler-signed, submitting…');
 
   const sent = await sorobanCall(STELLAR_RPC_URL, 'sendTransaction', {

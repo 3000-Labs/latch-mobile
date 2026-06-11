@@ -13,8 +13,13 @@
 import Box from '@/src/components/shared/Box';
 import Button from '@/src/components/shared/Button';
 import Text from '@/src/components/shared/Text';
+import { registerPushToken } from '@/src/lib/push-registration';
 import { friendlyTxError } from '@/src/lib/tx-errors';
-import { encodeWck, getWalletCosignKey, importWalletCosignKey } from '@/src/lib/wallet-cosign-key';
+import {
+  buildWckBundleForMembers,
+  importWalletCosignKey,
+  importWalletCosignKeyFromBundle,
+} from '@/src/lib/wallet-cosign-key';
 import { Theme } from '@/src/theme/theme';
 import { useAppTheme } from '@/src/theme/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
@@ -35,30 +40,52 @@ const CosignKey = () => {
   const theme = useTheme<Theme>();
   const { isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
-  const { account, wck } = useLocalSearchParams<{ account?: string; wck?: string }>();
+  const { account, wck, bundle } = useLocalSearchParams<{
+    account?: string;
+    wck?: string;
+    bundle?: string;
+  }>();
 
   const [status, setStatus] = useState<Status>('verifying');
   const [message, setMessage] = useState<string | null>(null);
-  const [shareKey, setShareKey] = useState<string | null>(null);
+  const [shareBundle, setShareBundle] = useState<string | null>(null);
+  const [recipientCount, setRecipientCount] = useState(0);
 
   useEffect(() => {
     (async () => {
-      if (account && wck) {
+      if (account && bundle) {
+        // Sealed-bundle import: open this device's entry.
+        setStatus('verifying');
+        try {
+          await importWalletCosignKeyFromBundle(account, bundle);
+          // Holding the key unlocks this wallet's blind queue — register for
+          // its approval pushes right away (fire-and-forget).
+          registerPushToken().catch(() => {});
+          setStatus('success');
+        } catch (e) {
+          setMessage(friendlyTxError(e));
+          setStatus('error');
+        }
+      } else if (account && wck) {
+        // Legacy raw-key import (pre-bundle links).
         setStatus('verifying');
         try {
           await importWalletCosignKey(account, wck);
+          registerPushToken().catch(() => {});
           setStatus('success');
         } catch (e) {
           setMessage(friendlyTxError(e));
           setStatus('error');
         }
       } else if (account) {
-        const key = await getWalletCosignKey(account);
-        if (key) {
-          setShareKey(encodeWck(key));
+        // Share mode: seal the key to every member and build one link.
+        try {
+          const built = await buildWckBundleForMembers(account);
+          setShareBundle(built.bundle);
+          setRecipientCount(built.recipientCount);
           setStatus('share');
-        } else {
-          setMessage('No saved key for this wallet on this device.');
+        } catch (e) {
+          setMessage(friendlyTxError(e));
           setStatus('error');
         }
       } else {
@@ -66,12 +93,12 @@ const CosignKey = () => {
         setStatus('error');
       }
     })();
-  }, [account, wck]);
+  }, [account, wck, bundle]);
 
   const handleShare = async () => {
-    if (!account || !shareKey) return;
+    if (!account || !shareBundle) return;
     try {
-      const link = Linking.createURL('cosign-key', { queryParams: { account, wck: shareKey } });
+      const link = Linking.createURL('cosign-key', { queryParams: { account, bundle: shareBundle } });
       await Share.share({ message: link });
     } catch {
       /* user dismissed the share sheet */
@@ -90,7 +117,10 @@ const CosignKey = () => {
       <StatusBar style={isDark ? 'light' : 'dark'} />
 
       <Box flexDirection="row" alignItems="center" px="m" py="s">
-        <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
+        <TouchableOpacity
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))}
+          hitSlop={12}
+        >
           <Ionicons name="chevron-back" size={24} color={theme.colors.textPrimary} />
         </TouchableOpacity>
         <Text variant="headline" color="textPrimary" ml="s">
@@ -123,7 +153,11 @@ const CosignKey = () => {
               This device can now send and receive encrypted approvals for this multisig wallet.
             </Text>
             <Box width="100%">
-              <Button label="Done" variant="primary" onPress={() => router.back()} />
+              <Button
+                label="Done"
+                variant="primary"
+                onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))}
+              />
             </Box>
           </Box>
         ) : status === 'share' ? (
@@ -140,12 +174,12 @@ const CosignKey = () => {
               Share this wallet&apos;s key
             </Text>
             <Text variant="p7" color="textSecondary" textAlign="center" mb="s">
-              Send the key link only to members of {truncate(account ?? '')}, over a channel you
-              trust. It lets them decrypt this wallet&apos;s pending approvals — the server never
-              sees it.
+              This link is sealed to the {recipientCount} member
+              {recipientCount === 1 ? '' : 's'} of {truncate(account ?? '')} — only their devices
+              can open it, so you can send it over any channel. The server never sees the key.
             </Text>
-            <Text variant="p8" color="danger900" textAlign="center" mb="l">
-              Anyone you send this to who is a signer can read this wallet&apos;s transfers.
+            <Text variant="p8" color="textSecondary" textAlign="center" mb="l">
+              It unlocks this wallet&apos;s encrypted approvals on each member&apos;s device.
             </Text>
             <Box width="100%">
               <Button label="Share wallet key" variant="primary" onPress={handleShare} />
@@ -158,7 +192,11 @@ const CosignKey = () => {
               {message ?? 'Something went wrong.'}
             </Text>
             <Box width="100%">
-              <Button label="Close" variant="outline" onPress={() => router.back()} />
+              <Button
+                label="Close"
+                variant="outline"
+                onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))}
+              />
             </Box>
           </Box>
         )}

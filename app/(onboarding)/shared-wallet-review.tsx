@@ -16,6 +16,7 @@ import TitleSection from '@/src/components/shared-wallet-review/TitleSection';
 import WalletNameCard from '@/src/components/shared-wallet-review/WalletNameCard';
 import Box from '@/src/components/shared/Box';
 import { AccountSigner } from '@/src/lib/account-signers';
+import { ensureWalletCosignKey, publishWckBundle } from '@/src/lib/wallet-cosign-key';
 import { SECURE_KEYS, useWalletStore, type WalletAccount } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
 import { useTheme } from '@shopify/restyle';
@@ -184,6 +185,16 @@ const SharedWalletReview = () => {
       // Pull the freshly-written state into the in-memory store so the
       // home tab renders the new wallet without requiring an app relaunch.
       await useWalletStore.getState().rehydrateWallet();
+
+      // Generate this wallet's encryption key (WCK) and publish the sealed
+      // bundle server-side so members pick it up automatically (zero-touch
+      // bootstrap; latch://cosign-key stays as the manual fallback). Non-fatal,
+      // same contract as the wizard path.
+      ensureWalletCosignKey(result.smartAccountAddress)
+        .then(() => publishWckBundle(result.smartAccountAddress))
+        .catch((err) => {
+          if (__DEV__) console.log('[wck] generate/publish failed:', err?.message);
+        });
 
       // Upload the encrypted backup now that the multisig is in ACCOUNTS, so
       // the creator's signer credential and this wallet are recoverable.

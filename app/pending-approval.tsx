@@ -1,12 +1,12 @@
 /**
- * pending-approval.tsx — full screen listing pending P2P co-sign packets held
- * on this device (created locally or imported via share / QR / paste). Each
- * packet can be Approved (sign with this device's key), Broadcast (once the
- * on-chain threshold is met), or Rejected (dropped from local storage).
+ * pending-approval.tsx — full screen listing pending co-sign requests in the
+ * active transport (P2P packets held locally, or the encrypted backend queue).
+ * Each request can be Approved (sign with this device's key; auto-submits when
+ * that approval meets the threshold), Broadcast (manual fallback once the
+ * threshold is met), or Rejected (P2P: dropped locally; backend: global cancel).
  *
- * Threshold is enforced authoritatively on-chain at submit time
- * (lib/cosign-packet-flow.submitPacket re-reads fetchRuleThreshold); this
- * screen only reflects collected-signature progress.
+ * Threshold is enforced authoritatively on-chain at submit time (the transport's
+ * submit re-reads fetchRuleThreshold); this screen only reflects progress.
  */
 
 import Box from '@/src/components/shared/Box';
@@ -16,8 +16,7 @@ import {
   usePendingPackets,
   type PendingPacketView,
 } from '@/src/hooks/use-pending-packets';
-import { removePacket } from '@/src/lib/cosign-packet';
-import { approvePacket, submitPacket } from '@/src/lib/cosign-packet-flow';
+import { approveAndMaybeSubmit, cancel, submit } from '@/src/lib/cosign-transport';
 import { friendlyTxError } from '@/src/lib/tx-errors';
 import { Theme } from '@/src/theme/theme';
 import { useAppTheme } from '@/src/theme/ThemeContext';
@@ -46,8 +45,7 @@ export default function PendingApproval() {
   const [refreshing, setRefreshing] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const invalidate = () =>
-    queryClient.invalidateQueries({ queryKey: PENDING_PACKETS_QUERY_KEY });
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: PENDING_PACKETS_QUERY_KEY });
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -61,8 +59,15 @@ export default function PendingApproval() {
   const handleApprove = async (req: PendingPacketView) => {
     setBusyId(req.id);
     try {
-      await approvePacket(req.id);
+      const outcome = await approveAndMaybeSubmit(req.id);
       await invalidate();
+      if (outcome.submitted) {
+        Alert.alert('Transfer sent', `Submitted ${outcome.submitted.hash.slice(0, 10)}…`);
+      } else if (outcome.submitError) {
+        // The approval landed; only the auto-submit failed. Manual Broadcast
+        // remains available on the row.
+        Alert.alert('Approved — broadcast failed', outcome.submitError);
+      }
     } catch (err) {
       Alert.alert('Could not approve', friendlyTxError(err));
     } finally {
@@ -73,7 +78,7 @@ export default function PendingApproval() {
   const handleBroadcast = async (req: PendingPacketView) => {
     setBusyId(req.id);
     try {
-      const { hash } = await submitPacket(req.id);
+      const { hash } = await submit(req.id);
       await invalidate();
       Alert.alert('Broadcast sent', `Submitted ${hash.slice(0, 10)}…`);
     } catch (err) {
@@ -85,7 +90,7 @@ export default function PendingApproval() {
 
   const handleReject = async (req: PendingPacketView) => {
     try {
-      await removePacket(req.id);
+      await cancel(req.id);
       await invalidate();
     } catch (err) {
       Alert.alert('Could not remove', friendlyTxError(err));
@@ -96,17 +101,34 @@ export default function PendingApproval() {
     <Box flex={1} backgroundColor="mainBackground" style={{ paddingTop: insets.top }}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <Box height={56} flexDirection="row" alignItems="center" paddingHorizontal="m">
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8} style={styles.backBtn}>
+        <TouchableOpacity
+          onPress={() => (router.canGoBack() ? router.back() : router.navigate('/(tabs)'))}
+          hitSlop={8}
+          style={styles.backBtn}
+        >
           <Ionicons name="chevron-back" size={24} color={theme.colors.textPrimary} />
         </TouchableOpacity>
-        <Text variant="h10" color="textPrimary" fontFamily="SFproSemibold" flex={1} textAlign="center" mr="xl">
+        <Text
+          variant="h10"
+          color="textPrimary"
+          fontFamily="SFproSemibold"
+          flex={1}
+          textAlign="center"
+          mr="xl"
+        >
           Pending approvals
         </Text>
       </Box>
 
       <ScrollView
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 32 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.textPrimary} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={theme.colors.textPrimary}
+          />
+        }
       >
         {isLoading && !refreshing && (
           <Box paddingTop="xl" alignItems="center">
@@ -124,13 +146,7 @@ export default function PendingApproval() {
         )}
 
         {requests.map((req) => (
-          <Box
-            key={req.id}
-            backgroundColor="bg11"
-            borderRadius={20}
-            padding="m"
-            mb="m"
-          >
+          <Box key={req.id} backgroundColor="bg11" borderRadius={20} padding="m" mb="m">
             <Text variant="h11" color="textPrimary" fontFamily="SFproSemibold">
               Co-sign request
             </Text>

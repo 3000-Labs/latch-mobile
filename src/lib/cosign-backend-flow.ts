@@ -11,10 +11,11 @@
  * wallets a fetched request belongs to (by matching its queue_index). The server
  * (src/api/cosign.ts) only ever sees ciphertext + opaque blind ids.
  *
- * Auth: the email-scope Latch JWT (ACCESS_TOKEN). No refresh-on-401 yet.
+ * Auth: a wallet-scope Latch JWT minted by wallet-auth.ts against the SAME
+ * backend (EXPO_PUBLIC_API_BASE_URL). Every Latch user has this (wallet control,
+ * no email required); it authenticates as the device's PERSONAL account, never
+ * the multisig. No refresh-on-401 yet.
  */
-
-import * as SecureStore from 'expo-secure-store';
 
 import {
   addCosignSignature,
@@ -41,30 +42,34 @@ import {
   signSharedEntry,
   type CollectedEntry,
 } from '@/src/lib/multisig-send';
-import { getWalletCosignKey } from '@/src/lib/wallet-cosign-key';
-import { SECURE_KEYS, useWalletStore } from '@/src/store/wallet';
+import { ensureWalletSession } from '@/src/lib/wallet-auth';
+import {
+  autoFetchWalletCosignKey,
+  ensureWalletCosignKey,
+  getWalletCosignKey,
+} from '@/src/lib/wallet-cosign-key';
+import { useWalletStore } from '@/src/store/wallet';
 
 const NETWORK: 'testnet' | 'mainnet' = ACTIVE_NETWORK.network === 'TESTNET' ? 'testnet' : 'mainnet';
 
+/**
+ * A valid latch-api JWT for the cosign endpoints — the device's PERSONAL
+ * wallet-scope session (cached, or minted via challenge/sign-in by wallet-auth).
+ * Authenticates as the personal account that signs, NOT the multisig (which has
+ * no single key and 404s on challenge). Cosign endpoints don't use the identity
+ * for scoping (blind queue_index) — any valid token suffices.
+ */
 async function token(): Promise<string> {
-  const t = await SecureStore.getItemAsync(SECURE_KEYS.ACCESS_TOKEN);
-  if (!t) {
-    throw new Error('Sign in with email to use the shared inbox (no access token on this device).');
+  const me = pickSigner();
+  if (!me) {
+    throw new Error('No personal account on this device to authenticate with.');
   }
-  return t;
+  return ensureWalletSession(me.account);
 }
 
 interface ResolvedWallet {
   address: string;
   wck: Uint8Array;
-}
-
-async function wckForOrThrow(account: string): Promise<Uint8Array> {
-  const wck = await getWalletCosignKey(account);
-  if (!wck) {
-    throw new Error("This wallet's encryption key isn't on this device. Import it from the wallet-key link first.");
-  }
-  return wck;
 }
 
 /**
@@ -120,7 +125,10 @@ export async function createTransferRequest(p: CreateTransferPacketParams): Prom
   if (!me) throw new Error('No personal account on this device to sign with.');
 
   const t = await token();
-  const wck = await wckForOrThrow(account);
+  // Creator generates the wallet's key on first send if absent (idempotent —
+  // returns the wizard-created key when present). Members get it via the
+  // latch://cosign-key link; this is the creator's bootstrap point.
+  const wck = await ensureWalletCosignKey(account);
   const w: ResolvedWallet = { address: account, wck };
   const threshold = await onChainThreshold(account);
 
@@ -219,9 +227,25 @@ export async function submitRequest(id: string): Promise<{ hash: string }> {
   return { hash };
 }
 
+// Accounts we already tried (and failed) to auto-fetch a WCK for this session,
+// so the 15s pending-list poll doesn't hammer the server with 404 lookups.
+const wckFetchAttempted = new Set<string>();
+
 /** All pending requests for one shared wallet (decrypted, packet-shaped). */
 export async function listForAccount(account: string): Promise<CosignPacket[]> {
-  const wck = await getWalletCosignKey(account);
+  let wck = await getWalletCosignKey(account);
+  if (!wck && !wckFetchAttempted.has(account)) {
+    // Self-healing bootstrap: first pending-list poll without a key tries the
+    // server-side sealed bundle once (zero-touch member pickup).
+    wckFetchAttempted.add(account);
+    try {
+      if (await autoFetchWalletCosignKey(account)) {
+        wck = await getWalletCosignKey(account);
+      }
+    } catch {
+      /* no bundle / not sealed for us — manual link remains the fallback */
+    }
+  }
   if (!wck) return []; // no key for this wallet on this device → nothing to show
   const t = await token();
   const raws = await listCosignRequests(t, queueIndexFor(wck, account));

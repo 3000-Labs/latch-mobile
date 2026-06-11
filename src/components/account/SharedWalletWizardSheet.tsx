@@ -5,7 +5,7 @@ import {
 } from '@/src/api/account-admin';
 import { uploadBackup } from '@/src/api/latch-auth';
 import { deployMultiSigSmartAccount } from '@/src/api/smart-account';
-import { ensureWalletCosignKey } from '@/src/lib/wallet-cosign-key';
+import { ensureWalletCosignKey, publishWckBundle } from '@/src/lib/wallet-cosign-key';
 import AddMemberButton from '@/src/components/add-members/AddMemberButton';
 import ChooseMethodSheet from '@/src/components/add-members/ChooseMethodSheet';
 import AddMembersContinueButton from '@/src/components/add-members/ContinueButton';
@@ -341,12 +341,15 @@ const SharedWalletWizardSheet = ({ visible, onClose }: Props) => {
 
       await useWalletStore.getState().rehydrateWallet();
 
-      // Generate this wallet's encryption key (WCK) so the creator can later
-      // bootstrap it to members via latch://cosign-key. Non-fatal: wallet
-      // creation succeeds even if key generation hiccups (regenerate later).
-      ensureWalletCosignKey(deployResult.smartAccountAddress).catch((err) => {
-        if (__DEV__) console.log('[wck] generate failed:', err?.message);
-      });
+      // Generate this wallet's encryption key (WCK) and publish the sealed
+      // bundle server-side so members pick it up automatically (zero-touch
+      // bootstrap; latch://cosign-key stays as the manual fallback). Non-fatal:
+      // wallet creation succeeds even if either step hiccups.
+      ensureWalletCosignKey(deployResult.smartAccountAddress)
+        .then(() => publishWckBundle(deployResult.smartAccountAddress))
+        .catch((err) => {
+          if (__DEV__) console.log('[wck] generate/publish failed:', err?.message);
+        });
 
       uploadBackup().catch((err) => {
         if (__DEV__) console.log('[backup] upload failed:', err?.message);

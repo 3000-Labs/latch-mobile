@@ -1,6 +1,7 @@
 import { CustomTabBar } from '@/src/components/CustomTabBar';
 import LoadingBlur from '@/src/components/shared/LoadingBlur';
 import { DrawerProvider } from '@/src/context/drawer-context';
+import { usePushNotifications } from '@/src/hooks/use-push-notifications';
 import { useLoadingOverlay } from '@/src/store/loading-overlay';
 import { useWalletStore } from '@/src/store/wallet';
 import { Tabs } from 'expo-router';
@@ -17,6 +18,9 @@ const TabsLayout = () => {
   useEffect(() => {
     rehydrateWallet();
   }, [rehydrateWallet]);
+
+  // Post-auth surface: register for content-free approval pushes + handle taps.
+  usePushNotifications();
 
   return (
     <DrawerProvider drawerContent={<Profile />}>
