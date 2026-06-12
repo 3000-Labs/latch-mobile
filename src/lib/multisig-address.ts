@@ -22,10 +22,18 @@ import { Buffer } from 'buffer';
 import { AccountSigner } from '@/src/lib/account-signers';
 
 const SCHEME = 'latch-multisig-v1';
+const MEMBERSHIP_SCHEME = 'latch-multisig-membership-v1';
 
 export interface MultisigDeployIdentity {
   signers: AccountSigner[];
   threshold: number;
+  /**
+   * Optional per-wallet uniqueness nonce (hex). When present it's folded into
+   * the salt, so an identical signer set + threshold still deploys to a fresh
+   * C-address — letting the same members open multiple distinct shared wallets.
+   * Absent ⇒ the original deterministic salt (back-compat).
+   */
+  nonceHex?: string;
 }
 
 export function canonicalSignerKey(signer: AccountSigner): string {
@@ -53,8 +61,28 @@ export function deriveMultisigSalt(id: MultisigDeployIdentity): Buffer {
     );
   }
   const sortedKeys = id.signers.map(canonicalSignerKey).sort();
-  const payload = [SCHEME, String(id.threshold), ...sortedKeys].join('|');
-  return Buffer.from(sha256(new TextEncoder().encode(payload)));
+  const parts = [SCHEME, String(id.threshold), ...sortedKeys];
+  if (id.nonceHex) parts.push(`nonce:${id.nonceHex}`);
+  return Buffer.from(sha256(new TextEncoder().encode(parts.join('|'))));
+}
+
+/** A fresh 16-byte uniqueness nonce (hex) for a new shared wallet's salt. */
+export function generateMultisigNonce(): string {
+  const bytes = new Uint8Array(16);
+  globalThis.crypto.getRandomValues(bytes);
+  return Buffer.from(bytes).toString('hex');
+}
+
+/**
+ * Stable local fingerprint of a shared wallet's "who + how many" — sorted member
+ * identifiers + threshold. Independent of the deploy nonce, so it stays the same
+ * across multiple wallets with the same members; used only to detect (and warn
+ * about) re-creating a wallet with an identical member set.
+ */
+export function multisigMembershipHash(memberIds: string[], threshold: number): string {
+  const sorted = memberIds.map((m) => m.trim()).filter(Boolean).sort();
+  const payload = [MEMBERSHIP_SCHEME, String(threshold), ...sorted].join('|');
+  return Buffer.from(sha256(new TextEncoder().encode(payload))).toString('hex');
 }
 
 /**

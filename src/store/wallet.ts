@@ -118,6 +118,18 @@ export interface WalletAccount {
    * member's nested auth entry during signing. Multisig only.
    */
   multisigSigners?: string[];
+  /**
+   * Stable fingerprint of this wallet's member set + threshold (see
+   * `multisigMembershipHash`). Used only to warn when re-creating a wallet with
+   * an identical member set. Multisig only.
+   */
+  multisigMembershipHash?: string;
+  /**
+   * Per-wallet uniqueness nonce (hex) folded into the deploy salt. The creator's
+   * record of how the address was derived; lets a future P2P onboarding flow
+   * share it so joiners can predict the address. Multisig only.
+   */
+  multisigNonceHex?: string;
 }
 
 /**

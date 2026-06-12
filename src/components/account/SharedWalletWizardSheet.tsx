@@ -1,10 +1,12 @@
 import {
   fetchDefaultContextRule,
+  fetchFactoryVerifiers,
   isVerifierCompatible,
   type ChainSigner,
 } from '@/src/api/account-admin';
 import { uploadBackup } from '@/src/api/latch-auth';
 import { deployMultiSigSmartAccount } from '@/src/api/smart-account';
+import { multisigMembershipHash } from '@/src/lib/multisig-address';
 import { ensureWalletCosignKey, publishWckBundle } from '@/src/lib/wallet-cosign-key';
 import AddMemberButton from '@/src/components/add-members/AddMemberButton';
 import ChooseMethodSheet from '@/src/components/add-members/ChooseMethodSheet';
@@ -39,7 +41,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
 import { StrKey } from '@stellar/stellar-sdk';
 import * as SecureStore from 'expo-secure-store';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Dimensions,
@@ -114,6 +116,26 @@ const SharedWalletWizardSheet = ({ visible, onClose }: Props) => {
   const [selfEmail, setSelfEmail] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<ResultState | null>(null);
+
+  const accounts = useWalletStore((s) => s.accounts);
+
+  // Member account C-addresses — the user-facing "members" identity, used to
+  // warn about re-creating a wallet with the same people. Independent of the
+  // per-wallet deploy nonce, so it stays stable across distinct wallets.
+  const memberAddresses = useMemo(
+    () =>
+      members
+        .filter((m) => m.status === 'added' && StrKey.isValidContract(m.value))
+        .map((m) => m.value),
+    [members],
+  );
+
+  // An existing shared wallet with this exact member set + threshold, if any.
+  const existingSameMembers = useMemo(() => {
+    if (memberAddresses.length === 0) return null;
+    const hash = multisigMembershipHash(memberAddresses, approvals);
+    return accounts.find((a) => a.multisigMembershipHash === hash) ?? null;
+  }, [accounts, memberAddresses, approvals]);
 
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
 
@@ -213,10 +235,29 @@ const SharedWalletWizardSheet = ({ visible, onClose }: Props) => {
     if (creator.gAddress && creator.publicKeyHex) {
       signers.push({ kind: 'ed25519', publicKeyHex: creator.publicKeyHex });
     } else {
-      const keyDataHex = await SecureStore.getItemAsync(
+      // Resolve the creator's WebAuthn signer key_data. Prefer the SecureStore
+      // copy (what signing actually reads), but fall back to reconstructing it
+      // from the account record — key_data is exactly `publicKeyHex + credentialId`
+      // (see passkey-webauthn.ts). This survives SecureStore index drift, e.g.
+      // when removing an account re-indexes the list and orphans the
+      // `latch_key_data_hex_<n>` slot, which is why creation worked for some
+      // passkey accounts but not others.
+      let keyDataHex = await SecureStore.getItemAsync(
         getPasskeyStorageKeys(activeAccountIndex).keyDataHex,
       );
+      if (!keyDataHex && creator.publicKeyHex && creator.credentialId) {
+        keyDataHex = creator.publicKeyHex + creator.credentialId;
+      }
       if (!keyDataHex) {
+        if (__DEV__) {
+          console.log('[shared-wallet] creator key_data unresolved', {
+            activeAccountIndex,
+            smartAccountAddress: creator.smartAccountAddress,
+            hasPublicKeyHex: !!creator.publicKeyHex,
+            hasCredentialId: !!creator.credentialId,
+            isMultisig: !!creator.isMultisig,
+          });
+        }
         setResult({
           success: false,
           walletAddress: '',
@@ -268,6 +309,17 @@ const SharedWalletWizardSheet = ({ visible, onClose }: Props) => {
         // otherwise their device signatures may not verify under our verifier.
         if (ext.foreignVerifier) {
           const compatible = await isVerifierCompatible(simParams, ext.verifierAddress!, ext.kind);
+          if (__DEV__) {
+            const fv = await fetchFactoryVerifiers(simParams).catch(() => null);
+            console.log('[multisig] member foreign verifier', {
+              member: m.value,
+              memberKind: ext.kind,
+              memberVerifier: ext.verifierAddress,
+              factory: simParams.factoryAddress,
+              factoryGetVerifier: ext.kind === 'ed25519' ? fv?.ed25519 : fv?.webauthn,
+              compatible,
+            });
+          }
           if (!compatible) {
             invalidAddresses.push(
               `${m.name || m.value} (deployed under a different factory — recreate this account)`,
@@ -328,18 +380,13 @@ const SharedWalletWizardSheet = ({ visible, onClose }: Props) => {
         multisigSigners: signers
           .filter((s): s is Extract<AccountSigner, { kind: 'delegated' }> => s.kind === 'delegated')
           .map((s) => s.address),
+        multisigMembershipHash: multisigMembershipHash(memberAddresses, approvals),
+        multisigNonceHex: deployResult.nonceHex,
       };
 
-      const existingJson = await SecureStore.getItemAsync(SECURE_KEYS.ACCOUNTS);
-      const existing: WalletAccount[] = existingJson ? JSON.parse(existingJson) : [];
-      const accounts = [...existing, newAccount];
-      const multisigIndex = accounts.length - 1;
-      await Promise.all([
-        SecureStore.setItemAsync(SECURE_KEYS.ACCOUNTS, JSON.stringify(accounts)),
-        SecureStore.setItemAsync(SECURE_KEYS.ACTIVE_ACCOUNT_INDEX, String(multisigIndex)),
-      ]);
-
-      await useWalletStore.getState().rehydrateWallet();
+      // appendAccount dedupes by smart-account address and switches to it — a
+      // re-add of the same address can never duplicate the list.
+      await useWalletStore.getState().appendAccount(newAccount, true);
 
       // Generate this wallet's encryption key (WCK) and publish the sealed
       // bundle server-side so members pick it up automatically (zero-touch
@@ -509,6 +556,20 @@ const SharedWalletWizardSheet = ({ visible, onClose }: Props) => {
                 <WalletNameCard name={walletName} />
                 <MemberReviewList members={members} selfEmail={selfEmail} />
                 <ApprovalRuleCard approvals={approvals} total={totalSigners} />
+                {existingSameMembers && (
+                  <Box flexDirection="row" backgroundColor="bg11" borderRadius={14} p="m" mt="m">
+                    <Ionicons
+                      name="information-circle-outline"
+                      size={18}
+                      color={theme.colors.textSecondary}
+                      style={{ marginRight: 8, marginTop: 1 }}
+                    />
+                    <Text variant="p8" color="textSecondary" style={{ flex: 1 }} lineHeight={18}>
+                      You already have a shared wallet ({existingSameMembers.name}) with these
+                      members and threshold. You can still create a separate one.
+                    </Text>
+                  </Box>
+                )}
               </Box>
             </ScrollView>
             <Box px="m" style={{ paddingTop: 12, paddingBottom: 12 }}>
