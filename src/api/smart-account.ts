@@ -36,7 +36,11 @@ import {
 import QuickCrypto from 'react-native-quick-crypto';
 
 import { AccountSigner, encodeAccountInitParams } from '@/src/lib/account-signers';
-import { deriveMultisigSalt, sortSignersCanonical } from '@/src/lib/multisig-address';
+import {
+  deriveMultisigSalt,
+  generateMultisigNonce,
+  sortSignersCanonical,
+} from '@/src/lib/multisig-address';
 
 // ─── XHR-based JSON-RPC ───────────────────────────────────────────────────────
 // The stellar SDK uses Axios internally, which fails with "Network Error" on
@@ -564,6 +568,8 @@ export interface MultiSigDeployResult extends DeployResult {
   signers: AccountSigner[];
   /** Threshold the rule was deployed with. */
   threshold: number;
+  /** Per-wallet uniqueness nonce (hex) folded into the deploy salt. */
+  nonceHex: string;
 }
 
 /**
@@ -602,7 +608,10 @@ export async function deployMultiSigSmartAccount(
   }
 
   const canonicalSigners = sortSignersCanonical(signers);
-  const salt = deriveMultisigSalt({ signers: canonicalSigners, threshold });
+  // Fresh nonce per deploy so the same signer set can open multiple distinct
+  // wallets (distinct salt → distinct C-address).
+  const nonceHex = generateMultisigNonce();
+  const salt = deriveMultisigSalt({ signers: canonicalSigners, threshold, nonceHex });
   const paramsMap = encodeAccountInitParams({
     signers: canonicalSigners,
     threshold,
@@ -675,6 +684,7 @@ export async function deployMultiSigSmartAccount(
     factoryAddress: config.factoryAddress,
     signers: canonicalSigners,
     threshold,
+    nonceHex,
   };
 }
 
@@ -688,13 +698,14 @@ export async function deployMultiSigSmartAccount(
 export async function predictMultiSigAddress(
   signers: AccountSigner[],
   threshold: number,
+  nonceHex?: string,
 ): Promise<string> {
   if (signers.length < 1) throw new Error('predictMultiSigAddress: at least one signer required');
   const config = getTestnetConfig();
   if (!config.factoryAddress) throw new Error('Missing EXPO_PUBLIC_FACTORY_ADDRESS.');
 
   const canonicalSigners = sortSignersCanonical(signers);
-  const salt = deriveMultisigSalt({ signers: canonicalSigners, threshold });
+  const salt = deriveMultisigSalt({ signers: canonicalSigners, threshold, nonceHex });
   const paramsMap = encodeAccountInitParams({
     signers: canonicalSigners,
     threshold,

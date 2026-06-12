@@ -1,8 +1,9 @@
+import { Ionicons } from '@expo/vector-icons';
 import { StrKey } from '@stellar/stellar-sdk';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -15,7 +16,9 @@ import MemberReviewList from '@/src/components/shared-wallet-review/MemberReview
 import TitleSection from '@/src/components/shared-wallet-review/TitleSection';
 import WalletNameCard from '@/src/components/shared-wallet-review/WalletNameCard';
 import Box from '@/src/components/shared/Box';
+import Text from '@/src/components/shared/Text';
 import { AccountSigner } from '@/src/lib/account-signers';
+import { multisigMembershipHash } from '@/src/lib/multisig-address';
 import { ensureWalletCosignKey, publishWckBundle } from '@/src/lib/wallet-cosign-key';
 import { SECURE_KEYS, useWalletStore, type WalletAccount } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
@@ -47,6 +50,25 @@ const SharedWalletReview = () => {
   const members: Member[] = params.members ? JSON.parse(params.members) : [];
   const [submitting, setSubmitting] = useState(false);
   const [selfEmail, setSelfEmail] = useState<string | null>(null);
+
+  const accounts = useWalletStore((s) => s.accounts);
+
+  // Member account C-addresses — the "members" identity used to warn about
+  // re-creating a wallet with the same people (stable across the deploy nonce).
+  const memberAddresses = useMemo(
+    () =>
+      (params.members ? (JSON.parse(params.members) as Member[]) : [])
+        .filter((m) => m.status === 'added' && StrKey.isValidContract(m.value))
+        .map((m) => m.value),
+    [params.members],
+  );
+
+  // An existing shared wallet with this exact member set + threshold, if any.
+  const existingSameMembers = useMemo(() => {
+    if (memberAddresses.length === 0) return null;
+    const hash = multisigMembershipHash(memberAddresses, approvals);
+    return accounts.find((a) => a.multisigMembershipHash === hash) ?? null;
+  }, [accounts, memberAddresses, approvals]);
 
   useEffect(() => {
     SecureStore.getItemAsync(SECURE_KEYS.USER_EMAIL)
@@ -152,6 +174,8 @@ const SharedWalletReview = () => {
         publicKeyHex: '',
         smartAccountAddress: result.smartAccountAddress,
         image: null,
+        multisigMembershipHash: multisigMembershipHash(memberAddresses, approvals),
+        multisigNonceHex: result.nonceHex,
       };
 
       // ── Account model: PERSONAL + MULTISIG (current product decision) ─────────
@@ -161,14 +185,9 @@ const SharedWalletReview = () => {
       // they just created. We intentionally do NOT touch SECURE_KEYS.SMART_ACCOUNT:
       // that legacy key tracks account 0 (the personal account) and is read by
       // unlock/cosign flows — see docs/multisig-onboarding.md.
-      const existingJson = await SecureStore.getItemAsync(SECURE_KEYS.ACCOUNTS);
-      const existing: WalletAccount[] = existingJson ? JSON.parse(existingJson) : [];
-      const accounts = [...existing, newAccount];
-      const multisigIndex = accounts.length - 1;
-      await Promise.all([
-        SecureStore.setItemAsync(SECURE_KEYS.ACCOUNTS, JSON.stringify(accounts)),
-        SecureStore.setItemAsync(SECURE_KEYS.ACTIVE_ACCOUNT_INDEX, String(multisigIndex)),
-      ]);
+      // appendAccount dedupes by smart-account address and switches to it — a
+      // re-add of the same address can never duplicate the list.
+      await useWalletStore.getState().appendAccount(newAccount, true);
 
       // ── Account model: MULTISIG ONLY (commented out — swap if product decides) ─
       // Replaces the account list with just the multisig. Restore this block (and
@@ -181,10 +200,6 @@ const SharedWalletReview = () => {
       //   SecureStore.setItemAsync(SECURE_KEYS.ACTIVE_ACCOUNT_INDEX, '0'),
       //   SecureStore.setItemAsync(SECURE_KEYS.SMART_ACCOUNT, result.smartAccountAddress),
       // ]);
-
-      // Pull the freshly-written state into the in-memory store so the
-      // home tab renders the new wallet without requiring an app relaunch.
-      await useWalletStore.getState().rehydrateWallet();
 
       // Generate this wallet's encryption key (WCK) and publish the sealed
       // bundle server-side so members pick it up automatically (zero-touch
@@ -249,6 +264,20 @@ const SharedWalletReview = () => {
           <WalletNameCard name={params.walletName ?? ''} />
           <MemberReviewList members={members} selfEmail={selfEmail} />
           <ApprovalRuleCard approvals={approvals} total={memberCount} />
+          {existingSameMembers && (
+            <Box flexDirection="row" backgroundColor="bg11" borderRadius={14} p="m" mt="m">
+              <Ionicons
+                name="information-circle-outline"
+                size={18}
+                color={theme.colors.textSecondary}
+                style={{ marginRight: 8, marginTop: 1 }}
+              />
+              <Text variant="p8" color="textSecondary" style={{ flex: 1 }} lineHeight={18}>
+                You already have a shared wallet ({existingSameMembers.name}) with these members and
+                threshold. You can still create a separate one.
+              </Text>
+            </Box>
+          )}
         </Box>
       </ScrollView>
 
