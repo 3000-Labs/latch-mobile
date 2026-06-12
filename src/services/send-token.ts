@@ -7,8 +7,10 @@ import {
   STELLAR_RPC_URL,
   STELLAR_VERIFIER_ADDRESS,
 } from '@/src/constants/config';
+import { fetchDefaultContextRule } from '@/src/api/account-admin';
 import {
   encodeWebAuthnSigData,
+  getStoredKeyDataHex,
   signWithStoredPasskeyAtIndex
 } from '@/src/lib/passkey-webauthn';
 import { sha256 } from '@noble/hashes/sha2.js';
@@ -299,6 +301,51 @@ export async function fetchWebAuthnVerifier(): Promise<string> {
   throw new Error('Config not found in factory instance storage');
 }
 
+// Resolve the verifier address this device's passkey is registered under ON-CHAIN.
+//
+// The smart account's __check_auth matches the presented signer against the
+// stored rule signer by EXACT `External(verifier, key_data)` tuple equality. The
+// signature verifying is not enough: if we present the current factory's verifier
+// but the account registered the signer under a different (older) verifier, the
+// tuple won't match and check_auth fails with #3002 UnvalidatedContext (NOT
+// #3003, which is a signature failure). So we must present the same verifier the
+// signer was registered under, not whatever the factory config currently points
+// at. Falls back to the factory config verifier if the device key isn't found.
+async function resolveRegisteredWebAuthnVerifier(
+  smartAccountAddress: string,
+  listIndex: number,
+): Promise<string> {
+  const deviceKeyDataHex = await getStoredKeyDataHex(listIndex);
+  const factoryAddress = process.env.EXPO_PUBLIC_FACTORY_ADDRESS;
+  if (!deviceKeyDataHex || !factoryAddress) return fetchWebAuthnVerifier();
+
+  try {
+    const rule = await fetchDefaultContextRule(
+      { rpcUrl: STELLAR_RPC_URL, networkPassphrase: STELLAR_NETWORK_PASSPHRASE, factoryAddress },
+      smartAccountAddress,
+    );
+    const match = rule.signers.find(
+      (s) =>
+        s.kind === 'webauthn' &&
+        s.keyDataHex.toLowerCase() === deviceKeyDataHex.toLowerCase() &&
+        s.verifierAddress,
+    );
+    if (match?.verifierAddress) {
+      if (__DEV__ && match.foreignVerifier) {
+        console.log(
+          '[PASSKEY DIAG] device signer is registered under a non-current verifier:',
+          match.verifierAddress,
+        );
+      }
+      return match.verifierAddress;
+    }
+  } catch (e) {
+    if (__DEV__) console.log('[PASSKEY DIAG] could not read on-chain signer verifier:', e);
+  }
+
+  return fetchWebAuthnVerifier();
+}
+
 export async function signPasskeyAuthEntry(
   entry: xdr.SorobanAuthorizationEntry,
   listIndex: number,
@@ -382,7 +429,7 @@ export async function sendTokenFromPasskeyAccount(
   const bundlerKeypair = Keypair.fromSecret(bundlerSecret);
 
   const amountInBaseUnits = toBaseUnits(amount);
-  const webAuthnVerifier = await fetchWebAuthnVerifier();
+  const webAuthnVerifier = await resolveRegisteredWebAuthnVerifier(smartAccountAddress, listIndex);
   const account = await loadAccount(bundlerKeypair.publicKey());
 
   const contract = new Contract(sacContractId);

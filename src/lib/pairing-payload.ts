@@ -171,7 +171,10 @@ function verifyWebAuthn(
     //    that directly.
     const pubkey = Buffer.from(keyDataHex, 'hex');
     const signature = Buffer.from(signatureHex, 'hex');
-    return p256.verify(signature, msgHash, pubkey, { lowS: true });
+    // prehash: false — msgHash is the final digest the signer committed to.
+    // @noble/curves v2 defaults prehash:true, which would hash msgHash again and
+    // reject otherwise-valid WebAuthn signatures.
+    return p256.verify(signature, msgHash, pubkey, { lowS: true, prehash: false });
   } catch {
     return false;
   }

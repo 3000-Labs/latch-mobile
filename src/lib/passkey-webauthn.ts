@@ -218,9 +218,14 @@ export async function signWithPasskey(
     console.log('[PASSKEY DIAG] msgHash:', Buffer.from(msgHash).toString('hex'));
   }
 
-  // p256.sign takes a pre-hashed digest; lowS normalisation is built in
-  const sig = p256.sign(msgHash, privateKeyHex, { lowS: true });
-  const signature = sig.toCompactRawBytes();
+  // msgHash is already the final digest the on-chain verifier checks, so we must
+  // sign it as-is. @noble/curves v2 defaults `prehash: true` (v1 defaulted false),
+  // which would sign sha256(msgHash) and silently break on-chain secp256r1
+  // verification — pass `prehash: false` to sign the digest directly. v2 also
+  // rejects hex-string secret keys (must be 32 bytes) and sign() returns the
+  // 64-byte compact signature directly (no .toCompactRawBytes()).
+  const secretKey = Buffer.from(privateKeyHex.padStart(64, '0'), 'hex');
+  const signature = p256.sign(msgHash, secretKey, { lowS: true, prehash: false });
 
   return { authenticatorData, clientDataJSON, signature };
 }
@@ -257,6 +262,16 @@ export async function signWithStoredPasskey(
  * @param rpId         Relying party ID (e.g. "latch.finance")
  * @param promptMsg    Message shown in the biometric prompt (biometric path only)
  */
+/**
+ * Read the device's stored WebAuthn key_data (65-byte P-256 pubkey + credential
+ * id) for an account list index, without triggering a biometric prompt. Used to
+ * match this device against the account's on-chain registered signer.
+ */
+export async function getStoredKeyDataHex(listIndex: number): Promise<string | null> {
+  const keys = getPasskeyStorageKeys(listIndex);
+  return SecureStore.getItemAsync(keys.keyDataHex);
+}
+
 export async function signWithStoredPasskeyAtIndex(
   listIndex: number,
   authDigest: Uint8Array,
@@ -289,7 +304,9 @@ export async function signWithStoredPasskeyAtIndex(
   // leaving an on-chain signer that can never verify. Fail fast with a clear error.
   const storedPub = keyDataHex.slice(0, 130);
   try {
-    const derivedPub = Buffer.from(p256.getPublicKey(paddedPrivKey, false)).toString('hex');
+    const derivedPub = Buffer.from(
+      p256.getPublicKey(Buffer.from(paddedPrivKey, 'hex'), false),
+    ).toString('hex');
     if (__DEV__) {
       console.log('[PASSKEY DIAG] privKeyLen:', privateKeyHex.length, '| pubKeyPrefix:', storedPub.slice(0, 10));
       console.log('[PASSKEY DIAG] keyPairMatch:', derivedPub === storedPub);
@@ -318,7 +335,10 @@ export async function signWithStoredPasskeyAtIndex(
       msgBytes.set(sig.authenticatorData);
       msgBytes.set(cDataHash, sig.authenticatorData.length);
       const mHash = sha256(msgBytes);
-      const localValid = p256.verify(sig.signature, mHash, pubBytes);
+      // prehash: false so this mirrors the on-chain verifier (which checks the
+      // sig over mHash directly). Without it, v2 double-hashes and reports a
+      // false "valid" even when on-chain secp256r1 verification fails.
+      const localValid = p256.verify(sig.signature, mHash, pubBytes, { prehash: false });
       console.log('[PASSKEY DIAG] localVerify:', localValid);
     } catch (e) {
       console.log('[PASSKEY DIAG] localVerify error:', e);
@@ -442,7 +462,9 @@ export async function redeployWithCurrentKey(listIndex: number): Promise<string>
   if (!privateKeyHex) throw new Error('No passkey found. Please complete biometric setup first.');
 
   const paddedPrivKey = privateKeyHex.padStart(64, '0');
-  const derivedPubKeyHex = Buffer.from(p256.getPublicKey(paddedPrivKey, false)).toString('hex');
+  const derivedPubKeyHex = Buffer.from(
+    p256.getPublicKey(Buffer.from(paddedPrivKey, 'hex'), false),
+  ).toString('hex');
 
   // Re-use existing credentialId if present; generate a new one otherwise.
   const existingCredId = await SecureStore.getItemAsync(keys.credentialId);
