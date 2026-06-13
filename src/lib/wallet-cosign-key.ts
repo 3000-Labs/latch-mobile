@@ -19,7 +19,13 @@ import { fetchWckBundle, uploadWckBundle } from '@/src/api/wck-bundle';
 import { STELLAR_NETWORK_PASSPHRASE, STELLAR_RPC_URL } from '@/src/constants/config';
 import { generateWalletCosignKey } from '@/src/lib/cosign-crypto';
 import { getMySignerKey, pickSigner } from '@/src/lib/cosign-packet-flow';
-import { buildWckBundle, openWckBundle, type WckRecipient } from '@/src/lib/sealed-wck';
+import { getStoredPrivateKeyHex } from '@/src/lib/passkey-webauthn';
+import {
+  buildWckBundle,
+  openWckBundle,
+  type WckBundleOpener,
+  type WckRecipient,
+} from '@/src/lib/sealed-wck';
 import { deriveWalletAtIndex } from '@/src/lib/seed-wallet';
 import { ensureWalletSession } from '@/src/lib/wallet-auth';
 import { SECURE_KEYS } from '@/src/store/wallet';
@@ -116,10 +122,11 @@ export async function importWalletCosignKey(account: string, wckParam: string): 
 // ─── sealed bundle distribution (no trusted channel needed) ───────────────────
 
 /**
- * Build a sealed bundle of this wallet's WCK for every ed25519 member on chain —
- * one blob with a copy encrypted to each member's signer key. Safe to send over
- * ANY channel: only each member's device can open its own entry. (Passkey
- * members are skipped until the passkey path lands.)
+ * Build a sealed bundle of this wallet's WCK for every on-chain device-key member
+ * — one blob with a copy encrypted to each member's signer key (X25519 box for
+ * ed25519 members, P-256 box for passkey/webauthn members). Safe to send over ANY
+ * channel: only each member's device can open its own entry. Delegated members
+ * have no device key and are skipped.
  */
 export async function buildWckBundleForMembers(
   account: string,
@@ -129,10 +136,10 @@ export async function buildWckBundleForMembers(
 
   const rule = await fetchDefaultContextRule(simParams(), account);
   const recipients: WckRecipient[] = rule.signers
-    .filter((s) => s.kind === 'ed25519' && s.keyDataHex)
-    .map((s) => ({ keyDataHex: s.keyDataHex }));
+    .filter((s) => (s.kind === 'ed25519' || s.kind === 'webauthn') && s.keyDataHex)
+    .map((s) => ({ kind: s.kind as 'ed25519' | 'webauthn', keyDataHex: s.keyDataHex }));
   if (recipients.length === 0) {
-    throw new Error('No ed25519 members to share the key with yet.');
+    throw new Error('No on-chain device-key members to share the key with yet.');
   }
   return { bundle: buildWckBundle(wck, recipients), recipientCount: recipients.length };
 }
@@ -183,23 +190,34 @@ export async function autoFetchWalletCosignKey(account: string): Promise<boolean
 }
 
 /**
- * Import the WCK from a sealed bundle: open this device's entry with its ed25519
+ * Import the WCK from a sealed bundle: open this device's entry with its device
  * key, confirm we're a current on-chain signer, then cache it. Throws a
- * user-facing message on any failure. Ed25519 devices only.
+ * user-facing message on any failure. Works for ed25519 (mnemonic seed) and
+ * passkey (stored P-256 secret — may prompt biometrics) devices.
  */
 export async function importWalletCosignKeyFromBundle(account: string, bundle: string): Promise<void> {
   const me = pickSigner();
-  if (!me || me.account.index < 0 || !me.account.gAddress) {
-    throw new Error('This device has no ed25519 signer to receive the key.');
-  }
+  if (!me) throw new Error('No personal account on this device to receive the key.');
   const myKey = await getMySignerKey();
   if (!myKey) throw new Error('No signing key on this device.');
 
-  const mnemonic = await SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC);
-  if (!mnemonic) throw new Error('Unlock your wallet, then open the link again.');
-  const seed = Uint8Array.from(deriveWalletAtIndex(mnemonic, me.account.index).keypair.rawSecretKey());
+  let opener: WckBundleOpener;
+  if (me.account.gAddress && me.account.index >= 0) {
+    // ed25519 device: open with the mnemonic-derived seed.
+    const mnemonic = await SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC);
+    if (!mnemonic) throw new Error('Unlock your wallet, then open the link again.');
+    const edSeed = Uint8Array.from(
+      deriveWalletAtIndex(mnemonic, me.account.index).keypair.rawSecretKey(),
+    );
+    opener = { edSeed };
+  } else {
+    // passkey device: open with the stored P-256 secret (reading it may prompt Face ID).
+    const p256SecHex = await getStoredPrivateKeyHex(me.listIndex);
+    if (!p256SecHex) throw new Error('No passkey on this device to receive the key.');
+    opener = { p256SecHex };
+  }
 
-  const wck = openWckBundle(bundle, myKey, seed);
+  const wck = openWckBundle(bundle, myKey, opener);
   if (!wck) throw new Error("This key bundle isn't sealed for your device.");
 
   // Defense in depth: confirm this device is actually a current signer on-chain.

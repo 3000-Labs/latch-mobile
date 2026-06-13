@@ -272,6 +272,24 @@ export async function getStoredKeyDataHex(listIndex: number): Promise<string | n
   return SecureStore.getItemAsync(keys.keyDataHex);
 }
 
+/**
+ * Read the device's stored P-256 private key (hex) for an account list index.
+ * Respects the account's biometric flag — reading a biometric-gated key triggers
+ * Face ID / Touch ID. Used to open a WCK bundle sealed to this device's passkey.
+ */
+export async function getStoredPrivateKeyHex(
+  listIndex: number,
+  promptMsg = 'Authenticate to receive this wallet’s key',
+): Promise<string | null> {
+  const keys = getPasskeyStorageKeys(listIndex);
+  const requiresBiometric = await SecureStore.getItemAsync(keys.requiresBiometric);
+  const useBiometric = requiresBiometric !== 'false';
+  return SecureStore.getItemAsync(
+    keys.privateKey,
+    useBiometric ? { requireAuthentication: true, authenticationPrompt: promptMsg } : undefined,
+  );
+}
+
 export async function signWithStoredPasskeyAtIndex(
   listIndex: number,
   authDigest: Uint8Array,
