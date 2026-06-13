@@ -7,6 +7,7 @@ import {
 import { uploadBackup } from '@/src/api/latch-auth';
 import { deployMultiSigSmartAccount } from '@/src/api/smart-account';
 import { multisigMembershipHash } from '@/src/lib/multisig-address';
+import { announceMembership } from '@/src/lib/membership';
 import { ensureWalletCosignKey, publishWckBundle } from '@/src/lib/wallet-cosign-key';
 import AddMemberButton from '@/src/components/add-members/AddMemberButton';
 import ChooseMethodSheet from '@/src/components/add-members/ChooseMethodSheet';
@@ -397,6 +398,12 @@ const SharedWalletWizardSheet = ({ visible, onClose }: Props) => {
         .catch((err) => {
           if (__DEV__) console.log('[wck] generate/publish failed:', err?.message);
         });
+
+      // Announce membership so the other signers' devices auto-discover this
+      // wallet on their next launch. Non-fatal; manual add stays the fallback.
+      announceMembership(deployResult.smartAccountAddress).catch((err) => {
+        if (__DEV__) console.log('[membership] announce failed:', err?.message);
+      });
 
       uploadBackup().catch((err) => {
         if (__DEV__) console.log('[backup] upload failed:', err?.message);

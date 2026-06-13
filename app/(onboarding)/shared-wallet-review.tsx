@@ -18,6 +18,7 @@ import WalletNameCard from '@/src/components/shared-wallet-review/WalletNameCard
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
 import { AccountSigner } from '@/src/lib/account-signers';
+import { announceMembership } from '@/src/lib/membership';
 import { multisigMembershipHash } from '@/src/lib/multisig-address';
 import { ensureWalletCosignKey, publishWckBundle } from '@/src/lib/wallet-cosign-key';
 import { SECURE_KEYS, useWalletStore, type WalletAccount } from '@/src/store/wallet';
@@ -210,6 +211,12 @@ const SharedWalletReview = () => {
         .catch((err) => {
           if (__DEV__) console.log('[wck] generate/publish failed:', err?.message);
         });
+
+      // Announce membership so the other signers' devices auto-discover this
+      // wallet on their next launch. Non-fatal; manual add stays the fallback.
+      announceMembership(result.smartAccountAddress).catch((err) => {
+        if (__DEV__) console.log('[membership] announce failed:', err?.message);
+      });
 
       // Upload the encrypted backup now that the multisig is in ACCOUNTS, so
       // the creator's signer credential and this wallet are recoverable.

@@ -12,6 +12,7 @@ import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
 import { useEffect } from 'react';
 
+import { discoverSharedWallets } from '@/src/lib/membership';
 import { registerPushToken } from '@/src/lib/push-registration';
 import { useWalletStore } from '@/src/store/wallet';
 
@@ -35,6 +36,15 @@ export function usePushNotifications(): void {
     .filter((a) => a.isMultisig && a.smartAccountAddress)
     .map((a) => a.smartAccountAddress)
     .join(',');
+
+  // Discover shared wallets this device was added to (on a second signer's
+  // device). Newly added wallets change `multisigKey`, so the effect below then
+  // registers their push queues. Runs once on mount; non-fatal.
+  useEffect(() => {
+    discoverSharedWallets().catch((err) => {
+      if (__DEV__) console.log('[membership] discovery failed:', err?.message);
+    });
+  }, []);
 
   useEffect(() => {
     registerPushToken().catch((err) => {
