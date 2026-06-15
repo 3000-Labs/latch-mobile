@@ -69,6 +69,7 @@ export default {
       favicon: './assets/images/favicon.png',
     },
     plugins: [
+      './plugins/withJitpackContentFilter',
       'expo-router',
       'expo-notifications',
       '@react-native-community/datetimepicker',
