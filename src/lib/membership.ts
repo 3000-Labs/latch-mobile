@@ -12,6 +12,7 @@
  */
 
 import { sha256 } from '@noble/hashes/sha2.js';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Buffer } from 'buffer';
 
 import { fetchDefaultContextRule } from '@/src/api/account-admin';
@@ -23,6 +24,45 @@ import { ensureWalletSession } from '@/src/lib/wallet-auth';
 import { useWalletStore } from '@/src/store/wallet';
 
 const MEMBERSHIP_SCHEME = 'latch-membership:v1:';
+
+// Accounts whose announce hasn't durably landed yet (e.g. a 429 ate it). Held
+// in plain AsyncStorage — the value is just public C-addresses already in the
+// account list, nothing sensitive — and swept on every foreground so a
+// transient failure self-heals instead of silently losing discovery.
+const PENDING_ANNOUNCE_KEY = 'latch.pendingAnnounce.v1';
+
+async function getPendingAnnounces(): Promise<string[]> {
+  try {
+    const raw = await AsyncStorage.getItem(PENDING_ANNOUNCE_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
+async function markPendingAnnounce(account: string): Promise<void> {
+  const list = await getPendingAnnounces();
+  if (list.includes(account)) return;
+  try {
+    await AsyncStorage.setItem(PENDING_ANNOUNCE_KEY, JSON.stringify([...list, account]));
+  } catch {
+    // best-effort; a missed mark just means no cross-session retry for this one
+  }
+}
+
+async function clearPendingAnnounce(account: string): Promise<void> {
+  const list = await getPendingAnnounces();
+  if (!list.includes(account)) return;
+  try {
+    await AsyncStorage.setItem(
+      PENDING_ANNOUNCE_KEY,
+      JSON.stringify(list.filter((a) => a !== account)),
+    );
+  } catch {
+    // best-effort
+  }
+}
 
 function simParams() {
   return {
@@ -52,14 +92,56 @@ export async function announceMembership(account: string): Promise<void> {
   const me = pickSigner();
   if (!me) return;
 
+  // Persist intent before the network leg so an interrupted announce (429,
+  // expired token, app kill) is retried by the foreground sweep. Cleared the
+  // moment it lands — or when there's genuinely nothing to announce.
+  await markPendingAnnounce(account);
+
   const rule = await fetchDefaultContextRule(simParams(), account);
-  const blindIds = rule.signers
-    .filter((s) => (s.kind === 'ed25519' || s.kind === 'webauthn') && s.keyDataHex)
-    .map((s) => membershipBlindId(s.keyDataHex));
-  if (blindIds.length === 0) return;
+  const deviceSigners = rule.signers.filter(
+    (s) => (s.kind === 'ed25519' || s.kind === 'webauthn') && s.keyDataHex,
+  );
+  const blindIds = deviceSigners.map((s) => membershipBlindId(s.keyDataHex));
+  if (__DEV__) {
+    console.log(
+      '[membership] announce',
+      account,
+      '— device signers:',
+      rule.signers.map((s) => s.kind).join(','),
+      '→ blindIds:',
+      blindIds.map((b) => b.slice(0, 10)),
+    );
+  }
+  // Delegated-only multisigs (onboarding model) have no device-key signers to
+  // key discovery on — nothing to announce until that path is supported.
+  if (blindIds.length === 0) {
+    await clearPendingAnnounce(account);
+    return;
+  }
 
   const token = await ensureWalletSession(me.account);
   await announceMemberships(token, account, blindIds);
+  await clearPendingAnnounce(account);
+  if (__DEV__) console.log('[membership] announced ok');
+}
+
+/**
+ * Re-fire any announce that didn't durably land (e.g. dropped by a 429). Runs
+ * on every foreground alongside discovery; each success clears its marker, each
+ * failure leaves it for the next sweep. Safe to call when nothing is pending.
+ */
+export async function retryPendingAnnouncements(): Promise<void> {
+  const pending = await getPendingAnnounces();
+  if (pending.length === 0) return;
+  if (__DEV__) console.log('[membership] re-announce sweep:', pending);
+  for (const account of pending) {
+    try {
+      await announceMembership(account);
+    } catch (e: any) {
+      if (__DEV__) console.log('[membership] re-announce failed', account, e?.message);
+      // stays pending; the next foreground sweep retries
+    }
+  }
 }
 
 /**
@@ -69,12 +151,23 @@ export async function announceMembership(account: string): Promise<void> {
  */
 export async function discoverSharedWallets(): Promise<number> {
   const me = pickSigner();
-  if (!me) return 0;
+  if (!me) {
+    if (__DEV__) console.log('[membership] discover: no signable personal account');
+    return 0;
+  }
   const myKey = await getMySignerKey();
-  if (!myKey) return 0;
+  if (!myKey) {
+    if (__DEV__) console.log('[membership] discover: no signer key on this device');
+    return 0;
+  }
 
+  const blindId = membershipBlindId(myKey);
   const token = await ensureWalletSession(me.account);
-  const wallets = await listMemberships(token, membershipBlindId(myKey));
+  const wallets = await listMemberships(token, blindId);
+  if (__DEV__) {
+    console.log('[membership] discover: blindId', blindId.slice(0, 10), '→ found', wallets.length, 'wallet(s):',
+      wallets.map((w) => w.wallet_ref));
+  }
 
   const known = new Set(
     useWalletStore
@@ -85,12 +178,16 @@ export async function discoverSharedWallets(): Promise<number> {
 
   let added = 0;
   for (const w of wallets) {
-    if (known.has(w.wallet_ref)) continue;
+    if (known.has(w.wallet_ref)) {
+      if (__DEV__) console.log('[membership] discover: already have', w.wallet_ref);
+      continue;
+    }
     try {
       await addSharedWalletByAddress(w.wallet_ref);
       added += 1;
+      if (__DEV__) console.log('[membership] discover: added', w.wallet_ref);
     } catch (e) {
-      if (__DEV__) console.log('[membership] skip discovered wallet', w.wallet_ref, e);
+      if (__DEV__) console.log('[membership] discover: skip', w.wallet_ref, e);
     }
   }
   return added;

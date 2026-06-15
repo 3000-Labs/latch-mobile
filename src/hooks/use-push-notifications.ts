@@ -11,8 +11,9 @@
 import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
 import { useEffect } from 'react';
+import { AppState } from 'react-native';
 
-import { discoverSharedWallets } from '@/src/lib/membership';
+import { discoverSharedWallets, retryPendingAnnouncements } from '@/src/lib/membership';
 import { registerPushToken } from '@/src/lib/push-registration';
 import { useWalletStore } from '@/src/store/wallet';
 
@@ -38,12 +39,27 @@ export function usePushNotifications(): void {
     .join(',');
 
   // Discover shared wallets this device was added to (on a second signer's
-  // device). Newly added wallets change `multisigKey`, so the effect below then
-  // registers their push queues. Runs once on mount; non-fatal.
+  // device). Runs on mount AND every time the app returns to the foreground —
+  // the announcing device may have created the wallet while this app was
+  // backgrounded, and a `[]`-dep effect alone never re-runs on resume. Newly
+  // added wallets change `multisigKey`, so the effect below registers their push
+  // queues. Non-fatal.
   useEffect(() => {
-    discoverSharedWallets().catch((err) => {
-      if (__DEV__) console.log('[membership] discovery failed:', err?.message);
+    const run = () => {
+      // Re-fire any announce a transient failure (e.g. 429) dropped, then poll
+      // for wallets this device was added to. Both are non-fatal.
+      retryPendingAnnouncements().catch((err) => {
+        if (__DEV__) console.log('[membership] re-announce sweep failed:', err?.message);
+      });
+      discoverSharedWallets().catch((err) => {
+        if (__DEV__) console.log('[membership] discovery failed:', err?.message);
+      });
+    };
+    run();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') run();
     });
+    return () => sub.remove();
   }, []);
 
   useEffect(() => {

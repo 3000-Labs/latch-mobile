@@ -218,15 +218,38 @@ async function buildPasskeyPayload(
   };
 }
 
+// Decode a JWT's `exp` and report whether it's past (with a small skew so we
+// don't hand out a token that dies mid-flight). Unparseable / exp-less tokens
+// are treated as live — never force a refresh we can't justify.
+function isJwtExpired(token: string, skewSeconds = 30): boolean {
+  try {
+    const payload = token.split('.')[1];
+    if (!payload) return false;
+    const json = Buffer.from(payload.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString(
+      'utf8',
+    );
+    const exp = JSON.parse(json)?.exp;
+    if (typeof exp !== 'number') return false;
+    return Date.now() / 1000 >= exp - skewSeconds;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Return a usable wallet-scope access token, signing in or refreshing as
- * needed. The returned token is *not* validated for expiry here — the
- * caller is expected to handle 401 from downstream calls (the hook in
- * Step 3.11 will do this).
+ * needed. A cached-but-expired token is silently refreshed via the refresh
+ * token first (no biometric prompt); only a missing token triggers a full
+ * sign-in. If the refresh fails the (stale) cached token is returned so the
+ * caller's own 401 handling still applies — never worse than before.
  */
 export async function ensureWalletSession(account: WalletAccount): Promise<string> {
   const existing = await SecureStore.getItemAsync(SECURE_KEYS.WALLET_ACCESS_TOKEN);
-  if (existing) return existing;
+  if (existing && !isJwtExpired(existing)) return existing;
+  if (existing) {
+    const refreshed = await refreshWalletSession();
+    return refreshed ?? existing;
+  }
   const tokens = await signInWithWallet(account);
   return tokens.accessToken;
 }
