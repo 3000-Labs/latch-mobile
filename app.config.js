@@ -77,12 +77,15 @@ export default {
       [
         'expo-splash-screen',
         {
-          // image: './assets/images/splash-icon-dark.png',
-          // imageWidth: 159.5,
-          // resizeMode: 'contain',
+          // 1x1 transparent image: keeps a logo-less dark splash while still
+          // generating the splashscreen_logo drawable that Theme.App.SplashScreen
+          // hard-references, so AAPT2 release resource linking succeeds.
+          image: './assets/images/splash-transparent.png',
+          imageWidth: 48,
+          resizeMode: 'contain',
           backgroundColor: '#121212',
           dark: {
-            // image: './assets/images/splash-icon-dark.png',
+            image: './assets/images/splash-transparent.png',
             backgroundColor: '#121212',
           },
         },
