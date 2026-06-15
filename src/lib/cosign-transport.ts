@@ -12,6 +12,7 @@
 
 import * as backend from '@/src/lib/cosign-backend-flow';
 import {
+  approvedKeyData as p2pApprovedKeyData,
   canApprove as p2pCanApprove,
   createTransferPacket,
   getMySignerKey as p2pGetMySignerKey,
@@ -91,6 +92,16 @@ export function listForAccount(account: string): Promise<CosignPacket[]> {
 /** Whether this device can still add an approval, in the active transport. */
 export function canApprove(packet: CosignPacket): Promise<boolean> {
   return isBackendEnabled() ? backend.canApprove(packet) : p2pCanApprove(packet);
+}
+
+/** Subset of the given signer keys (keyDataHex) that has approved, per transport. */
+export function approvedKeyData(
+  packet: CosignPacket,
+  keyDataHexList: string[],
+): Promise<Set<string>> {
+  return isBackendEnabled()
+    ? backend.approvedKeyData(packet, keyDataHexList)
+    : Promise.resolve(p2pApprovedKeyData(packet, keyDataHexList));
 }
 
 // Shape-based, transport-agnostic — reused as-is.

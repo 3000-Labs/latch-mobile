@@ -44,6 +44,12 @@ export interface CosignPacket {
   /** Ledger the pinned signatures expire at (mirrors signatureExpirationLedger). */
   expiresLedger: number;
   createdAt: string;
+  /**
+   * On-chain tx hash once the request has been broadcast (backend transport
+   * only). Lets a member still viewing the request detect that someone else met
+   * the threshold and executed it, so they can be shown the success screen.
+   */
+  submittedTxHash?: string | null;
 }
 
 export interface TransferSummary {
@@ -141,10 +147,7 @@ const B64URL = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_
  * btoa round-trips it without TextEncoder.
  */
 export function encodePacketParam(packet: CosignPacket): string {
-  return btoa(serializePacket(packet))
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
+  return btoa(serializePacket(packet)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
 /**

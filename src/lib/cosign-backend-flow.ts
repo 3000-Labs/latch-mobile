@@ -28,7 +28,12 @@ import {
   type CosignRequestRaw,
 } from '@/src/api/cosign';
 import { ACTIVE_NETWORK } from '@/src/constants/config';
-import { blindSignerId, decryptForWallet, encryptForWallet, queueIndexFor } from '@/src/lib/cosign-crypto';
+import {
+  blindSignerId,
+  decryptForWallet,
+  encryptForWallet,
+  queueIndexFor,
+} from '@/src/lib/cosign-crypto';
 import type { CosignPacket } from '@/src/lib/cosign-packet';
 import {
   getMySignerKey,
@@ -142,6 +147,7 @@ function decryptToPacket(raw: CosignRequestRaw, w: ResolvedWallet): CosignPacket
     })),
     expiresLedger: 0,
     createdAt: raw.createdAt,
+    submittedTxHash: raw.submittedTxHash,
   };
 }
 
@@ -270,6 +276,26 @@ export async function canApprove(packet: CosignPacket): Promise<boolean> {
 }
 
 /**
+ * Of the given on-chain signer keys (raw keyDataHex), return the subset that has
+ * already approved this packet. Backend signatures carry BLIND ids, so each
+ * candidate key is matched by its blindSignerId(wck, key) — the same derivation
+ * used when a signature is attached. Empty when the WCK isn't on this device.
+ */
+export async function approvedKeyData(
+  packet: CosignPacket,
+  keyDataHexList: string[],
+): Promise<Set<string>> {
+  const wck = await getWalletCosignKey(packet.smartAccountAddress);
+  if (!wck) return new Set();
+  const signed = new Set(packet.signatures.map((s) => s.signerKey)); // blind ids
+  const out = new Set<string>();
+  for (const k of keyDataHexList) {
+    if (signed.has(blindSignerId(wck, k))) out.add(k);
+  }
+  return out;
+}
+
+/**
  * Submit once threshold is met, then mark the request submitted. The gate
  * re-reads the threshold from chain (defense in depth, same as the P2P path).
  */
@@ -325,7 +351,15 @@ export async function listForAccount(account: string): Promise<CosignPacket[]> {
   const queueIndex = queueIndexFor(wck, account);
   const raws = await withWalletToken((t) => listCosignRequests(t, queueIndex));
   if (__DEV__) {
-    console.log('[cosign] poll', account, 'queue', queueIndex.slice(0, 12), '→', raws.length, 'request(s)');
+    console.log(
+      '[cosign] poll',
+      account,
+      'queue',
+      queueIndex.slice(0, 12),
+      '→',
+      raws.length,
+      'request(s)',
+    );
   }
   const w: ResolvedWallet = { address: account, wck };
   return raws.map((r) => decryptToPacket(r, w));

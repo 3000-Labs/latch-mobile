@@ -218,3 +218,13 @@ export async function canApprove(packet: CosignPacket): Promise<boolean> {
   if (!myKey) return false;
   return !packet.signatures.some((s) => s.signerKey === myKey);
 }
+
+/**
+ * Of the given on-chain signer keys (raw keyDataHex), return the subset that has
+ * approved this packet. P2P signatures carry the raw signer key directly, so
+ * this is a plain membership check (the backend variant matches by blind id).
+ */
+export function approvedKeyData(packet: CosignPacket, keyDataHexList: string[]): Set<string> {
+  const signed = new Set(packet.signatures.map((s) => s.signerKey));
+  return new Set(keyDataHexList.filter((k) => signed.has(k)));
+}
