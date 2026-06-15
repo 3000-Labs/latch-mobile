@@ -13,6 +13,10 @@ interface MethodOptionCardProps {
   subtitle: string;
   onPress: () => void;
   image?: ImageSourcePropType;
+  /** Non-interactive + dimmed (e.g. a method that isn't available yet). */
+  disabled?: boolean;
+  /** Small chip on the right (e.g. "Soon"). */
+  badge?: string;
 }
 
 const MethodOptionCard: React.FC<MethodOptionCardProps> = ({
@@ -21,11 +25,18 @@ const MethodOptionCard: React.FC<MethodOptionCardProps> = ({
   subtitle,
   onPress,
   image,
+  disabled,
+  badge,
 }) => {
   const theme = useTheme<Theme>();
 
   return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.7}
+      disabled={disabled}
+      style={disabled ? { opacity: 0.5 } : undefined}
+    >
       <Box
         flexDirection="row"
         alignItems="center"
@@ -63,6 +74,14 @@ const MethodOptionCard: React.FC<MethodOptionCardProps> = ({
             {subtitle}
           </Text>
         </Box>
+
+        {badge ? (
+          <Box backgroundColor="bg200" borderRadius={10} px="s" py="xs">
+            <Text variant="p8" color="textSecondary" style={{ fontWeight: '600' }}>
+              {badge}
+            </Text>
+          </Box>
+        ) : null}
       </Box>
     </TouchableOpacity>
   );

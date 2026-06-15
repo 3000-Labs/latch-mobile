@@ -140,18 +140,25 @@ const ChooseMethodSheet: React.FC<Props> = ({ visible, onClose, onScanQR, onMemb
                   onPress={() => setView('paste-address')}
                 />
                 <MethodOptionCard
-                  icon="mail-outline"
-                  title="Invite via Email"
-                  subtitle="Send an invitation"
-                  onPress={() => setView('invite-email')}
-                  image={require('@/src/assets/icon/email.png')}
-                />
-                <MethodOptionCard
                   icon="qr-code-outline"
                   title="Scan QR Code"
                   subtitle="Scan member's QR code"
                   image={require('@/src/assets/icon/qr-code.png')}
                   onPress={onScanQR}
+                />
+                {/* Email invites require an async accept/deploy flow that isn't
+                    shipped yet — disabled so a pending invitee can't silently
+                    block deploy. Add members by address for now. */}
+                <MethodOptionCard
+                  icon="mail-outline"
+                  title="Invite via Email"
+                  // subtitle="Send an invitation"
+                  // onPress={() => setView('invite-email')}
+                  subtitle="Coming soon — add by address for now"
+                  onPress={() => {}}
+                  disabled
+                  badge="Soon"
+                  image={require('@/src/assets/icon/email.png')}
                 />
               </Box>
             </>
