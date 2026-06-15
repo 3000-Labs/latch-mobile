@@ -10,8 +10,8 @@ const JITPACK_RE = /maven\s*\{\s*url\s*['"]https:\/\/(?:www\.)?jitpack\.io\/?['"
 const FILTERED = `maven {
       url 'https://www.jitpack.io'
       content {
-        includeGroupByRegex 'com\\.github\\..*'
-        includeGroupByRegex 'org\\.bitbucket\\..*'
+        includeGroupByRegex 'com\\\\.github\\\\..*'
+        includeGroupByRegex 'org\\\\.bitbucket\\\\..*'
       }
     }`;
 
