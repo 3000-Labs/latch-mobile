@@ -11,12 +11,14 @@
 
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
+import { useNow } from '@/src/hooks/use-now';
 import {
   PENDING_PACKETS_QUERY_KEY,
   usePendingPackets,
   type PendingPacketView,
 } from '@/src/hooks/use-pending-packets';
 import { approveAndMaybeSubmit, cancel, submit } from '@/src/lib/cosign-transport';
+import { formatTimeRemaining, isExpiringSoon } from '@/src/lib/expiry';
 import { friendlyTxError } from '@/src/lib/tx-errors';
 import { Theme } from '@/src/theme/theme';
 import { useAppTheme } from '@/src/theme/ThemeContext';
@@ -41,6 +43,7 @@ export default function PendingApproval() {
   const { isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
   const { requests, isLoading, refetch } = usePendingPackets();
+  const now = useNow();
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -162,8 +165,12 @@ export default function PendingApproval() {
             >
               {req.smartAccountAddress}
             </Text>
-            <Text variant="p7" color="textSecondary" mt="xs">
-              expires {new Date(req.expiresAt).toLocaleTimeString()}
+            <Text
+              variant="p7"
+              color={isExpiringSoon(req.expiresAt, now) ? 'inputError' : 'textSecondary'}
+              mt="xs"
+            >
+              expires {formatTimeRemaining(req.expiresAt, now)}
             </Text>
             <Box flexDirection="row" mt="m">
               <TouchableOpacity

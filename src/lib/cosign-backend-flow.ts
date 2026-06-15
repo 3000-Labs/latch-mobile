@@ -42,7 +42,7 @@ import {
   signSharedEntry,
   type CollectedEntry,
 } from '@/src/lib/multisig-send';
-import { ensureWalletSession } from '@/src/lib/wallet-auth';
+import { ensureWalletSession, reSignInWallet } from '@/src/lib/wallet-auth';
 import {
   autoFetchWalletCosignKey,
   ensureWalletCosignKey,
@@ -52,19 +52,53 @@ import { useWalletStore } from '@/src/store/wallet';
 
 const NETWORK: 'testnet' | 'mainnet' = ACTIVE_NETWORK.network === 'TESTNET' ? 'testnet' : 'mainnet';
 
+function isAuthError(e: unknown): boolean {
+  if (!(e instanceof CosignApiError)) return false;
+  if (e.status === 401 || e.status === 403) return true;
+  return /invalid or expired token/i.test(e.message);
+}
+
+// Collapses concurrent re-sign-ins into one. The pending-list poll fans out over
+// every shared wallet in parallel, so a server-rejected token would otherwise
+// trigger one sign-in PER wallet at once — N challenge/sign-in round trips (rate
+// limit risk) and, for passkey accounts, N Face ID prompts. Sharing the in-flight
+// promise means the burst re-signs in exactly once.
+let reSignInFlight: Promise<string> | null = null;
+
 /**
- * A valid latch-api JWT for the cosign endpoints — the device's PERSONAL
- * wallet-scope session (cached, or minted via challenge/sign-in by wallet-auth).
- * Authenticates as the personal account that signs, NOT the multisig (which has
- * no single key and 404s on challenge). Cosign endpoints don't use the identity
- * for scoping (blind queue_index) — any valid token suffices.
+ * Run a cosign API call with a valid wallet-scope token, transparently
+ * recovering when the server rejects it. ensureWalletSession only checks the
+ * JWT's own `exp`, so a token the backend has invalidated for another reason
+ * (e.g. a JWT-secret rotation on redeploy) still looks "live" and is handed back
+ * — then 401s. cosign.ts does no refresh-on-401 of its own, so without this a
+ * stale token wedges every poll permanently. On an auth error we force one fresh
+ * sign-in (deduped) and retry the call once.
+ *
+ * Safe to retry: a 401 is rejected at the auth middleware BEFORE the handler
+ * runs (same property the 429 retry in cosign.ts relies on), so no create is
+ * duplicated; signature attach is deduped server-side by blind_signer_id; cancel
+ * is idempotent. The one non-idempotent op (on-chain submit) is deliberately
+ * NOT wrapped — see submitRequest.
  */
-async function token(): Promise<string> {
+async function withWalletToken<T>(fn: (t: string) => Promise<T>): Promise<T> {
   const me = pickSigner();
   if (!me) {
     throw new Error('No personal account on this device to authenticate with.');
   }
-  return ensureWalletSession(me.account);
+  const t = await ensureWalletSession(me.account);
+  try {
+    return await fn(t);
+  } catch (e) {
+    if (!isAuthError(e)) throw e;
+    if (__DEV__) console.log('[cosign] token rejected by server — re-signing in and retrying');
+    if (!reSignInFlight) {
+      reSignInFlight = reSignInWallet(me.account).finally(() => {
+        reSignInFlight = null;
+      });
+    }
+    const fresh = await reSignInFlight;
+    return fn(fresh);
+  }
 }
 
 interface ResolvedWallet {
@@ -124,7 +158,6 @@ export async function createTransferRequest(p: CreateTransferPacketParams): Prom
   const me = pickSigner();
   if (!me) throw new Error('No personal account on this device to sign with.');
 
-  const t = await token();
   // Creator generates the wallet's key on first send if absent (idempotent —
   // returns the wizard-created key when present). Members get it via the
   // latch://cosign-key link; this is the creator's bootstrap point.
@@ -139,71 +172,101 @@ export async function createTransferRequest(p: CreateTransferPacketParams): Prom
     amount: p.amount,
   });
 
-  let raw = await createCosignRequest(t, {
-    queueIndex: queueIndexFor(wck, account),
-    unsignedTxXdr: encryptForWallet(wck, assembled.unsignedTxXdr, account),
-    network: NETWORK,
-    threshold,
-  });
+  const queueIndex = queueIndexFor(wck, account);
+  if (__DEV__) {
+    // Compare this prefix against the [cosign] poll log on the OTHER device — if
+    // they differ, the two devices hold different WCKs and will never see each
+    // other's requests (the queue is scoped by HMAC(WCK, address)).
+    console.log('[cosign] created request on queue', queueIndex.slice(0, 12), 'for', account);
+  }
 
-  // Sign our own member entry and attach it (encrypted, blind-id'd).
+  // Sign our own member entry up front so an auth-retry of the server calls
+  // doesn't re-run the signing (which can prompt biometrics for passkey users).
   const entry = await signSharedEntry(
     assembled.unsignedTxXdr,
     me.account,
     me.listIndex,
     useWalletStore.getState().mnemonic,
   );
-  raw = await addCosignSignature(
-    t,
-    raw.id,
-    blindSignerId(wck, entry.signerKey),
-    encryptForWallet(wck, entry.authEntryXdr, account),
-  );
+
+  const raw = await withWalletToken(async (t) => {
+    const created = await createCosignRequest(t, {
+      queueIndex,
+      unsignedTxXdr: encryptForWallet(wck, assembled.unsignedTxXdr, account),
+      network: NETWORK,
+      threshold,
+    });
+    // Attach our blind-id'd, encrypted entry. Uses the SAME token the create just
+    // succeeded with, so this never auth-fails on its own.
+    return addCosignSignature(
+      t,
+      created.id,
+      blindSignerId(wck, entry.signerKey),
+      encryptForWallet(wck, entry.authEntryXdr, account),
+    );
+  });
   return decryptToPacket(raw, w);
 }
 
 export async function getRequest(id: string): Promise<CosignPacket | null> {
-  const t = await token();
-  let raw: CosignRequestRaw;
   try {
-    raw = await getCosignRequest(t, id);
+    return await withWalletToken(async (t) => {
+      const raw = await getCosignRequest(t, id);
+      const w = await resolveWallet(raw.queueIndex);
+      return w ? decryptToPacket(raw, w) : null;
+    });
   } catch (e) {
     if (e instanceof CosignApiError && e.status === 404) return null;
     throw e;
   }
-  const w = await resolveWallet(raw.queueIndex);
-  return w ? decryptToPacket(raw, w) : null;
 }
 
 export async function approveRequest(id: string): Promise<CosignPacket> {
-  const t = await token();
-  const raw = await getCosignRequest(t, id);
-  const w = await resolveWallet(raw.queueIndex);
-  if (!w) throw new Error("This wallet's encryption key isn't on this device.");
-
   const me = pickSigner();
   if (!me) throw new Error('No personal account on this device to sign with.');
 
-  const myKey = await getMySignerKey();
-  const myBlind = myKey ? blindSignerId(w.wck, myKey) : null;
-  if (myBlind && raw.signatures.some((s) => s.blindSignerId === myBlind)) {
-    throw new Error('You have already approved this transfer.');
-  }
+  return withWalletToken(async (t) => {
+    const raw = await getCosignRequest(t, id);
+    const w = await resolveWallet(raw.queueIndex);
+    if (!w) throw new Error("This wallet's encryption key isn't on this device.");
 
-  const unsignedTxXdr = decryptForWallet(w.wck, raw.unsignedTxXdr, w.address);
-  const entry = await signSharedEntry(
-    unsignedTxXdr,
-    me.account,
-    me.listIndex,
-    useWalletStore.getState().mnemonic,
-  );
-  const updated = await addCosignSignature(
-    t,
-    id,
-    blindSignerId(w.wck, entry.signerKey),
-    encryptForWallet(w.wck, entry.authEntryXdr, w.address),
-  );
-  return decryptToPacket(updated, w);
+    const myKey = await getMySignerKey();
+    const myBlind = myKey ? blindSignerId(w.wck, myKey) : null;
+    if (myBlind && raw.signatures.some((s) => s.blindSignerId === myBlind)) {
+      throw new Error('You have already approved this transfer.');
+    }
+
+    const unsignedTxXdr = decryptForWallet(w.wck, raw.unsignedTxXdr, w.address);
+    const entry = await signSharedEntry(
+      unsignedTxXdr,
+      me.account,
+      me.listIndex,
+      useWalletStore.getState().mnemonic,
+    );
+    const updated = await addCosignSignature(
+      t,
+      id,
+      blindSignerId(w.wck, entry.signerKey),
+      encryptForWallet(w.wck, entry.authEntryXdr, w.address),
+    );
+    return decryptToPacket(updated, w);
+  });
+}
+
+/**
+ * Whether this device can still add an approval to a backend packet. Unlike the
+ * P2P check, a decrypted backend packet stores each signature's signerKey as the
+ * BLIND id (the real device key never leaves the device), so "have I signed?"
+ * must compare against blindSignerId(wck, myKey) — exactly the dedup approveRequest
+ * uses. Without this the comparison can't match and the Approve button never clears.
+ */
+export async function canApprove(packet: CosignPacket): Promise<boolean> {
+  const myKey = await getMySignerKey();
+  if (!myKey) return false;
+  const wck = await getWalletCosignKey(packet.smartAccountAddress);
+  if (!wck) return false; // no key → can't derive blind id (and couldn't sign anyway)
+  const myBlind = blindSignerId(wck, myKey);
+  return !packet.signatures.some((s) => s.signerKey === myBlind);
 }
 
 /**
@@ -211,8 +274,14 @@ export async function approveRequest(id: string): Promise<CosignPacket> {
  * re-reads the threshold from chain (defense in depth, same as the P2P path).
  */
 export async function submitRequest(id: string): Promise<{ hash: string }> {
-  const t = await token();
-  const raw = await getCosignRequest(t, id);
+  // Read (and recover from a stale token) UP FRONT, before anything irreversible.
+  // The token returned here is server-validated, so the later markCosignSubmitted
+  // reuses it without needing its own retry — crucial because aggregateAndSubmit
+  // broadcasts on-chain and must never be re-run by an auth retry.
+  const { raw, token: t } = await withWalletToken(async (tok) => ({
+    raw: await getCosignRequest(tok, id),
+    token: tok,
+  }));
   const w = await resolveWallet(raw.queueIndex);
   if (!w) throw new Error("This wallet's encryption key isn't on this device.");
 
@@ -246,13 +315,22 @@ export async function listForAccount(account: string): Promise<CosignPacket[]> {
       /* no bundle / not sealed for us — manual link remains the fallback */
     }
   }
-  if (!wck) return []; // no key for this wallet on this device → nothing to show
-  const t = await token();
-  const raws = await listCosignRequests(t, queueIndexFor(wck, account));
+  if (!wck) {
+    // no key for this wallet on this device → can't derive the queue index, so
+    // nothing to show. This is the #1 reason a member sees an empty list for a
+    // request another device created (the WCK never reached this device).
+    if (__DEV__) console.log('[cosign] no WCK for', account, '→ cannot poll its queue');
+    return [];
+  }
+  const queueIndex = queueIndexFor(wck, account);
+  const raws = await withWalletToken((t) => listCosignRequests(t, queueIndex));
+  if (__DEV__) {
+    console.log('[cosign] poll', account, 'queue', queueIndex.slice(0, 12), '→', raws.length, 'request(s)');
+  }
   const w: ResolvedWallet = { address: account, wck };
   return raws.map((r) => decryptToPacket(r, w));
 }
 
 export async function cancelRequest(id: string): Promise<void> {
-  await cancelCosignRequest(await token(), id);
+  await withWalletToken((t) => cancelCosignRequest(t, id));
 }

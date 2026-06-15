@@ -1,3 +1,4 @@
+import SharedWalletNamingModal from '@/src/components/account/SharedWalletNamingModal';
 import { CustomTabBar } from '@/src/components/CustomTabBar';
 import LoadingBlur from '@/src/components/shared/LoadingBlur';
 import { DrawerProvider } from '@/src/context/drawer-context';
@@ -38,6 +39,9 @@ const TabsLayout = () => {
         {/* Sibling of <Tabs> so the overlay sits ABOVE the CustomTabBar but
             still inside the DrawerProvider — the drawer can't slide over it. */}
         <LoadingBlur visible={visible} text={text} subText={subText} />
+        {/* Prompts for a name when discovery finds a shared wallet this device
+            was added to, before the wallet is stored. */}
+        <SharedWalletNamingModal />
       </View>
     </DrawerProvider>
   );

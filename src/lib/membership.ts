@@ -18,9 +18,9 @@ import { Buffer } from 'buffer';
 import { fetchDefaultContextRule } from '@/src/api/account-admin';
 import { announceMemberships, listMemberships } from '@/src/api/memberships';
 import { STELLAR_NETWORK_PASSPHRASE, STELLAR_RPC_URL } from '@/src/constants/config';
-import { addSharedWalletByAddress } from '@/src/lib/add-shared-wallet';
 import { getMySignerKey, pickSigner } from '@/src/lib/cosign-packet-flow';
 import { ensureWalletSession } from '@/src/lib/wallet-auth';
+import { useSharedWalletNaming } from '@/src/store/shared-wallet-naming';
 import { useWalletStore } from '@/src/store/wallet';
 
 const MEMBERSHIP_SCHEME = 'latch-membership:v1:';
@@ -145,9 +145,11 @@ export async function retryPendingAnnouncements(): Promise<void> {
 }
 
 /**
- * Discover shared wallets this device was added to and add the ones not already
- * present. Returns the number newly added. Each add re-verifies on-chain
- * membership, so forged announcements are rejected.
+ * Discover shared wallets this device was added to and queue the ones not
+ * already present (or already pending) for naming. Returns the number newly
+ * queued. The user names each via SharedWalletNamingModal, and the add it
+ * triggers re-verifies on-chain membership, so forged announcements are
+ * rejected at store time.
  */
 export async function discoverSharedWallets(): Promise<number> {
   const me = pickSigner();
@@ -176,19 +178,19 @@ export async function discoverSharedWallets(): Promise<number> {
       .filter((a): a is string => !!a),
   );
 
-  let added = 0;
+  const enqueue = useSharedWalletNaming.getState().enqueue;
+  let queued = 0;
   for (const w of wallets) {
     if (known.has(w.wallet_ref)) {
       if (__DEV__) console.log('[membership] discover: already have', w.wallet_ref);
       continue;
     }
-    try {
-      await addSharedWalletByAddress(w.wallet_ref);
-      added += 1;
-      if (__DEV__) console.log('[membership] discover: added', w.wallet_ref);
-    } catch (e) {
-      if (__DEV__) console.log('[membership] discover: skip', w.wallet_ref, e);
+    // enqueue dedups against wallets already awaiting a name, so repeated
+    // foreground sweeps don't re-prompt while the modal is open.
+    if (enqueue(w.wallet_ref)) {
+      queued += 1;
+      if (__DEV__) console.log('[membership] discover: queued for naming', w.wallet_ref);
     }
   }
-  return added;
+  return queued;
 }

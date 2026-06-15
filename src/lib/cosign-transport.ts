@@ -88,6 +88,10 @@ export function listForAccount(account: string): Promise<CosignPacket[]> {
   return isBackendEnabled() ? backend.listForAccount(account) : Promise.resolve([]);
 }
 
+/** Whether this device can still add an approval, in the active transport. */
+export function canApprove(packet: CosignPacket): Promise<boolean> {
+  return isBackendEnabled() ? backend.canApprove(packet) : p2pCanApprove(packet);
+}
+
 // Shape-based, transport-agnostic — reused as-is.
-export const canApprove = p2pCanApprove;
 export const getMySignerKey = p2pGetMySignerKey;

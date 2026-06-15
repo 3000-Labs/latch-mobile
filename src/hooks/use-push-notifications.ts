@@ -10,7 +10,7 @@
 
 import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 
 import { discoverSharedWallets, retryPendingAnnouncements } from '@/src/lib/membership';
@@ -39,13 +39,25 @@ export function usePushNotifications(): void {
     .join(',');
 
   // Discover shared wallets this device was added to (on a second signer's
-  // device). Runs on mount AND every time the app returns to the foreground —
-  // the announcing device may have created the wallet while this app was
+  // device). Runs on mount AND when the app returns to the foreground — the
+  // announcing device may have created the wallet while this app was
   // backgrounded, and a `[]`-dep effect alone never re-runs on resume. Newly
   // added wallets change `multisigKey`, so the effect below registers their push
   // queues. Non-fatal.
+  //
+  // Throttled: each sweep fires up to 3 latch-api calls (auth challenge +
+  // sign-in + listMemberships). A biometric/auth prompt briefly backgrounds the
+  // app, so without a throttle the `active` re-fire collides with an in-flight
+  // multisig send (createCosignRequest) and trips the rate limiter. Skipping
+  // re-runs within the window keeps the burst off the send path; genuine
+  // returns-from-background after the window still pick up new wallets.
+  const lastSweepRef = useRef(0);
   useEffect(() => {
+    const SWEEP_THROTTLE_MS = 30_000;
     const run = () => {
+      const now = Date.now();
+      if (now - lastSweepRef.current < SWEEP_THROTTLE_MS) return;
+      lastSweepRef.current = now;
       // Re-fire any announce a transient failure (e.g. 429) dropped, then poll
       // for wallets this device was added to. Both are non-fatal.
       retryPendingAnnouncements().catch((err) => {

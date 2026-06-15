@@ -18,8 +18,7 @@
 import { useQuery } from '@tanstack/react-query';
 
 import { pruneExpiredPackets, type CosignPacket } from '@/src/lib/cosign-packet';
-import { getMySignerKey } from '@/src/lib/cosign-packet-flow';
-import { isBackendEnabled, listForAccount } from '@/src/lib/cosign-transport';
+import { canApprove, isBackendEnabled, listForAccount } from '@/src/lib/cosign-transport';
 import { SIGNATURE_VALIDITY_LEDGERS } from '@/src/lib/multisig-send';
 import { useWalletStore } from '@/src/store/wallet';
 
@@ -44,7 +43,7 @@ export interface PendingPacketView {
 // sync with the on-chain pin so the list and reality agree.
 const PACKET_TTL_MS = SIGNATURE_VALIDITY_LEDGERS * 5 * 1000;
 
-function toView(packet: CosignPacket, myKey: string | null): PendingPacketView {
+async function toView(packet: CosignPacket): Promise<PendingPacketView> {
   const signatureCount = packet.signatures.length;
   return {
     id: packet.id,
@@ -54,13 +53,14 @@ function toView(packet: CosignPacket, myKey: string | null): PendingPacketView {
     threshold: packet.threshold,
     expiresAt: new Date(new Date(packet.createdAt).getTime() + PACKET_TTL_MS).toISOString(),
     ready: signatureCount >= packet.threshold,
-    canApprove: !!myKey && !packet.signatures.some((s) => s.signerKey === myKey),
+    // Transport-aware: a backend packet's signerKeys are blind ids, so the
+    // "have I signed?" check must run through the transport rather than a raw
+    // key compare (which never matches in backend mode → button never clears).
+    canApprove: await canApprove(packet),
   };
 }
 
 async function readPendingViews(): Promise<PendingPacketView[]> {
-  const myKey = await getMySignerKey();
-
   let packets: CosignPacket[];
   if (isBackendEnabled()) {
     // Backend transport: poll the encrypted queue for every shared wallet this
@@ -70,17 +70,29 @@ async function readPendingViews(): Promise<PendingPacketView[]> {
     const wallets = accounts
       .filter((a) => a.isMultisig && a.smartAccountAddress)
       .map((a) => a.smartAccountAddress as string);
-    const lists = await Promise.all(wallets.map((acc) => listForAccount(acc).catch(() => [])));
+    if (__DEV__) {
+      console.log('[pending] backend poll for', wallets.length, 'shared wallet(s):', wallets);
+    }
+    const lists = await Promise.all(
+      wallets.map((acc) =>
+        listForAccount(acc).catch((e) => {
+          // Don't let one wallet's failure blank the whole list — but surface it,
+          // otherwise a 429 / missing-WCK / token error looks identical to "nothing pending".
+          if (__DEV__) console.log('[pending] listForAccount FAILED', acc, '→', e?.message);
+          return [];
+        }),
+      ),
+    );
     packets = lists.flat();
+    if (__DEV__) console.log('[pending] decrypted', packets.length, 'packet(s) total');
   } else {
     // P2P: pruneExpiredPackets drops dead packets from storage and returns the
     // live ones, so expired rows disappear instead of lingering.
     packets = await pruneExpiredPackets(PACKET_TTL_MS);
   }
 
-  return packets
-    .map((p) => toView(p, myKey))
-    .sort((a, b) => b.expiresAt.localeCompare(a.expiresAt));
+  const views = await Promise.all(packets.map(toView));
+  return views.sort((a, b) => b.expiresAt.localeCompare(a.expiresAt));
 }
 
 export interface UsePendingPacketsResult {
@@ -93,7 +105,7 @@ export interface UsePendingPacketsResult {
 export function usePendingPackets(): UsePendingPacketsResult {
   const query = useQuery({
     queryKey: PENDING_PACKETS_QUERY_KEY,
-    refetchInterval: 15_000,
+    refetchInterval: 30_000,
     queryFn: readPendingViews,
   });
 

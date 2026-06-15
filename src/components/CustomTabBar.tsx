@@ -4,6 +4,7 @@ import React from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path } from 'react-native-svg';
+import { usePendingPackets } from '../hooks/use-pending-packets';
 import { useAppTheme } from '../theme/ThemeContext';
 import { Theme } from '../theme/theme';
 
@@ -18,6 +19,9 @@ export function CustomTabBar({ state, navigation }: any) {
   const theme = useTheme<Theme>();
   const { isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
+  // Pending co-sign requests live in the History tab's Pending filter; badge the
+  // tab so the count is visible from anywhere in the authenticated shell.
+  const { count: pendingCount } = usePendingPackets();
 
   // iOS keeps its hardcoded home-indicator spacing; Android lifts the bar by the
   // system nav-bar inset so it isn't drawn behind the navigation buttons under
@@ -75,6 +79,8 @@ export function CustomTabBar({ state, navigation }: any) {
               ? theme.colors.gray600
               : theme.colors.bgDark600;
 
+          const showBadge = item.name === 'history' && pendingCount > 0;
+
           return (
             <TouchableOpacity
               key={item.name}
@@ -82,7 +88,14 @@ export function CustomTabBar({ state, navigation }: any) {
               style={styles.tabButton}
               activeOpacity={0.7}
             >
-              <View style={styles.iconContainer}>{item.icon({ width: 24, color })}</View>
+              <View style={styles.iconContainer}>
+                {item.icon({ width: 24, color })}
+                {showBadge && (
+                  <View style={[styles.badge, { backgroundColor: theme.colors.primary700 }]}>
+                    <Text style={styles.badgeText}>{pendingCount > 9 ? '9+' : pendingCount}</Text>
+                  </View>
+                )}
+              </View>
               <Text style={[styles.label, { color }]}>{item.label}</Text>
             </TouchableOpacity>
           );
@@ -116,6 +129,22 @@ const styles = StyleSheet.create({
   },
   iconContainer: {
     position: 'relative',
+  },
+  badge: {
+    position: 'absolute',
+    top: -6,
+    right: -10,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
   },
   label: {
     fontSize: 11,

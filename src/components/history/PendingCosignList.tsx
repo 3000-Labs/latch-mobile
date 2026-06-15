@@ -1,7 +1,9 @@
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
 import { SHEET_HEIGHT } from '@/src/constants/constants';
+import { useNow } from '@/src/hooks/use-now';
 import type { PendingPacketView } from '@/src/hooks/use-pending-packets';
+import { formatTimeRemaining, isExpiringSoon } from '@/src/lib/expiry';
 import { Theme } from '@/src/theme/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -22,19 +24,6 @@ const truncate = (addr: string): string =>
 
 const height = SHEET_HEIGHT / 1.6;
 
-const formatExpiry = (iso: string): string => {
-  const d = new Date(iso);
-  const now = Date.now();
-  const diffMs = d.getTime() - now;
-  if (diffMs < 0) return 'expired';
-  const mins = Math.round(diffMs / 60000);
-  if (mins < 60) return `in ${mins}m`;
-  const hrs = Math.round(mins / 60);
-  if (hrs < 24) return `in ${hrs}h`;
-  const days = Math.round(hrs / 24);
-  return `in ${days}d`;
-};
-
 /**
  * History tab pending-filter content. Renders the cosign queue for the
  * active smart account: each row deep-links to /cosign-review for that
@@ -51,6 +40,7 @@ const PendingCosignList: React.FC<Props> = ({
   isDark,
 }) => {
   const [refreshing, setRefreshing] = useState(false);
+  const now = useNow();
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -157,8 +147,11 @@ const PendingCosignList: React.FC<Props> = ({
                   </Box>
                 </Box>
                 <Box flexDirection="row" alignItems="center" justifyContent="space-between">
-                  <Text variant="p8" color="textSecondary">
-                    expires {formatExpiry(req.expiresAt)}
+                  <Text
+                    variant="p8"
+                    color={isExpiringSoon(req.expiresAt, now) ? 'inputError' : 'textSecondary'}
+                  >
+                    expires {formatTimeRemaining(req.expiresAt, now)}
                   </Text>
                   <Ionicons name="chevron-forward" size={16} color={theme.colors.textSecondary} />
                 </Box>

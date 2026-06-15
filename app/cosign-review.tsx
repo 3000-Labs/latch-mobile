@@ -346,11 +346,52 @@ const CosignReview = () => {
                       mb="s"
                     />
                   ) : (
-                    <Text variant="p8" color="textSecondary" textAlign="center" mb="s">
-                      {isBackendEnabled()
-                        ? "You've approved. Other members are notified — their approvals appear here automatically."
-                        : "You've approved. Share with the remaining members to reach the threshold."}
-                    </Text>
+                    <>
+                      <Box
+                        flexDirection="row"
+                        alignItems="center"
+                        justifyContent="center"
+                        backgroundColor="bg11"
+                        borderRadius={24}
+                        py="m"
+                        mb="s"
+                        accessibilityRole="text"
+                        accessibilityLabel={`You've approved. Waiting for other signers, ${packet.signatures.length} of ${packet.threshold} approved.`}
+                      >
+                        {/* Backend mode actively polls for incoming approvals (15s),
+                            so a spinner reflects real work; P2P has nothing to poll. */}
+                        {isBackendEnabled() ? (
+                          <ActivityIndicator
+                            size="small"
+                            color={theme.colors.textSecondary}
+                            style={{ marginRight: 8 }}
+                          />
+                        ) : (
+                          <Ionicons
+                            name="hourglass-outline"
+                            size={16}
+                            color={theme.colors.textSecondary}
+                            style={{ marginRight: 8 }}
+                          />
+                        )}
+                        <Text variant="p7" color="textPrimary" style={{ fontWeight: '600' }}>
+                          Waiting for other signers
+                        </Text>
+                        <Text
+                          variant="p7"
+                          color="textSecondary"
+                          ml="s"
+                          style={{ fontVariant: ['tabular-nums'] }}
+                        >
+                          {packet.signatures.length}/{packet.threshold}
+                        </Text>
+                      </Box>
+                      <Text variant="p8" color="textSecondary" textAlign="center" mb="s">
+                        {isBackendEnabled()
+                          ? "You've approved — their approvals appear here automatically."
+                          : "You've approved — share with the remaining members to reach the threshold."}
+                      </Text>
+                    </>
                   )}
                   {/* Backend mode needs no manual relay — the queue is the transport. */}
                   {!isBackendEnabled() && (
