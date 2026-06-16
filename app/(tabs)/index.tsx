@@ -147,14 +147,12 @@ const Home = () => {
     data: portfolio,
     isLoading: portfolioLoading,
     refetch: refetchPortfolio,
-    isRefetching: isRefetchingPortfolio,
   } = usePortfolio(smartAccountAddress, activeAccount?.gAddress, trackedTokens);
 
   const {
     data: transactions,
     refetch: refetchTx,
     isLoading: txLoading,
-    isRefetching: isRefetchingTx,
   } = useStellarTransactions(smartAccountAddress);
 
   const showOverlay = useLoadingOverlay((s) => s.show);
@@ -176,10 +174,12 @@ const Home = () => {
     staleTime: 60_000,
   });
 
-  const handleRefresh = () => {
-    refetchPrices();
-    refetchPortfolio();
-    refetchTx();
+  const [manualRefreshing, setManualRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setManualRefreshing(true);
+    await Promise.all([refetchPrices(), refetchPortfolio(), refetchTx()]);
+    setManualRefreshing(false);
   };
 
   const livePrices: Record<string, any> = prices ?? {};
@@ -297,7 +297,7 @@ const Home = () => {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={isRefetchingPortfolio || isRefetchingTx}
+            refreshing={manualRefreshing}
             onRefresh={handleRefresh}
             tintColor={theme.colors.primary700}
           />

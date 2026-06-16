@@ -10,13 +10,12 @@
  * Params: hash (required), from, to, amount, asset, createdAt (ISO).
  */
 
-import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React from 'react';
-import { Linking, ScrollView, TouchableOpacity } from 'react-native';
+import { ScrollView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import TransactionStatusHeaderMultisig from '@/src/components/cosign/TransactionStatusHeaderMultisig';
@@ -131,9 +130,9 @@ const CosignSuccess = () => {
         backgroundColor="mainBackground"
         style={{ paddingBottom: insets.bottom + 16 }}
       >
-        <TouchableOpacity activeOpacity={0.8} onPress={() => Linking.openURL(explorerUrl)}>
+        <TouchableOpacity activeOpacity={0.8} onPress={() => router.replace('/(tabs)')}>
           <Box
-            height={64}
+            height={48}
             backgroundColor="primary"
             borderRadius={32}
             flexDirection="row"
@@ -142,9 +141,9 @@ const CosignSuccess = () => {
             gap="s"
           >
             <Text variant="h11" color="black" fontWeight="700">
-              View On Stellar Explorer
+              Done
             </Text>
-            <Ionicons name="open-outline" size={20} color="black" />
+            {/* <Ionicons name="open-outline" size={20} color="black" /> */}
           </Box>
         </TouchableOpacity>
       </Box>

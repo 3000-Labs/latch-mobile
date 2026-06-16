@@ -55,13 +55,13 @@ const History = () => {
   const insets = useSafeAreaInsets();
   const [activeFilter, setActiveFilter] = useState('All');
   const [search, setSearch] = useState('');
+  const [manualRefreshing, setManualRefreshing] = useState(false);
 
   const { smartAccountAddress } = useWalletStore();
 
   const {
     data: transactions,
     isLoading,
-    isFetching,
     isError,
     refetch,
     // fetchNextPage,
@@ -281,8 +281,12 @@ const History = () => {
             }
             refreshControl={
               <RefreshControl
-                refreshing={isFetching && !isLoading}
-                onRefresh={refetch}
+                refreshing={manualRefreshing}
+                onRefresh={async () => {
+                  setManualRefreshing(true);
+                  await refetch();
+                  setManualRefreshing(false);
+                }}
                 tintColor={theme.colors.primary700}
               />
             }
