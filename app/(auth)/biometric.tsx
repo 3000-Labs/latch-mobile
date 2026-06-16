@@ -60,6 +60,9 @@ const Biometrics = () => {
   // setup mode state
   const [showModal, setShowModal] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  // Gate setup rendering until we know whether the device has biometrics. Avoids
+  // flashing the biometric screen on devices that will be redirected to PIN.
+  const [checkingSetup, setCheckingSetup] = useState(!isUnlockMode);
 
   // unlock mode state
   const [showPin, setShowPin] = useState(false);
@@ -89,8 +92,19 @@ const Biometrics = () => {
         setBiometricLabel('Touch ID');
         setBiometricIcon('finger-print');
       }
+
+      // If the device can't do biometrics, skip this screen and go straight to
+      // PIN setup. proceedToPin handles the device-passcode gate + navigation;
+      // if it returns without navigating, fall through and reveal the screen.
+      const hasHardware = await LocalAuthentication.hasHardwareAsync();
+      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+      if (!hasHardware || !isEnrolled) {
+        await proceedToPin();
+      }
+      setCheckingSetup(false);
     };
     detectType();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isUnlockMode]);
 
   // ─── Lockout countdown ────────────────────────────────────────────────────
@@ -509,12 +523,18 @@ const Biometrics = () => {
 
   // ─── Setup UI ─────────────────────────────────────────────────────────────
 
+  // Don't render anything until the biometric-availability check resolves;
+  // devices without biometrics are redirected to PIN setup before this point.
+  if (checkingSetup) {
+    return <Box flex={1} backgroundColor="onboardingbg" />;
+  }
+
   return (
     <Box
       flex={1}
       backgroundColor="onboardingbg"
       paddingHorizontal="m"
-      style={{ paddingTop: insets.top }}
+      style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
     >
       <LinearGradient
         colors={['rgba(50, 60, 14, 0.74)', '#121212']}
