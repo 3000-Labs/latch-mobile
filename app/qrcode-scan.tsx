@@ -3,11 +3,12 @@ import ScannerFrame from '@/src/components/scan/ScannerFrame';
 import URLInputSheet from '@/src/components/scan/URLInputSheet';
 import Box from '@/src/components/shared/Box';
 import UtilityHeader from '@/src/components/shared/UtilityHeader';
+import { pairWithUri } from '@/src/lib/walletconnect';
 import { useCameraPermissions } from 'expo-camera';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useState } from 'react';
-import { ActivityIndicator, StyleSheet } from 'react-native';
+import { ActivityIndicator, Alert, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const QRScanScreen = () => {
@@ -34,7 +35,19 @@ const QRScanScreen = () => {
     );
   }
 
+  const handlePairUri = async (uri: string) => {
+    try {
+      await pairWithUri(uri);
+    } catch (e: any) {
+      Alert.alert('WalletConnect', e?.message ?? 'Failed to pair');
+    }
+  };
+
   const handleBarcodeScanned = (data: string) => {
+    if (data.startsWith('wc:')) {
+      handlePairUri(data);
+      return;
+    }
     setScannedAddress(data);
   };
 
@@ -85,9 +98,8 @@ const QRScanScreen = () => {
             url={inputUrl}
             onChangeUrl={setInputUrl}
             onConnect={() => {
-              // Logic for connecting via URL
-              if (inputUrl) {
-                console.log('Connecting to:', inputUrl);
+              if (inputUrl.startsWith('wc:')) {
+                handlePairUri(inputUrl);
               }
             }}
           />
