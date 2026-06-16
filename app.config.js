@@ -28,7 +28,7 @@ export default {
       supportsTablet: true,
       bundleIdentifier: appName === 'Latch' ? 'co.getlatch.latchapp' : 'qa.getlatch.app',
       appleTeamId: 'P5QF5H77W5',
-      googleServicesFile: './GoogleService-Info.plist',
+      googleServicesFile: process.env.GOOGLE_SERVICES_IOS ?? './GoogleService-Info.plist',
       buildNumber,
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
@@ -59,7 +59,7 @@ export default {
         monochromeImage: './assets/images/android-icon-monochrome.png',
       },
       predictiveBackGestureEnabled: false,
-      googleServicesFile: './google-services.json',
+      googleServicesFile: process.env.GOOGLE_SERVICES_ANDROID ?? './google-services.json',
       permissions: [
         'android.permission.USE_BIOMETRIC',
         'android.permission.USE_FINGERPRINT',
