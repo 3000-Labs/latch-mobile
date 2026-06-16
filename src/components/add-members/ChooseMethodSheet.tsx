@@ -9,9 +9,7 @@ import {
   Animated,
   Dimensions,
   Keyboard,
-  KeyboardAvoidingView,
   Modal,
-  Platform,
   StyleSheet,
   TouchableOpacity,
   TouchableWithoutFeedback,
@@ -78,15 +76,8 @@ const ChooseMethodSheet: React.FC<Props> = ({ visible, onClose, onScanQR, onMemb
       {/* Dim overlay — pointer-events none so touches fall through to the flex layer */}
       <View style={styles.backdrop} pointerEvents="none" />
 
-      {/*
-       * Flex column: backdrop spacer (flex:1) + sheet at bottom.
-       * KeyboardAvoidingView shrinks the available space when the keyboard
-       * appears, the flex:1 spacer absorbs the change and the sheet rides up.
-       */}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.flex}
-      >
+      {/* Flex column: backdrop spacer (flex:1) + sheet at bottom */}
+      <View style={styles.flex}>
         {/* Tappable spacer above the sheet — closes the sheet */}
         <TouchableWithoutFeedback onPress={handleClose}>
           <View style={styles.flex} />
@@ -184,7 +175,7 @@ const ChooseMethodSheet: React.FC<Props> = ({ visible, onClose, onScanQR, onMemb
             />
           )}
         </Animated.View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 };

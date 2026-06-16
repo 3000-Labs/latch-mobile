@@ -4,15 +4,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Dimensions,
-  KeyboardAvoidingView,
   Modal,
-  Platform,
-  ScrollView,
   StyleSheet,
   TouchableOpacity,
   TouchableWithoutFeedback,
   View,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AddSignerForm from './AddSignerForm';
 import AddSignerSuccess from './AddSignerSuccess';
@@ -107,11 +105,7 @@ const SignersSheet = ({ visible, onClose }: Props) => {
         <View style={styles.backdrop} />
       </TouchableWithoutFeedback>
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1, justifyContent: 'flex-end' }}
-        pointerEvents="box-none"
-      >
+      <View style={{ flex: 1, justifyContent: 'flex-end' }} pointerEvents="box-none">
         <Animated.View
           style={[
             styles.sheet,
@@ -155,9 +149,10 @@ const SignersSheet = ({ visible, onClose }: Props) => {
                 </TouchableOpacity>
               </Box>
 
-              <ScrollView
+              <KeyboardAwareScrollView
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}
+                bottomOffset={16}
               >
                 {/* Signer Management Card */}
                 <Box backgroundColor="bg11" borderRadius={24} padding="l" mb="l">
@@ -190,7 +185,7 @@ const SignersSheet = ({ visible, onClose }: Props) => {
                 {signers.map((signer) => (
                   <SwipeableSignerItem key={signer.id} signer={signer} onDelete={handleDelete} />
                 ))}
-              </ScrollView>
+              </KeyboardAwareScrollView>
             </>
           ) : step === 'add' ? (
             <AddSignerForm
@@ -220,7 +215,7 @@ const SignersSheet = ({ visible, onClose }: Props) => {
             <AddSignerSuccess signerName={addedSignerName} onContinue={() => setStep('list')} />
           )}
         </Animated.View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 };

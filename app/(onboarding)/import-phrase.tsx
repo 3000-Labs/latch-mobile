@@ -12,14 +12,12 @@ import {
   Dimensions,
   Image,
   Keyboard,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
   StyleSheet,
   TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import Box from '@/src/components/shared/Box';
@@ -43,7 +41,7 @@ const ImportPhrase = () => {
   const [error, setError] = useState<string | null>(null);
 
   const inputsRef = useRef<(TextInput | null)[]>([]);
-  const scrollRef = useRef<ScrollView | null>(null);
+  const scrollRef = useRef<any>(null);
 
   const itemWidth = (width - theme.spacing.m * 2 - theme.spacing.m) / 2;
 
@@ -126,25 +124,20 @@ const ImportPhrase = () => {
         style={StyleSheet.absoluteFill}
       />
       <StatusBar style={statusBarStyle} />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 100}
+      <KeyboardAwareScrollView
+        bounces={false}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        ref={scrollRef}
+        contentContainerStyle={{
+          paddingHorizontal: theme.spacing.m,
+          paddingBottom: 40,
+          paddingTop: 60,
+          flexGrow: 1,
+        }}
         style={{ flex: 1 }}
+        bottomOffset={16}
       >
-        <ScrollView
-          bounces={false}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          ref={(r) => {
-            scrollRef.current = r;
-          }}
-          contentContainerStyle={{
-            paddingHorizontal: theme.spacing.m,
-            paddingBottom: 40,
-            paddingTop: 60,
-            flexGrow: 1,
-          }}
-        >
           {/* Header */}
           <Box flexDirection="row" justifyContent="space-between" mb="m">
             <TouchableOpacity onPress={() => router.back()}>
@@ -224,8 +217,7 @@ const ImportPhrase = () => {
               </Text>
             )}
           </Box>
-        </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
 
       {/* Import Button fixed at bottom */}
       <Box

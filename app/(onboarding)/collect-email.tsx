@@ -34,13 +34,12 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useRef, useState } from 'react';
 import {
   Image,
-  KeyboardAvoidingView,
   Linking,
-  Platform,
   StyleSheet,
   TextInput,
   TouchableOpacity,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type Phase = 'email' | 'otp';
@@ -212,9 +211,11 @@ const CollectEmail = () => {
         end={{ x: 0, y: 0.9 }}
         style={StyleSheet.absoluteFill}
       />
-      <KeyboardAvoidingView
+      <KeyboardAwareScrollView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        contentContainerStyle={{ flexGrow: 1 }}
+        bottomOffset={16}
+        keyboardShouldPersistTaps="handled"
       >
         <StatusBar style={statusBarStyle} />
 
@@ -410,7 +411,7 @@ const CollectEmail = () => {
         {/* Resend */}
 
         {/* Skip (register mode only) */}
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
       <LoadingBlur visible={isLoading} text="Submitting..." />
     </Box>
   );

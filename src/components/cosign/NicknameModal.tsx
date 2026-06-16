@@ -4,7 +4,8 @@ import Input from '@/src/components/shared/Input';
 import Text from '@/src/components/shared/Text';
 import { Formik } from 'formik';
 import React from 'react';
-import { KeyboardAvoidingView, Modal, Platform, StyleSheet } from 'react-native';
+import { Modal, StyleSheet, View } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import * as Yup from 'yup';
 
 const Schema = Yup.object().shape({
@@ -33,11 +34,12 @@ const NicknameModal: React.FC<Props> = ({ visible, signerLabel, initialName, onS
     statusBarTranslucent
     onRequestClose={onClose}
   >
-    <KeyboardAvoidingView
-      style={styles.overlay}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <Box flex={1} justifyContent="flex-end">
+    <View style={styles.overlay}>
+      <KeyboardAwareScrollView
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' }}
+        keyboardShouldPersistTaps="handled"
+        bottomOffset={16}
+      >
         <Box
           backgroundColor="cardbg"
           borderTopLeftRadius={32}
@@ -90,8 +92,8 @@ const NicknameModal: React.FC<Props> = ({ visible, signerLabel, initialName, onS
             )}
           </Formik>
         </Box>
-      </Box>
-    </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
+    </View>
   </Modal>
 );
 

@@ -5,7 +5,8 @@ import Text from '@/src/components/shared/Text';
 import { StrKey } from '@stellar/stellar-sdk';
 import { Formik } from 'formik';
 import React from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import * as Yup from 'yup';
 
 const schema = Yup.object().shape({
@@ -27,15 +28,7 @@ const ScannedMemberForm: React.FC<ScannedMemberFormProps> = ({ address, onAdd, o
   // so it can't be submitted as a signer.
   const isValidAddress = StrKey.isValidContract(address);
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={{
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-      }}
-    >
+    <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
       <Box
         style={{
           backgroundColor: '#1C1C1C',
@@ -54,10 +47,11 @@ const ScannedMemberForm: React.FC<ScannedMemberFormProps> = ({ address, onAdd, o
           <Box width={36} height={4} borderRadius={2} backgroundColor="gray800" />
         </Box>
 
-        <ScrollView
+        <KeyboardAwareScrollView
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           bounces={false}
+          bottomOffset={16}
         >
           <Box paddingHorizontal="m" pb="xl">
             {/* Scanned address */}
@@ -114,9 +108,9 @@ const ScannedMemberForm: React.FC<ScannedMemberFormProps> = ({ address, onAdd, o
               )}
             </Formik>
           </Box>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </Box>
-    </KeyboardAvoidingView>
+    </View>
   );
 };
 

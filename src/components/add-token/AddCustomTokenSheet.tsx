@@ -7,15 +7,14 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
-  KeyboardAvoidingView,
   Modal,
-  Platform,
   StyleSheet,
   TextInput,
   TouchableOpacity,
   TouchableWithoutFeedback,
   View,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Box from '../shared/Box';
 import Text from '../shared/Text';
@@ -105,16 +104,13 @@ const AddCustomTokenSheet = ({ visible, onClose, onAdd }: Props) => {
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={handleClose}>
-      <KeyboardAvoidingView
-        style={styles.kav}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
+      <View style={styles.kav}>
         {/* Backdrop — fills space above the sheet */}
         <TouchableWithoutFeedback onPress={handleClose}>
           <View style={styles.backdrop} />
         </TouchableWithoutFeedback>
 
-        {/* Sheet — sits at bottom of flex column, rises with keyboard */}
+        {/* Sheet — sits at bottom of flex column */}
         <Animated.View
           style={[
             styles.sheet,
@@ -125,83 +121,90 @@ const AddCustomTokenSheet = ({ visible, onClose, onAdd }: Props) => {
             },
           ]}
         >
-          {/* Handle */}
-          <Box alignItems="center" pt="m" pb="s">
-            <Box width={36} height={4} borderRadius={2} backgroundColor="gray800" />
-          </Box>
-
-          {/* Header */}
-          <Box
-            flexDirection="row"
-            alignItems="center"
-            justifyContent="space-between"
-            paddingHorizontal="m"
-            mb="l"
+          <KeyboardAwareScrollView
+            bounces={false}
+            keyboardShouldPersistTaps="handled"
+            bottomOffset={16}
+            showsVerticalScrollIndicator={false}
           >
-            <Text variant="h10" color="textPrimary" fontWeight="700">
-              Add Custom Token
-            </Text>
-            <TouchableOpacity onPress={handleClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Ionicons name="close" size={22} color={theme.colors.textSecondary} />
-            </TouchableOpacity>
-          </Box>
-
-          <Box paddingHorizontal="m">
-            <Box mb="m">
-              <Text variant="p8" color="textSecondary" mb="xs">
-                Asset Code
-              </Text>
-              <TextInput
-                style={inputStyle}
-                placeholder="e.g. USDC"
-                placeholderTextColor={theme.colors.textSecondary}
-                value={code}
-                onChangeText={(v) => { setCode(v); setError(''); }}
-                autoCapitalize="characters"
-              />
+            {/* Handle */}
+            <Box alignItems="center" pt="m" pb="s">
+              <Box width={36} height={4} borderRadius={2} backgroundColor="gray800" />
             </Box>
 
-            <Box mb="m">
-              <Text variant="p8" color="textSecondary" mb="xs">
-                Issuer (G...) or SAC Contract (C...)
+            {/* Header */}
+            <Box
+              flexDirection="row"
+              alignItems="center"
+              justifyContent="space-between"
+              paddingHorizontal="m"
+              mb="l"
+            >
+              <Text variant="h10" color="textPrimary" fontWeight="700">
+                Add Custom Token
               </Text>
-              <TextInput
-                style={[inputStyle, styles.addressInput]}
-                placeholder="G... or C..."
-                placeholderTextColor={theme.colors.textSecondary}
-                value={address}
-                onChangeText={(v) => { setAddress(v); setError(''); }}
-                autoCapitalize="characters"
-                multiline
-              />
+              <TouchableOpacity onPress={handleClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close" size={22} color={theme.colors.textSecondary} />
+              </TouchableOpacity>
             </Box>
 
-            {error ? (
-              <Text variant="p8" color="danger900" mb="m">
-                {error}
-              </Text>
-            ) : null}
-
-            <TouchableOpacity activeOpacity={0.85} onPress={handleSubmit} disabled={adding}>
-              <Box
-                backgroundColor="primary700"
-                borderRadius={16}
-                paddingVertical="m"
-                alignItems="center"
-                opacity={adding ? 0.6 : 1}
-              >
-                {adding ? (
-                  <ActivityIndicator size="small" color="#000" />
-                ) : (
-                  <Text variant="h11" color="black" fontWeight="700">
-                    Add Token
-                  </Text>
-                )}
+            <Box paddingHorizontal="m">
+              <Box mb="m">
+                <Text variant="p8" color="textSecondary" mb="xs">
+                  Asset Code
+                </Text>
+                <TextInput
+                  style={inputStyle}
+                  placeholder="e.g. USDC"
+                  placeholderTextColor={theme.colors.textSecondary}
+                  value={code}
+                  onChangeText={(v) => { setCode(v); setError(''); }}
+                  autoCapitalize="characters"
+                />
               </Box>
-            </TouchableOpacity>
-          </Box>
+
+              <Box mb="m">
+                <Text variant="p8" color="textSecondary" mb="xs">
+                  Issuer (G...) or SAC Contract (C...)
+                </Text>
+                <TextInput
+                  style={[inputStyle, styles.addressInput]}
+                  placeholder="G... or C..."
+                  placeholderTextColor={theme.colors.textSecondary}
+                  value={address}
+                  onChangeText={(v) => { setAddress(v); setError(''); }}
+                  autoCapitalize="characters"
+                  multiline
+                />
+              </Box>
+
+              {error ? (
+                <Text variant="p8" color="danger900" mb="m">
+                  {error}
+                </Text>
+              ) : null}
+
+              <TouchableOpacity activeOpacity={0.85} onPress={handleSubmit} disabled={adding}>
+                <Box
+                  backgroundColor="primary700"
+                  borderRadius={16}
+                  paddingVertical="m"
+                  alignItems="center"
+                  opacity={adding ? 0.6 : 1}
+                >
+                  {adding ? (
+                    <ActivityIndicator size="small" color="#000" />
+                  ) : (
+                    <Text variant="h11" color="black" fontWeight="700">
+                      Add Token
+                    </Text>
+                  )}
+                </Box>
+              </TouchableOpacity>
+            </Box>
+          </KeyboardAwareScrollView>
         </Animated.View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 };

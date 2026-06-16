@@ -12,14 +12,12 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Dimensions,
-  KeyboardAvoidingView,
   Modal,
-  Platform,
-  ScrollView,
   StyleSheet,
   TouchableWithoutFeedback,
   View,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
@@ -277,10 +275,11 @@ const AccountSwitcherSheet = ({ visible, onClose }: Props) => {
         return (
           <>
             <AccountSheetHeader onClose={onClose} onAdd={() => setStep('add-prompt')} />
-            <ScrollView
+            <KeyboardAwareScrollView
               showsVerticalScrollIndicator={false}
               contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}
               style={{ flexShrink: 1 }}
+              bottomOffset={16}
             >
               {regular.length > 0 && (
                 <>
@@ -294,7 +293,7 @@ const AccountSwitcherSheet = ({ visible, onClose }: Props) => {
                   {multisig.map(renderAccount)}
                 </>
               )}
-            </ScrollView>
+            </KeyboardAwareScrollView>
           </>
         );
       }
@@ -307,11 +306,7 @@ const AccountSwitcherSheet = ({ visible, onClose }: Props) => {
         <View style={styles.backdrop} />
       </TouchableWithoutFeedback>
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1, justifyContent: 'flex-end' }}
-        pointerEvents="box-none"
-      >
+      <View style={{ flex: 1, justifyContent: 'flex-end' }} pointerEvents="box-none">
         <Animated.View
           style={[
             styles.sheet,
@@ -332,7 +327,7 @@ const AccountSwitcherSheet = ({ visible, onClose }: Props) => {
             subText="Deploying your new Smart Account to the Stellar network. This only takes a moment."
           />
         </Animated.View>
-      </KeyboardAvoidingView>
+      </View>
 
       <LoadingBlur visible={isSwitching} text="Switching account..." />
     </Modal>

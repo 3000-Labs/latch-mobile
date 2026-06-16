@@ -3,15 +3,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Modal,
-  ScrollView,
   StyleSheet,
   TouchableOpacity,
   TouchableWithoutFeedback,
   View,
-  KeyboardAvoidingView,
-  Platform,
   Dimensions,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import * as Yup from 'yup';
@@ -127,11 +125,7 @@ const AccountInfoSheet = ({ visible, onClose }: Props) => {
         <View style={styles.backdrop} />
       </TouchableWithoutFeedback>
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1, justifyContent: 'flex-end' }}
-        pointerEvents="box-none"
-      >
+      <View style={{ flex: 1, justifyContent: 'flex-end' }} pointerEvents="box-none">
         <Animated.View
           style={[
             styles.sheet,
@@ -171,11 +165,12 @@ const AccountInfoSheet = ({ visible, onClose }: Props) => {
               
               return (
                 <View style={{ flex: 1 }}>
-                  <ScrollView
+                  <KeyboardAwareScrollView
                     style={{ flex: 1 }}
                     showsVerticalScrollIndicator={false}
                     contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 20 }}
                     bounces={false}
+                    bottomOffset={16}
                   >
                     <ProfileImageSection
                       imageSource={selectedImage ? { uri: selectedImage } : require('@/src/assets/token/user.png')}
@@ -216,7 +211,7 @@ const AccountInfoSheet = ({ visible, onClose }: Props) => {
                         </Text>
                       </Box>
                     </Box>
-                  </ScrollView>
+                  </KeyboardAwareScrollView>
 
                   <Box padding="m">
                     <TouchableOpacity 
@@ -247,7 +242,7 @@ const AccountInfoSheet = ({ visible, onClose }: Props) => {
             }}
           </Formik>
         </Animated.View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 };

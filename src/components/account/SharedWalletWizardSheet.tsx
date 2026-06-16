@@ -46,15 +46,14 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Dimensions,
-  KeyboardAvoidingView,
   Modal,
-  Platform,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
   TouchableWithoutFeedback,
   View,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SharedWalletResultModal from './SharedWalletResultModal';
 
@@ -448,14 +447,13 @@ const SharedWalletWizardSheet = ({ visible, onClose }: Props) => {
     switch (step) {
       case 'name':
         return (
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={{ flex: 1 }}
-          >
-            <ScrollView
+          <>
+            <KeyboardAwareScrollView
               showsVerticalScrollIndicator={false}
               contentContainerStyle={{ flexGrow: 1 }}
               keyboardShouldPersistTaps="handled"
+              style={{ flex: 1 }}
+              bottomOffset={16}
             >
               <Box flex={1} px="m" justifyContent="flex-start" mt="xs">
                 {/* <CreateSharedTitleSection /> */}
@@ -491,14 +489,14 @@ const SharedWalletWizardSheet = ({ visible, onClose }: Props) => {
                   />
                 </Box>
               </Box>
-            </ScrollView>
+            </KeyboardAwareScrollView>
             <Box px="m" style={{ paddingTop: 12, paddingBottom: 12 }}>
               <CreateSharedContinueButton
                 disabled={!walletName.trim()}
                 onPress={handleContinueName}
               />
             </Box>
-          </KeyboardAvoidingView>
+          </>
         );
 
       case 'members':

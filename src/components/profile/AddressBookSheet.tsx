@@ -4,15 +4,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Dimensions,
-  KeyboardAvoidingView,
   Modal,
-  Platform,
-  ScrollView,
   StyleSheet,
   TouchableOpacity,
   TouchableWithoutFeedback,
   View,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import AddressBookForm from '@/src/components/address-book/AddressBookForm';
@@ -89,10 +87,7 @@ const AddressBookSheet = ({ visible, onClose, prefillAddress }: Props) => {
 
   return (
     <Modal transparent visible={visible} animationType="none" onRequestClose={handleBack}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1 }}
-      >
+      <View style={{ flex: 1 }}>
         <TouchableWithoutFeedback onPress={handleClose}>
           <View style={styles.backdrop} />
         </TouchableWithoutFeedback>
@@ -147,7 +142,7 @@ const AddressBookSheet = ({ visible, onClose, prefillAddress }: Props) => {
               <EmptyAddressBook onAdd={() => setScreenState('FORM')} />
             ) : (
               <Box flex={1}>
-                <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 20 }}>
+                <KeyboardAwareScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 20 }} bottomOffset={16}>
                   {addresses.map((item) => (
                     <AddressBookItem
                       key={item.id}
@@ -156,14 +151,14 @@ const AddressBookSheet = ({ visible, onClose, prefillAddress }: Props) => {
                       onDelete={() => removeEntry(item.id)}
                     />
                   ))}
-                </ScrollView>
+                </KeyboardAwareScrollView>
               </Box>
             )
           ) : (
             <AddressBookForm onSubmit={handleAddAddress} initialAddress={prefillAddress} />
           )}
         </Animated.View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 };

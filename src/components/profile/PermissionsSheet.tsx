@@ -5,15 +5,13 @@ import {
   Animated,
   Dimensions,
   Image,
-  KeyboardAvoidingView,
   Modal,
-  Platform,
-  ScrollView,
   StyleSheet,
   TouchableOpacity,
   TouchableWithoutFeedback,
   View,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import BottomSheetHandle from '@/src/components/shared/BottomSheetHandle';
@@ -92,11 +90,7 @@ const PermissionsSheet = ({ visible, onClose }: Props) => {
         <View style={styles.backdrop} />
       </TouchableWithoutFeedback>
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1, justifyContent: 'flex-end' }}
-        pointerEvents="box-none"
-      >
+      <View style={{ flex: 1, justifyContent: 'flex-end' }} pointerEvents="box-none">
         <Animated.View
           style={[
             styles.sheet,
@@ -172,7 +166,7 @@ const PermissionsSheet = ({ visible, onClose }: Props) => {
             />
           ) : permissions.length > 0 ? (
             /* Active State */
-            <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}>
+            <KeyboardAwareScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }} bottomOffset={16}>
               {/* Info Card */}
               <Box backgroundColor="bg11" borderRadius={16} padding="m" mb="m">
                 <Text variant="h10" color="textPrimary" fontWeight="700" mb="s">
@@ -192,7 +186,7 @@ const PermissionsSheet = ({ visible, onClose }: Props) => {
               {permissions.map((p) => (
                 <PermissionItem key={p.id} permission={p} />
               ))}
-            </ScrollView>
+            </KeyboardAwareScrollView>
           ) : (
             /* Content (Empty State) */
             <Box flex={1} alignItems="center" justifyContent="center" paddingHorizontal="xl">
@@ -215,7 +209,7 @@ const PermissionsSheet = ({ visible, onClose }: Props) => {
           )}
           <PermissionsInfoModal visible={showInfo} onClose={() => setShowInfo(false)} />
         </Animated.View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 };

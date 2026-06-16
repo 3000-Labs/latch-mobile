@@ -29,12 +29,11 @@ import React from 'react';
 import {
   ActivityIndicator,
   Image,
-  KeyboardAvoidingView,
-  Platform,
   StyleSheet,
   TextInput,
   TouchableOpacity,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Yup from 'yup';
 
@@ -104,9 +103,11 @@ const SetRecoveryPassword = () => {
   };
 
   return (
-    <KeyboardAvoidingView
+    <KeyboardAwareScrollView
       style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      contentContainerStyle={{ flexGrow: 1 }}
+      bottomOffset={16}
+      keyboardShouldPersistTaps="handled"
     >
       <Box
         flex={1}
@@ -259,7 +260,7 @@ const SetRecoveryPassword = () => {
           )}
         </Formik>
       </Box>
-    </KeyboardAvoidingView>
+    </KeyboardAwareScrollView>
   );
 };
 

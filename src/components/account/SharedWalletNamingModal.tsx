@@ -1,6 +1,7 @@
 import { Formik } from 'formik';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, StyleSheet } from 'react-native';
+import { ActivityIndicator, Modal, StyleSheet, View } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import Toast from 'react-native-toast-message';
 import * as Yup from 'yup';
 
@@ -122,11 +123,12 @@ const SharedWalletNamingModal = () => {
       statusBarTranslucent
       onRequestClose={handleNotNow}
     >
-      <KeyboardAvoidingView
-        style={styles.overlay}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <Box flex={1} justifyContent="flex-end">
+      <View style={styles.overlay}>
+        <KeyboardAwareScrollView
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' }}
+          keyboardShouldPersistTaps="handled"
+          bottomOffset={16}
+        >
           <Box
             backgroundColor="cardbg"
             borderTopLeftRadius={32}
@@ -230,8 +232,8 @@ const SharedWalletNamingModal = () => {
               )}
             </Formik>
           </Box>
-        </Box>
-      </KeyboardAvoidingView>
+        </KeyboardAwareScrollView>
+      </View>
     </Modal>
   );
 };

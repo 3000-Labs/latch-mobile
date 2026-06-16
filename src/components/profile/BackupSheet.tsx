@@ -16,14 +16,13 @@ import {
   ActivityIndicator,
   Animated,
   Dimensions,
-  KeyboardAvoidingView,
   Modal,
-  Platform,
   StyleSheet,
   TouchableOpacity,
   TouchableWithoutFeedback,
   View,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import * as Yup from 'yup';
@@ -111,11 +110,7 @@ const BackupSheet = ({ visible, onClose }: Props) => {
         <View style={styles.backdrop} />
       </TouchableWithoutFeedback>
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1, justifyContent: 'flex-end' }}
-        pointerEvents="box-none"
-      >
+      <View style={{ flex: 1, justifyContent: 'flex-end' }} pointerEvents="box-none">
         <Animated.View
           style={[
             styles.sheet,
@@ -150,7 +145,11 @@ const BackupSheet = ({ visible, onClose }: Props) => {
             <Box width={40} />
           </Box>
 
-          <Box paddingHorizontal="m" flex={1}>
+          <KeyboardAwareScrollView
+            contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 16 }}
+            bottomOffset={16}
+            showsVerticalScrollIndicator={false}
+          >
             {/* Status row */}
             <Box
               backgroundColor="bg11"
@@ -276,9 +275,9 @@ const BackupSheet = ({ visible, onClose }: Props) => {
                 </Box>
               )}
             </Formik>
-          </Box>
+          </KeyboardAwareScrollView>
         </Animated.View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 };

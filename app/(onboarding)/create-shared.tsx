@@ -3,7 +3,8 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Formik } from 'formik';
 import React from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Yup from 'yup';
 
@@ -56,15 +57,13 @@ const CreateSharedWallet = () => {
           {/* Top Header - Back Button & Centered Logo (Notch Safe) */}
           <Header />
 
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          <KeyboardAwareScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ flexGrow: 1 }}
+            keyboardShouldPersistTaps="handled"
             style={{ flex: 1 }}
+            bottomOffset={16}
           >
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ flexGrow: 1 }}
-              keyboardShouldPersistTaps="handled"
-            >
               {/* Main content scroll/body area */}
               <Box flex={1} px="m" justifyContent="flex-start" mt="xs">
                 {/* Large centered title section */}
@@ -95,8 +94,7 @@ const CreateSharedWallet = () => {
                   />
                 </Box>
               </Box>
-            </ScrollView>
-          </KeyboardAvoidingView>
+          </KeyboardAwareScrollView>
 
           {/* Bottom Continue Button (Safe Area Aware) */}
           <Box
