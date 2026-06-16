@@ -32,10 +32,8 @@ const TransactionStatusHeaderMultisig = ({
   return (
     <Box alignItems="center" mt="xl" mb="xl">
       <Box
-        width={80}
-        height={80}
-        borderRadius={40}
-        // backgroundColor={isDark ? 'bg11' : 'bg900'}
+        width={180}
+        height={156}
         justifyContent="center"
         alignItems="center"
         mb="l"
@@ -43,11 +41,11 @@ const TransactionStatusHeaderMultisig = ({
       >
         <Image
           source={require('@/src/assets/images/success.png')}
-          style={{ width: 180, height: 156, resizeMode: 'contain' }}
+          style={{ width: '100%', height: '100%', resizeMode: 'cover' }}
         />
       </Box>
 
-      <Text variant="h7" color="textPrimary" fontWeight="700" style={{ fontSize: 36 }}>
+      <Text variant="h7" color="textPrimary" fontWeight="700">
         Transaction Completed
       </Text>
       <Text
@@ -56,7 +54,7 @@ const TransactionStatusHeaderMultisig = ({
         mt="xs"
         textAlign="center"
         lineHeight={21}
-        style={{ maxWidth: '90%' }}
+        style={{ maxWidth: '85%' }}
       >
         The transaction has been approved and executed successfully.
       </Text>

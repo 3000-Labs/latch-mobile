@@ -29,6 +29,8 @@ const runtimeEnv = z
     EXPO_PUBLIC_SMART_ACCOUNT_WASM_HASH: z.string(),
     EXPO_PUBLIC_FACTORY_ADDRESS: z.string(),
     EXPO_PUBLIC_BUNDLER_SECRET: z.string(),
+    EXPO_PUBLIC_SOROSWAP_API_URL: z.string().default('https://api.soroswap.finance'),
+    EXPO_PUBLIC_SOROSWAP_API_KEY: z.string().optional(),
     // SENTRY_AUTH_TOKEN: z.string(),
   })
   .partial();
@@ -80,6 +82,8 @@ const envObject = {
   EXPO_PUBLIC_SMART_ACCOUNT_WASM_HASH: process.env.EXPO_PUBLIC_SMART_ACCOUNT_WASM_HASH,
   EXPO_PUBLIC_FACTORY_ADDRESS: process.env.EXPO_PUBLIC_FACTORY_ADDRESS,
   EXPO_PUBLIC_BUNDLER_SECRET: process.env.EXPO_PUBLIC_BUNDLER_SECRET,
+  EXPO_PUBLIC_SOROSWAP_API_URL: process.env.EXPO_PUBLIC_SOROSWAP_API_URL,
+  EXPO_PUBLIC_SOROSWAP_API_KEY: process.env.EXPO_PUBLIC_SOROSWAP_API_KEY,
 
   // SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,
 };

@@ -7,7 +7,7 @@ interface CreateWalletButtonProps {
 }
 
 const CreateWalletButton: React.FC<CreateWalletButtonProps> = ({ onPress, loading }) => {
-  return <Button label="Create Shared Wallet" onPress={onPress} loading={loading} />;
+  return <Button label="Create Multisig Wallet" onPress={onPress} loading={loading} />;
 };
 
 export default CreateWalletButton;

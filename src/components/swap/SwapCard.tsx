@@ -48,7 +48,9 @@ const SwapCard: React.FC<SwapCardProps> = ({
     if (!value) return '';
     const num = parseFloat(value);
     if (isNaN(num)) return value;
-    return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    // Up to 7 dp (Stellar token precision) so small estimated outputs aren't
+    // truncated to 0.00 (e.g. a fraction of a BTC).
+    return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 7 });
   };
 
   return (

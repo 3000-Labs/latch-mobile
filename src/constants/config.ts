@@ -50,9 +50,35 @@ export const BASE_RESERVE_MIN_COUNT = 2;
 // Must be a stable domain string — the on-chain verifier checks signature math, not this value.
 const PASSKEY_RP_ID = process.env.EXPO_PUBLIC_PASSKEY_RP_ID ?? 'latch.finance';
 
+// ─── Swap / liquidity aggregation (Soroswap Aggregator API) ───────────────────
+// The API key is baked into the bundle (EXPO_PUBLIC_*). Testnet only — move the
+// key behind a backend proxy before production, same as EXPO_PUBLIC_BUNDLER_SECRET.
+const SOROSWAP_API_URL = (
+  process.env.EXPO_PUBLIC_SOROSWAP_API_URL ?? 'https://api.soroswap.finance'
+).replace(/\/+$/, '');
+const SOROSWAP_API_KEY = process.env.EXPO_PUBLIC_SOROSWAP_API_KEY ?? '';
+// Soroswap expects the network as a lowercase query param (?network=testnet|mainnet).
+const SOROSWAP_NETWORK = ACTIVE_NETWORK.network === 'TESTNET' ? 'testnet' : 'mainnet';
+
+// ─── Aquarius AMM (testnet swap liquidity) ────────────────────────────────────
+// Soroswap has no testnet pools, but Aquarius does. These are TESTNET values —
+// Aquarius resets testnet quarterly, so the router can be overridden via env.
+// (Mainnet swaps use Soroswap, not Aquarius.)
+const AQUARIUS_AMM_API_URL =
+  process.env.EXPO_PUBLIC_AQUARIUS_API_URL ??
+  'https://amm-api-testnet.aqua.network/api/external/v1';
+const AQUARIUS_ROUTER_ADDRESS =
+  process.env.EXPO_PUBLIC_AQUARIUS_ROUTER ??
+  'CBCFTQSPDBAIZ6R6PJQKSQWKNKWH2QIV3I4J72SHWBIK3ADRRAM5A6GD';
+
 export {
+  AQUARIUS_AMM_API_URL,
+  AQUARIUS_ROUTER_ADDRESS,
   HORIZON_URL,
   PASSKEY_RP_ID,
+  SOROSWAP_API_KEY,
+  SOROSWAP_API_URL,
+  SOROSWAP_NETWORK,
   STELLAR_AUTH_PREFIX,
   STELLAR_NETWORK_PASSPHRASE,
   STELLAR_RPC_URL,

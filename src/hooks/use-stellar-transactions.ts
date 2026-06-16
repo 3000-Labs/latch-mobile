@@ -399,9 +399,9 @@ async function fetchGAddressOps(gAddress: string, cAddress: string): Promise<Ste
     const matched = changes.filter((c: any) => c.from === cAddress || c.to === cAddress);
 
     if (matched.length > 0) {
-      for (const change of matched) {
+      matched.forEach((change, ci) => {
         results.push({
-          id: op.id,
+          id: matched.length > 1 ? `${op.id}_${ci}` : op.id,
           transactionHash: op.transaction_hash ?? '',
           type: 'invoke_host_function',
           txType: 'unknown',
@@ -412,7 +412,7 @@ async function fetchGAddressOps(gAddress: string, cAddress: string): Promise<Ste
           assetCode: change.asset_code,
           createdAt: op.created_at ?? '',
         });
-      }
+      });
     } else {
       needEffects.push(op);
     }
@@ -503,9 +503,9 @@ async function fetchBundlerOps(cAddress: string): Promise<StellarPayment[]> {
     const changes: any[] = op.asset_balance_changes ?? [];
     const matched = changes.filter((c: any) => c.from === cAddress || c.to === cAddress);
 
-    for (const change of matched) {
+    matched.forEach((change, ci) => {
       results.push({
-        id: op.id,
+        id: matched.length > 1 ? `${op.id}_${ci}` : op.id,
         transactionHash: op.transaction_hash ?? '',
         type: 'invoke_host_function',
         txType: 'unknown',
@@ -516,7 +516,7 @@ async function fetchBundlerOps(cAddress: string): Promise<StellarPayment[]> {
         assetCode: change.asset_code,
         createdAt: op.created_at ?? '',
       });
-    }
+    });
   }
 
   if (__DEV__) console.log('[bundler] matched for cAddress:', results.length);

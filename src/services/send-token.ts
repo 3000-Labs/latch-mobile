@@ -62,6 +62,24 @@ function hashAuthPayload(entry: xdr.SorobanAuthorizationEntry): Buffer {
 // do_check_auth computes authDigest = sha256(payloadHash || toXDR(Vec[u32(0)])) and
 // passes it to verifier.verify(authDigest, pk, sig). The verifier then checks
 // ed25519_verify(pk, "Stellar Smart Account Auth:\n" + hex(authDigest), sig).
+// Count every invocation node in the auth entry's tree. Soroban flattens this
+// tree into the `auth_contexts` Vec passed to __check_auth (one Context per
+// node), and OZ's do_check_auth requires context_rule_ids.len() ==
+// auth_contexts.len() (else SmartAccountError #3014). A plain transfer is a
+// single node; a DEX swap (router → pool → transfer) is several.
+function countAuthContexts(inv: xdr.SorobanAuthorizedInvocation): number {
+  let n = 1;
+  for (const sub of inv.subInvocations()) n += countAuthContexts(sub);
+  return n;
+}
+
+// One context_rule_id (0 = default rule) per auth context. Used for BOTH the
+// signed auth digest and the AuthPayload's context_rule_ids — they must match.
+function buildContextRuleIds(entry: xdr.SorobanAuthorizationEntry): xdr.ScVal {
+  const count = countAuthContexts(entry.rootInvocation());
+  return xdr.ScVal.scvVec(Array.from({ length: count }, () => xdr.ScVal.scvU32(0)));
+}
+
 export function signSmartAccountAuthEntry(
   entry: xdr.SorobanAuthorizationEntry,
   keypair: Keypair,
@@ -75,8 +93,10 @@ export function signSmartAccountAuthEntry(
 
   const payloadHash = hashAuthPayload(entry);
 
-  // authDigest = sha256(payloadHash || toXDR(Vec[u32(0)]))
-  const ruleIdsXdr = new Uint8Array(xdr.ScVal.scvVec([xdr.ScVal.scvU32(0)]).toXDR());
+  // authDigest = sha256(payloadHash || toXDR(context_rule_ids)). One id per
+  // auth context (see buildContextRuleIds) — a length mismatch fails #3014.
+  const ruleIdsScVal = buildContextRuleIds(entry);
+  const ruleIdsXdr = new Uint8Array(ruleIdsScVal.toXDR());
   const combined = new Uint8Array(payloadHash.length + ruleIdsXdr.length);
   combined.set(payloadHash);
   combined.set(ruleIdsXdr, payloadHash.length);
@@ -95,7 +115,7 @@ export function signSmartAccountAuthEntry(
   const signaturesScVal = xdr.ScVal.scvMap([
     new xdr.ScMapEntry({
       key: xdr.ScVal.scvSymbol('context_rule_ids'),
-      val: xdr.ScVal.scvVec([xdr.ScVal.scvU32(0)]),
+      val: ruleIdsScVal,
     }),
     new xdr.ScMapEntry({
       key: xdr.ScVal.scvSymbol('signers'),
@@ -311,7 +331,7 @@ export async function fetchWebAuthnVerifier(): Promise<string> {
 // #3003, which is a signature failure). So we must present the same verifier the
 // signer was registered under, not whatever the factory config currently points
 // at. Falls back to the factory config verifier if the device key isn't found.
-async function resolveRegisteredWebAuthnVerifier(
+export async function resolveRegisteredWebAuthnVerifier(
   smartAccountAddress: string,
   listIndex: number,
 ): Promise<string> {
@@ -362,7 +382,8 @@ export async function signPasskeyAuthEntry(
   // auth_digest = sha256(payloadHash || toXDR(Vec[u32(0)])) — this is what do_check_auth
   // passes to verifier.verify(). The WebAuthn verifier checks that
   // clientDataJSON.challenge == base64url(auth_digest), so we must sign authDigest, not payloadHash.
-  const ruleIdsXdr = new Uint8Array(xdr.ScVal.scvVec([xdr.ScVal.scvU32(0)]).toXDR());
+  const ruleIdsScVal = buildContextRuleIds(entry);
+  const ruleIdsXdr = new Uint8Array(ruleIdsScVal.toXDR());
   const combined = new Uint8Array(payloadHash.length + ruleIdsXdr.length);
   combined.set(payloadHash);
   combined.set(ruleIdsXdr, payloadHash.length);
@@ -385,7 +406,7 @@ export async function signPasskeyAuthEntry(
   const payload = xdr.ScVal.scvMap([
     new xdr.ScMapEntry({
       key: xdr.ScVal.scvSymbol('context_rule_ids'),
-      val: xdr.ScVal.scvVec([xdr.ScVal.scvU32(0)]),
+      val: ruleIdsScVal,
     }),
     new xdr.ScMapEntry({
       key: xdr.ScVal.scvSymbol('signers'),

@@ -28,6 +28,7 @@ const ThankYou = () => {
     subtext?: string;
     buttonLabel?: string;
     buttonFunction?: string;
+    buttonFunctionRaw?: string;
     imageSource?: string;
     accountAddress?: string;
   }>();
@@ -39,7 +40,9 @@ const ThankYou = () => {
   const imageSource = params.imageSource || 'success';
 
   const handleButtonPress = () => {
-    if (params.buttonFunction) {
+    if (params.buttonFunctionRaw === 'true') {
+      router.back();
+    } else if (params.buttonFunction) {
       router.push(params.buttonFunction as any);
     } else {
       router.replace('/(tabs)');
