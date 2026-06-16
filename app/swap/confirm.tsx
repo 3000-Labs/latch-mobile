@@ -298,7 +298,7 @@ const ConfirmSwap = () => {
               </Text>
             </Box>
             <Box>
-              <Ionicons name="ellipsis-horizontal" size={20} color={theme.colors.textSecondary} />
+              {/* <Ionicons name="ellipsis-horizontal" size={20} color={theme.colors.textSecondary} /> */}
             </Box>
           </Box>
         </Box>

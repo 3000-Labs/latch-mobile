@@ -24,7 +24,13 @@ import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFormik } from 'formik';
 import React, { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
+import {
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+} from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Yup from 'yup';
@@ -345,8 +351,15 @@ const Swap = () => {
               borderRadius={28}
               justifyContent="center"
               alignItems="center"
+              flexDirection={'row'}
+              gap={'sm'}
             >
-              <Text variant="h10" color="bgDark900" style={{ fontWeight: '600' }}>
+              {quotePending && <ActivityIndicator color={theme.colors.textPrimary} />}
+              <Text
+                variant="h10"
+                color={quotePending || insufficient || !amountNum ? 'white' : 'bgDark900'}
+                style={{ fontWeight: '600' }}
+              >
                 {!amountNum
                   ? 'Enter Amount'
                   : insufficient
