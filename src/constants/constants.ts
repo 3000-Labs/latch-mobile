@@ -1,5 +1,5 @@
-/* eslint-disable @typescript-eslint/naming-convention */
 import { Networks } from '@stellar/stellar-sdk';
+// eslint-disable-next-line import/no-named-as-default
 import BigNumber from 'bignumber.js';
 import { Dimensions } from 'react-native';
 
@@ -236,7 +236,7 @@ export enum SWAP_SELECTION_TYPES {
   DESTINATION = 'destination',
 }
 
-export const DEFAULT_NETWORKS: Array<NetworkDetails> = [
+export const DEFAULT_NETWORKS: NetworkDetails[] = [
   PUBLIC_NETWORK_DETAILS,
   TESTNET_NETWORK_DETAILS,
 ];

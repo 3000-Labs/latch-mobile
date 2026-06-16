@@ -34,6 +34,8 @@ export interface SessionKey {
   expiresAt: number;
   /** Display only — not enforced on-chain (no spend-limit policy contract). */
   spendingLimit: string;
+  /** Token code the limit is denominated in (e.g. 'USDC', 'XLM'). */
+  spendingLimitAsset: string;
   createdAt: number;
   status: 'active' | 'revoked';
 }

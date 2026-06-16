@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
 import { Formik } from 'formik';
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Dimensions,
@@ -25,6 +25,7 @@ import { usePermissions } from '@/src/store/permissions';
 import { useWalletStore } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
 import { useAppTheme } from '@/src/theme/ThemeContext';
+import SessionKeyTokenPicker, { largestBalanceCode, useHeldTokens } from './SessionKeyTokenPicker';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -53,6 +54,9 @@ const PoliciesSheet = ({ visible, onClose }: Props) => {
   const { byAccount, rehydrate, setThreshold, setSpendLimit } = usePermissions();
   const policies = byAccount[accountAddress]?.policies;
 
+  const tokens = useHeldTokens();
+  const [pickerVisible, setPickerVisible] = useState(false);
+
   const validationSchema = Yup.object().shape({
     threshold: Yup.number()
       .integer()
@@ -69,7 +73,7 @@ const PoliciesSheet = ({ visible, onClose }: Props) => {
   const initialValues: PolicyFormValues = {
     threshold: policies?.threshold ?? 1,
     spendAmount: policies?.spendLimit?.amount ?? '',
-    spendAsset: policies?.spendLimit?.asset ?? 'USDC',
+    spendAsset: policies?.spendLimit?.asset ?? largestBalanceCode(tokens),
   };
 
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
@@ -271,17 +275,39 @@ const PoliciesSheet = ({ visible, onClose }: Props) => {
                         onChangeText={handleChange('spendAmount')}
                         keyboardType="decimal-pad"
                         rightElement={
-                          <Box
-                            backgroundColor={isDark ? 'gray800' : 'cardbg'}
-                            paddingHorizontal="m"
-                            py="s"
-                            borderRadius={12}
+                          <TouchableOpacity
+                            activeOpacity={0.7}
+                            onPress={() => setPickerVisible(true)}
                           >
-                            <Text variant="p6" color="textPrimary" fontWeight="700">
-                              {values.spendAsset}
-                            </Text>
-                          </Box>
+                            <Box
+                              flexDirection="row"
+                              alignItems="center"
+                              backgroundColor={isDark ? 'gray800' : 'cardbg'}
+                              paddingHorizontal="m"
+                              py="s"
+                              borderRadius={12}
+                            >
+                              <Text variant="p6" color="textPrimary" fontWeight="700">
+                                {values.spendAsset}
+                              </Text>
+                              <Ionicons
+                                name="chevron-down"
+                                size={14}
+                                color={isDark ? '#fff' : '#000'}
+                                style={{ marginLeft: 4 }}
+                              />
+                            </Box>
+                          </TouchableOpacity>
                         }
+                      />
+                      <SessionKeyTokenPicker
+                        visible={pickerVisible}
+                        tokens={tokens}
+                        onClose={() => setPickerVisible(false)}
+                        onSelect={(token) => {
+                          setFieldValue('spendAsset', token.code);
+                          setPickerVisible(false);
+                        }}
                       />
                       {touched.spendAmount && errors.spendAmount && (
                         <Text color="inputError" variant="p7" mt="xs">

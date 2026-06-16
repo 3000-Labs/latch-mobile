@@ -106,7 +106,7 @@ const AccountInfoSheet = ({ visible, onClose }: Props) => {
       });
       
       onClose();
-    } catch (error) {
+    } catch {
       Toast.show({
         type: 'error',
         text1: 'Error',
@@ -116,8 +116,6 @@ const AccountInfoSheet = ({ visible, onClose }: Props) => {
   };
 
   if (!activeAccount && visible) return null;
-
-  const isModified = activeAccount && (initialValues.walletName !== initialValues.walletName || selectedImage !== activeAccount.image);
 
   return (
     <Modal transparent visible={visible} animationType="none" onRequestClose={onClose}>

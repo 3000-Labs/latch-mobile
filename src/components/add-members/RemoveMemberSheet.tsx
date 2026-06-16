@@ -42,7 +42,7 @@ const RemoveMemberSheet: React.FC<Props> = ({ visible, onCancel, onConfirm }) =>
         useNativeDriver: true,
       }).start();
     }
-  }, [visible]);
+  }, [visible, translateY]);
 
   const dismiss = (cb: () => void) => {
     Animated.timing(translateY, {

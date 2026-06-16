@@ -56,7 +56,7 @@ const FundWalletSheet = ({ visible, onClose, address, memo }: Props) => {
         useNativeDriver: true,
       }).start();
     }
-  }, [visible]);
+  }, [visible, translateY]);
 
   const handleClose = () => {
     Animated.timing(translateY, {

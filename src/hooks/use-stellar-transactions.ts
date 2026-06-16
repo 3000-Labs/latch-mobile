@@ -698,8 +698,6 @@ export async function fetchStellarPayments(
   cAddress: string,
   gAddress?: string | null,
 ): Promise<StellarPayment[]> {
-  const isPasskey = !gAddress;
-
   const [gAddrResult, bundlerResult, sacResult] = await Promise.allSettled([
     gAddress ? fetchGAddressOps(gAddress, cAddress) : Promise.resolve([]),
     fetchBundlerOps(cAddress),

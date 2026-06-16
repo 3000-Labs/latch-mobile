@@ -76,7 +76,7 @@ const PermissionItem = ({ permission }: Props) => {
               {permission.spendingLimit}
             </Text>
             <Text variant="p6" color="textTertiary">
-              USDC
+              {permission.spendingLimitAsset}
             </Text>
           </Box>
         </Box>

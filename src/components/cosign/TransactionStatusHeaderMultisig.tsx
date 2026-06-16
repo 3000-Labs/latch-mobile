@@ -1,6 +1,5 @@
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
-import { useTokenIcon } from '@/src/hooks/use-token-list';
 import React from 'react';
 import { Image } from 'react-native';
 
@@ -19,16 +18,6 @@ const TransactionStatusHeaderMultisig = ({
   type,
   isDark,
 }: TransactionStatusHeaderProps) => {
-  const isReceived = type === 'received';
-  const prefix = isReceived ? '+' : '-';
-  const iconUrl = useTokenIcon(assetCode);
-
-  const amountNum = parseFloat(amount);
-  const formattedAmount = amountNum.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 7,
-  });
-
   return (
     <Box alignItems="center" mt="xl" mb="xl">
       <Box

@@ -59,7 +59,7 @@ const AddressBookSheet = ({ visible, onClose, prefillAddress }: Props) => {
         useNativeDriver: true,
       }).start();
     }
-  }, [visible]);
+  }, [visible, translateY, prefillAddress]);
 
   const handleClose = () => {
     Animated.timing(translateY, {

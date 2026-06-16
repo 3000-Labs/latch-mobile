@@ -4,8 +4,6 @@ import { TouchableOpacity } from 'react-native';
 import Box from '@/src/components/shared/Box';
 import Input from '@/src/components/shared/Input';
 import Text from '@/src/components/shared/Text';
-import { useAppTheme } from '@/src/theme/ThemeContext';
-
 interface Props {
   values: { name: string };
   errors: { name?: string };
@@ -15,7 +13,6 @@ interface Props {
 }
 
 const SessionKeyStep1 = ({ values, errors, touched, setFieldValue, onNext }: Props) => {
-  const { isDark } = useAppTheme();
   const isEnabled = values.name.trim().length > 0;
 
   return (

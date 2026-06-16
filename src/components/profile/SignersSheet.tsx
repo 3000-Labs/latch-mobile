@@ -94,11 +94,6 @@ const SignersSheet = ({ visible, onClose }: Props) => {
     }
   }, [visible, translateY]);
 
-  const truncateAddress = (address: string) => {
-    if (!address) return '';
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
-  };
-
   return (
     <Modal transparent visible={visible} animationType="none" onRequestClose={onClose}>
       <TouchableWithoutFeedback onPress={onClose}>

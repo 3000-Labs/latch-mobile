@@ -1,5 +1,4 @@
 import Box from '@/src/components/shared/Box';
-import Text from '@/src/components/shared/Text';
 import { SECURE_KEYS } from '@/src/store/wallet';
 import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -9,9 +8,6 @@ import React, { useCallback, useEffect } from 'react';
 import { AccessibilityInfo, Dimensions, StyleSheet } from 'react-native';
 import Animated, {
   Easing,
-  Extrapolate,
-  interpolate,
-  SharedValue,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
@@ -66,8 +62,6 @@ const C_APART_TX = 16;
 const SCREEN_H = Dimensions.get('window').height;
 const STAGE_OFFSET_Y = SCREEN_H * 0.03;
 const STAGE_TOP_Y = SCREEN_H / 2 - CLIP_H + STAGE_OFFSET_Y;
-const WORDMARK_TOP_Y = SCREEN_H / 2.3 + STAGE_OFFSET_Y;
-
 // Ellipse sits 3% of screen height LOWER than its natural slot position within
 // the stage. Glyphs aren't affected — they still rise to the same peak height
 // relative to the screen.
@@ -75,27 +69,6 @@ const WORDMARK_TOP_Y = SCREEN_H / 2.3 + STAGE_OFFSET_Y;
 // const SLOT_TOP = CLIP_H - SLOT_H / 2 + ELLIPSE_LOWER_OFFSET;
 
 // ---------------------------------------------------------------------------
-
-const AnimatedLetter = ({
-  opacity,
-  children,
-}: {
-  opacity: SharedValue<number>;
-  children: React.ReactNode;
-}) => {
-  const letterStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-    transform: [{ translateY: interpolate(opacity.value, [0, 1], [15, 0], Extrapolate.CLAMP) }],
-  }));
-
-  return (
-    <Animated.View style={letterStyle}>
-      <Text variant="displayItalic" color="textWhite">
-        {children}
-      </Text>
-    </Animated.View>
-  );
-};
 
 const SplashAnimation = () => {
   const router = useRouter();
@@ -299,11 +272,6 @@ const SplashAnimation = () => {
       { scaleX: mergedScaleX.value },
     ],
   }));
-  const slotStyle = useAnimatedStyle(() => ({
-    opacity: slotOpacity.value,
-    transform: [{ scale: slotScale.value }],
-  }));
-
   return (
     <Box flex={1} backgroundColor="onboardingbg">
       <LinearGradient

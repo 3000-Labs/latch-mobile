@@ -1,8 +1,7 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
 
-import Box from '@/src/components/shared/Box';
 import SessionKeyStep1 from './SessionKeyStep1';
 import SessionKeyStep2 from './SessionKeyStep2';
 import SessionKeyStep3 from './SessionKeyStep3';
@@ -24,6 +23,7 @@ const SessionKeyForm = ({ onBack, onComplete, currentStep, setStep }: Props) => 
     name: '',
     duration: '1 Hour',
     spendingLimit: '',
+    spendingLimitAsset: '',
     allowedActions: [] as string[],
   };
 

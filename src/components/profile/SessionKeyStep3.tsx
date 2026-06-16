@@ -10,6 +10,7 @@ interface Props {
     name: string;
     duration: string;
     spendingLimit: string;
+    spendingLimitAsset: string;
     allowedActions: string[];
   };
   onSubmit: () => void;
@@ -56,7 +57,7 @@ const SessionKeyStep3 = ({ values, onSubmit }: Props) => {
               Spending Limit
             </Text>
             <Text variant="p7" color="textPrimary" fontWeight="700">
-              {values.spendingLimit || '0.00'} USDC
+              {values.spendingLimit || '0.00'} {values.spendingLimitAsset || 'USDC'}
             </Text>
           </Box>
           <Box height={1} backgroundColor="gray800" mb="m" />

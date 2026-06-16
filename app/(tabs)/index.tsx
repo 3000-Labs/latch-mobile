@@ -182,7 +182,7 @@ const Home = () => {
     setManualRefreshing(false);
   };
 
-  const livePrices: Record<string, any> = prices ?? {};
+  const livePrices = useMemo<Record<string, any>>(() => prices ?? {}, [prices]);
   const totalUsd = useMemo(
     () => getTotalUSDBalance({ portfolio, livePrices }),
     [portfolio, livePrices],

@@ -48,12 +48,6 @@ const Swap = () => {
   const theme = useTheme<Theme>();
   const isDark = theme.colors.mainBackground === '#000000';
   const insets = useSafeAreaInsets();
-  // NOTE: non-functional placeholder carried over from the original mock UI.
-  // "Exchange balance" has no meaning for a self-custody smart-account wallet,
-  // and nothing reads this flag (quote/balance/execution ignore it). Kept only
-  // so the existing toggle still renders — remove or repurpose when decided.
-  const [useExchangeBalance, setUseExchangeBalance] = useState(false);
-
   const { smartAccountAddress, accounts, activeAccountIndex } = useWalletStore();
   const activeAccount = accounts[activeAccountIndex];
   const { tokens: trackedTokens } = useTrackedTokens();
@@ -90,7 +84,10 @@ const Swap = () => {
     // Held balances override the zero-balance placeholders.
     for (const held of tokens) map.set(held.sacContractId, held);
     return Array.from(map.values());
-  }, [trackedTokens, tokens]);
+  }, [
+    // trackedTokens,
+    tokens,
+  ]);
 
   const provider = getActiveSwapProvider();
 

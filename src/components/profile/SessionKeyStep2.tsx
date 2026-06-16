@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ScrollView, TouchableOpacity } from 'react-native';
 
 import Box from '@/src/components/shared/Box';
@@ -6,11 +6,13 @@ import Input from '@/src/components/shared/Input';
 import Text from '@/src/components/shared/Text';
 import { useAppTheme } from '@/src/theme/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
+import SessionKeyTokenPicker, { largestBalanceCode, useHeldTokens } from './SessionKeyTokenPicker';
 
 interface Props {
   values: {
     duration: string;
     spendingLimit: string;
+    spendingLimitAsset: string;
     allowedActions: string[];
   };
   setFieldValue: (field: string, value: any) => void;
@@ -26,6 +28,16 @@ const ACTIONS = [
 
 const SessionKeyStep2 = ({ values, setFieldValue, onNext }: Props) => {
   const { isDark } = useAppTheme();
+  const tokens = useHeldTokens();
+  const [pickerVisible, setPickerVisible] = useState(false);
+
+  // Default the spending-limit token to the wallet's largest holding once
+  // balances load, unless the user has already picked one.
+  useEffect(() => {
+    if (!values.spendingLimitAsset && tokens.length > 0) {
+      setFieldValue('spendingLimitAsset', largestBalanceCode(tokens));
+    }
+  }, [tokens, values.spendingLimitAsset, setFieldValue]);
 
   const toggleAction = (id: string) => {
     const current = [...values.allowedActions];
@@ -85,16 +97,26 @@ const SessionKeyStep2 = ({ values, setFieldValue, onNext }: Props) => {
             onChangeText={(text: string) => setFieldValue('spendingLimit', text)}
             keyboardType="decimal-pad"
             rightElement={
-              <Box
-                backgroundColor={isDark ? 'gray800' : 'cardbg'}
-                paddingHorizontal="m"
-                py="s"
-                borderRadius={12}
-              >
-                <Text variant="p6" color="textPrimary" fontWeight="700">
-                  USDC
-                </Text>
-              </Box>
+              <TouchableOpacity activeOpacity={0.7} onPress={() => setPickerVisible(true)}>
+                <Box
+                  flexDirection="row"
+                  alignItems="center"
+                  backgroundColor={isDark ? 'gray800' : 'cardbg'}
+                  paddingHorizontal="m"
+                  py="s"
+                  borderRadius={12}
+                >
+                  <Text variant="p6" color="textPrimary" fontWeight="700">
+                    {values.spendingLimitAsset || 'USDC'}
+                  </Text>
+                  <Ionicons
+                    name="chevron-down"
+                    size={14}
+                    color={isDark ? '#fff' : '#000'}
+                    style={{ marginLeft: 4 }}
+                  />
+                </Box>
+              </TouchableOpacity>
             }
           />
         </Box>
@@ -171,6 +193,16 @@ const SessionKeyStep2 = ({ values, setFieldValue, onNext }: Props) => {
           </Box>
         </TouchableOpacity>
       </Box>
+
+      <SessionKeyTokenPicker
+        visible={pickerVisible}
+        tokens={tokens}
+        onClose={() => setPickerVisible(false)}
+        onSelect={(token) => {
+          setFieldValue('spendingLimitAsset', token.code);
+          setPickerVisible(false);
+        }}
+      />
     </Box>
   );
 };

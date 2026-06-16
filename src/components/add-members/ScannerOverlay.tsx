@@ -64,7 +64,7 @@ const ScannerOverlay: React.FC = () => {
     );
     loop.start();
     return () => loop.stop();
-  }, []);
+  }, [scanLine]);
 
   const sideWidth = (SCREEN_WIDTH - FRAME_SIZE) / 2;
 

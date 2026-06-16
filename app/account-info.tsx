@@ -1,4 +1,3 @@
-import { useTheme } from '@shopify/restyle';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { Formik } from 'formik';
@@ -14,7 +13,6 @@ import Input from '@/src/components/shared/Input';
 import Text from '@/src/components/shared/Text';
 import UtilityHeader from '@/src/components/shared/UtilityHeader';
 import { useWalletStore } from '@/src/store/wallet';
-import { Theme } from '@/src/theme/theme';
 
 const AccountInfoSchema = Yup.object().shape({
   walletName: Yup.string().required('Wallet name is required'),
@@ -23,7 +21,6 @@ const AccountInfoSchema = Yup.object().shape({
 const AccountInfo = () => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const theme = useTheme<Theme>();
   const { accounts, activeAccountIndex, renameAccount, setAccountImage, avatars } = useWalletStore();
   const activeAccount = accounts[activeAccountIndex];
   const activeAvatar = activeAccount ? (avatars[activeAccount.publicKeyHex] ?? null) : null;
@@ -65,7 +62,7 @@ const AccountInfo = () => {
       });
 
       router.back();
-    } catch (error) {
+    } catch {
       Toast.show({
         type: 'error',
         text1: 'Error',

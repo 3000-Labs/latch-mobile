@@ -1,15 +1,10 @@
 import Box from '@/src/components/shared/Box';
-import { Theme } from '@/src/theme/theme';
-import { useTheme } from '@shopify/restyle';
-import { useRouter } from 'expo-router';
 import React from 'react';
 import { Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const Header: React.FC = () => {
-  const router = useRouter();
   const insets = useSafeAreaInsets();
-  const theme = useTheme<Theme>();
 
   return (
     <Box

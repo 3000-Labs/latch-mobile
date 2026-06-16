@@ -221,6 +221,7 @@ const PermissionsSheet = ({ visible, onClose }: Props) => {
                   name: values.name,
                   durationLabel: values.duration,
                   spendingLimit: values.spendingLimit,
+                  spendingLimitAsset: values.spendingLimitAsset,
                   allowedActions: values.allowedActions,
                 });
                 setIsCreating(false);

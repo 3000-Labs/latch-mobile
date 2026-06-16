@@ -80,8 +80,6 @@ const CosignSuccess = () => {
   // Prefer the on-chain ledger close time; fall back to the request createdAt.
   const dateSource = txDetails?.date || createdAt;
   const formattedDate = dateSource ? format(new Date(dateSource), 'MMM d, yyyy • HH:mm') : '—';
-  const explorerUrl = `${process.env.EXPO_PUBLIC_EXPLORER_URL || 'https://stellar.expert/explorer/testnet'}/tx/${hash}`;
-
   return (
     <Box flex={1} backgroundColor="mainBackground">
       <StatusBar style="light" />

@@ -36,7 +36,6 @@ const ConfirmSwap = () => {
   const theme = useTheme<Theme>();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
-  const [mevProtection, setMevProtection] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const params = useLocalSearchParams<{

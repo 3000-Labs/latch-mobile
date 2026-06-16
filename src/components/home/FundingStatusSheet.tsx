@@ -70,7 +70,7 @@ const FundingStatusSheet: React.FC<FundingStatusSheetProps> = ({
         useNativeDriver: true,
       }).start();
     }
-  }, [visible]);
+  }, [visible, translateY]);
 
   const getStepIcon = (status: FundingStepStatus) => {
     switch (status) {

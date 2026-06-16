@@ -38,8 +38,6 @@ function RightAction({ dragX, onDelete }: { dragX: SharedValue<number>; onDelete
 }
 
 const SwipeableSignerItem = ({ signer, onDelete }: Props) => {
-  const theme = useTheme<Theme>();
-
   const renderRightActions = (_progress: SharedValue<number>, dragX: SharedValue<number>) => (
     <RightAction dragX={dragX} onDelete={() => onDelete?.(signer.id)} />
   );

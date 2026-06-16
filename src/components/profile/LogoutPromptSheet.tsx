@@ -43,7 +43,7 @@ const LogoutPromptSheet = ({ visible, onClose, onConfirm }: Props) => {
         useNativeDriver: true,
       }).start();
     }
-  }, [visible]);
+  }, [visible, translateY]);
 
   const handleClose = () => {
     Animated.timing(translateY, {

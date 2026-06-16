@@ -49,7 +49,7 @@ const AboutSheet = ({ visible, onClose }: Props) => {
         useNativeDriver: true,
       }).start();
     }
-  }, [visible]);
+  }, [visible, translateY]);
 
   const handleClose = () => {
     Animated.timing(translateY, {

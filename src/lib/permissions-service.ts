@@ -25,6 +25,7 @@ export interface CreateSessionKeyParams {
   allowedActions: SessionKeyAction[];
   durationLabel: string;
   spendingLimit: string;
+  spendingLimitAsset: string;
 }
 
 /** Duration label → lifetime in ms. PHASE 2 maps these to a valid_until ledger. */
@@ -62,6 +63,7 @@ export async function createSessionKey(
     durationLabel: params.durationLabel,
     expiresAt: now + lifetime,
     spendingLimit: params.spendingLimit || '0.00',
+    spendingLimitAsset: params.spendingLimitAsset || 'USDC',
     createdAt: now,
     status: 'active',
   };

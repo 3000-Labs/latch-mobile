@@ -43,5 +43,5 @@ export function useWalletConnect() {
     return () => {
       mounted = false;
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 }

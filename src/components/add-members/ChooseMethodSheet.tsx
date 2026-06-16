@@ -53,7 +53,7 @@ const ChooseMethodSheet: React.FC<Props> = ({ visible, onClose, onScanQR, onMemb
         useNativeDriver: true,
       }).start();
     }
-  }, [visible]);
+  }, [visible, translateY]);
 
   useEffect(() => {
     if (!visible) {

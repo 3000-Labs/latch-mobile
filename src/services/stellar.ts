@@ -166,7 +166,7 @@ export const getNetworkFees = async (server: Horizon.Server) => {
     } else {
       networkCongestion = NetworkCongestion.LOW;
     }
-  } catch (e) {
+  } catch {
     // use default values
     recommendedFee = DEFAULT_RECOMMENDED_STELLAR_FEE;
     networkCongestion = NetworkCongestion.LOW;
@@ -223,7 +223,7 @@ export const getAccount = async (
   try {
     const account = await server.loadAccount(publicKey);
     return account;
-  } catch (error) {
+  } catch {
     return null;
   }
 };

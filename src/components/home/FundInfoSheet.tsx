@@ -58,7 +58,7 @@ const FundInfoSheet: React.FC<FundInfoSheetProps> = ({ visible, onClose }) => {
         }),
       ]).start();
     }
-  }, [visible]);
+  }, [visible, opacityAnim, slideAnim]);
 
   const steps = [
     'Send XLM from any Stellar wallet to the proxy G-address below',
