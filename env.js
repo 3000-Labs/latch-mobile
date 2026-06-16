@@ -31,6 +31,7 @@ const runtimeEnv = z
     EXPO_PUBLIC_BUNDLER_SECRET: z.string(),
     EXPO_PUBLIC_SOROSWAP_API_URL: z.string().default('https://api.soroswap.finance'),
     EXPO_PUBLIC_SOROSWAP_API_KEY: z.string().optional(),
+    EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID: z.string().optional(),
     // SENTRY_AUTH_TOKEN: z.string(),
   })
   .partial();
@@ -84,6 +85,7 @@ const envObject = {
   EXPO_PUBLIC_BUNDLER_SECRET: process.env.EXPO_PUBLIC_BUNDLER_SECRET,
   EXPO_PUBLIC_SOROSWAP_API_URL: process.env.EXPO_PUBLIC_SOROSWAP_API_URL,
   EXPO_PUBLIC_SOROSWAP_API_KEY: process.env.EXPO_PUBLIC_SOROSWAP_API_KEY,
+  EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID: process.env.EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID,
 
   // SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,
 };

@@ -18,20 +18,14 @@ import BottomSheetHandle from '@/src/components/shared/BottomSheetHandle';
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
 import { SHEET_HEIGHT } from '@/src/constants/constants';
+import { SessionKey, usePermissions } from '@/src/store/permissions';
+import { useWalletStore } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
 import { useAppTheme } from '@/src/theme/ThemeContext';
-import PermissionItem from './PermissionItem';
 import PermissionsInfoModal from './PermissionsInfoModal';
 import SessionKeyForm from './SessionKeyForm';
 import StepIndicator from './StepIndicator';
-
-interface Permission {
-  id: string;
-  name: string;
-  duration: string;
-  spendingLimit: string;
-  allowedActions: string[];
-}
+import SwipeablePermissionItem from './SwipeablePermissionItem';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -45,10 +39,17 @@ const PermissionsSheet = ({ visible, onClose }: Props) => {
   const theme = useTheme<Theme>();
   const { isDark } = useAppTheme();
 
+  const { accounts, activeAccountIndex } = useWalletStore();
+  const accountAddress = accounts[activeAccountIndex]?.smartAccountAddress ?? '';
+  const { byAccount, rehydrate, addSessionKey, revokeSessionKey } = usePermissions();
+  const sessionKeys = (byAccount[accountAddress]?.sessionKeys ?? []).filter(
+    (k) => k.status === 'active',
+  );
+
   const [isCreating, setIsCreating] = useState(false);
   const [formStep, setFormStep] = useState(1);
-  const [permissions, setPermissions] = useState<Permission[]>([]);
   const [showInfo, setShowInfo] = useState(false);
+  const [revokeTarget, setRevokeTarget] = useState<SessionKey | null>(null);
 
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
 
@@ -56,6 +57,8 @@ const PermissionsSheet = ({ visible, onClose }: Props) => {
     if (visible) {
       setIsCreating(false);
       setFormStep(1);
+      setRevokeTarget(null);
+      rehydrate();
       Animated.spring(translateY, {
         toValue: 0,
         useNativeDriver: true,
@@ -70,10 +73,12 @@ const PermissionsSheet = ({ visible, onClose }: Props) => {
         useNativeDriver: true,
       }).start();
     }
-  }, [visible, translateY]);
+  }, [visible, translateY, rehydrate]);
 
   const handleBack = () => {
-    if (isCreating) {
+    if (revokeTarget) {
+      setRevokeTarget(null);
+    } else if (isCreating) {
       if (formStep > 1) {
         setFormStep(formStep - 1);
       } else {
@@ -122,17 +127,21 @@ const PermissionsSheet = ({ visible, onClose }: Props) => {
               </TouchableOpacity>
 
               <Text variant="h10" color="textPrimary" fontWeight="700">
-                {isCreating
-                  ? formStep === 1
-                    ? 'Create Session Key'
-                    : formStep === 2
-                      ? 'Set Limits'
-                      : 'Review & Confirm'
-                  : 'Permissions'}
+                {revokeTarget
+                  ? 'Revoke Session'
+                  : isCreating
+                    ? formStep === 1
+                      ? 'Create Session Key'
+                      : formStep === 2
+                        ? 'Set Limits'
+                        : 'Review & Confirm'
+                    : 'Permissions'}
               </Text>
 
               {isCreating ? (
                 <StepIndicator currentStep={formStep} totalSteps={3} />
+              ) : revokeTarget ? (
+                <Box width={24} />
               ) : (
                 <TouchableOpacity
                   onPress={() => {
@@ -147,24 +156,77 @@ const PermissionsSheet = ({ visible, onClose }: Props) => {
             </Box>
           )}
 
-          {isCreating ? (
+          {revokeTarget ? (
+            <Box flex={1} alignItems="center" justifyContent="center" paddingHorizontal="l">
+              <Text variant="h7" color="textPrimary" fontWeight="700" mb="xs" textAlign="center">
+                Revoke Session Key
+              </Text>
+              <Text variant="p5" color="textSecondary" textAlign="center" lineHeight={24} mb="xl">
+                Revoking{' '}
+                <Text variant="p5" color="textPrimary" fontWeight="700">
+                  {revokeTarget.name}
+                </Text>{' '}
+                immediately removes its access. This can&apos;t be undone.
+              </Text>
+
+              <Box flexDirection="row" width="100%" justifyContent="space-between">
+                <TouchableOpacity
+                  onPress={() => setRevokeTarget(null)}
+                  activeOpacity={0.7}
+                  style={{ flex: 1, marginRight: 8 }}
+                >
+                  <Box
+                    height={56}
+                    borderRadius={28}
+                    borderWidth={1}
+                    borderColor="gray800"
+                    justifyContent="center"
+                    alignItems="center"
+                  >
+                    <Text variant="h11" color="textPrimary" fontWeight="700">
+                      Cancel
+                    </Text>
+                  </Box>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => {
+                    revokeSessionKey(accountAddress, revokeTarget.id);
+                    setRevokeTarget(null);
+                  }}
+                  activeOpacity={0.7}
+                  style={{ flex: 1, marginLeft: 8 }}
+                >
+                  <Box
+                    height={56}
+                    borderRadius={28}
+                    justifyContent="center"
+                    alignItems="center"
+                    style={{ backgroundColor: '#E23A10' }}
+                  >
+                    <Text variant="h11" color="black" fontWeight="700">
+                      Revoke
+                    </Text>
+                  </Box>
+                </TouchableOpacity>
+              </Box>
+            </Box>
+          ) : isCreating ? (
             <SessionKeyForm
               currentStep={formStep}
               setStep={setFormStep}
               onBack={handleBack}
               onComplete={(values) => {
-                const newPermission: Permission = {
-                  id: Math.random().toString(),
+                addSessionKey(accountAddress, {
                   name: values.name,
-                  duration: values.duration,
-                  spendingLimit: values.spendingLimit || '0.00',
+                  durationLabel: values.duration,
+                  spendingLimit: values.spendingLimit,
                   allowedActions: values.allowedActions,
-                };
-                setPermissions([newPermission, ...permissions]);
+                });
                 setIsCreating(false);
               }}
             />
-          ) : permissions.length > 0 ? (
+          ) : sessionKeys.length > 0 ? (
             /* Active State */
             <KeyboardAwareScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }} bottomOffset={16}>
               {/* Info Card */}
@@ -173,8 +235,8 @@ const PermissionsSheet = ({ visible, onClose }: Props) => {
                   Session Keys & dApps
                 </Text>
                 <Text variant="p6" color="textSecondary" mb="m" lineHeight={22}>
-                  Active sessions with temporary permissions. Revoking a session immediately removes
-                  its access.
+                  Active sessions with temporary permissions. Swipe a session left to revoke it —
+                  revoking immediately removes its access.
                 </Text>
                 <TouchableOpacity onPress={() => setShowInfo(true)}>
                   <Text variant="p6" color="primary" fontWeight="700">
@@ -183,8 +245,12 @@ const PermissionsSheet = ({ visible, onClose }: Props) => {
                 </TouchableOpacity>
               </Box>
 
-              {permissions.map((p) => (
-                <PermissionItem key={p.id} permission={p} />
+              {sessionKeys.map((p) => (
+                <SwipeablePermissionItem
+                  key={p.id}
+                  permission={p}
+                  onRevoke={() => setRevokeTarget(p)}
+                />
               ))}
             </KeyboardAwareScrollView>
           ) : (

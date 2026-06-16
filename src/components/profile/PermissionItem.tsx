@@ -1,18 +1,11 @@
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
+import type { SessionKey } from '@/src/store/permissions';
 import { useAppTheme } from '@/src/theme/ThemeContext';
 import React from 'react';
 
-interface Permission {
-  id: string;
-  name: string;
-  duration: string;
-  spendingLimit: string;
-  allowedActions: string[];
-}
-
 interface Props {
-  permission: Permission;
+  permission: SessionKey;
 }
 
 const ACTION_MAP: Record<string, string> = {
@@ -21,13 +14,28 @@ const ACTION_MAP: Record<string, string> = {
   offers: 'Offers',
 };
 
+function expiryLabel(permission: SessionKey): string {
+  if (Date.now() > permission.expiresAt) return 'Expired';
+  return permission.durationLabel;
+}
+
 const PermissionItem = ({ permission }: Props) => {
   const { isDark } = useAppTheme();
+  const expired = Date.now() > permission.expiresAt;
   return (
     <Box backgroundColor="bg11" borderRadius={16} padding="m" mb="m">
-      <Text variant="h11" color="textPrimary" fontWeight="700" mb="s">
-        {permission.name}
-      </Text>
+      <Box flexDirection="row" justifyContent="space-between" alignItems="center" mb="s">
+        <Text variant="h11" color="textPrimary" fontWeight="700">
+          {permission.name}
+        </Text>
+        {expired && (
+          <Box backgroundColor="btnDisabled" paddingHorizontal="m" py="xs" borderRadius={8}>
+            <Text variant="p7" color="textTertiary" fontWeight="700">
+              Expired
+            </Text>
+          </Box>
+        )}
+      </Box>
 
       {/* Action Chips */}
       <Box flexDirection="row" flexWrap="wrap" mb="m">
@@ -48,7 +56,7 @@ const PermissionItem = ({ permission }: Props) => {
           </Text>
           <Box backgroundColor="btnDisabled" borderRadius={12} padding="m">
             <Text variant="p6" color="textTertiary">
-              {permission.duration}
+              {expiryLabel(permission)}
             </Text>
           </Box>
         </Box>

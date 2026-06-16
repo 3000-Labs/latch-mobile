@@ -251,7 +251,7 @@ const AccountSwitcherSheet = ({ visible, onClose }: Props) => {
           listIndex: number;
         }) => (
           <AccountItem
-            key={account.index}
+            key={listIndex}
             account={account}
             isActive={listIndex === activeAccountIndex}
             onPress={() => handleSwitch(listIndex)}

@@ -11,6 +11,7 @@ import LogoutPromptSheet from '@/src/components/profile/LogoutPromptSheet';
 import NetworkSheet from '@/src/components/profile/NetworkSheet';
 import NotificationSheet from '@/src/components/profile/NotificationSheet';
 import PermissionsSheet from '@/src/components/profile/PermissionsSheet';
+// import PoliciesSheet from '@/src/components/profile/PoliciesSheet';
 import PrivacyPolicySheet from '@/src/components/profile/PrivacyPolicySheet';
 import RecoveryPhraseSheet from '@/src/components/profile/RecoveryPhraseSheet';
 import SettingItem from '@/src/components/profile/SettingItem';
@@ -20,7 +21,6 @@ import Text from '@/src/components/shared/Text';
 import { useDrawer } from '@/src/context/drawer-context';
 import { useWalletStore } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
-import { useAppTheme } from '@/src/theme/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '@shopify/restyle';
@@ -39,13 +39,14 @@ const Profile = () => {
   const router = useRouter();
   const { clearAll, accounts, activeAccountIndex, avatars } = useWalletStore();
   const { closeDrawer } = useDrawer();
-  const { isDark, toggleTheme } = useAppTheme();
+  // const { isDark, toggleTheme } = useAppTheme();
   const [accountInfoVisible, setAccountInfoVisible] = useState(false);
   // const [biometricsEnabled, setBiometricsEnabled] = useState(false);
   const [switcherVisible, setSwitcherVisible] = useState(false);
   const [recoveryVisible, setRecoveryVisible] = useState(false);
   const [signersVisible, setSignersVisible] = useState(false);
   const [permissionsVisible, setPermissionsVisible] = useState(false);
+  // const [policiesVisible, setPoliciesVisible] = useState(false);
   const [addressBookVisible, setAddressBookVisible] = useState(false);
   const [networkVisible, setNetworkVisible] = useState(false);
   const [notificationsVisible, setNotificationsVisible] = useState(false);
@@ -112,6 +113,7 @@ const Profile = () => {
           />
         )}
         <SignersSheet visible={signersVisible} onClose={() => setSignersVisible(false)} />
+        {/* <PoliciesSheet visible={policiesVisible} onClose={() => setPoliciesVisible(false)} /> */}
         <PermissionsSheet
           visible={permissionsVisible}
           onClose={() => setPermissionsVisible(false)}
@@ -216,6 +218,11 @@ const Profile = () => {
               onPress={() => setPermissionsVisible(true)}
               image={require('@/src/assets/icon/mobile-shield-protection.png')}
             />
+            {/* <SettingItem
+              icon="options-outline"
+              label="Policies"
+              onPress={() => setPoliciesVisible(true)}
+            /> */}
           </Box>
 
           {/* Preferences Section */}
