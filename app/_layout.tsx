@@ -1,4 +1,5 @@
 import '@walletconnect/react-native-compat';
+import * as Sentry from '@sentry/react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { IconRegistry } from '@ui-kitten/components';
@@ -26,6 +27,14 @@ import { AppThemeProvider, useAppTheme } from '../src/theme/ThemeContext';
 
 install();
 global.Buffer = Buffer;
+
+if (process.env.EXPO_PUBLIC_SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
+    environment: process.env.EXPO_PUBLIC_APP_ENV ?? 'development',
+    enabled: process.env.EXPO_PUBLIC_APP_ENV === 'production',
+  });
+}
 
 SplashScreen.preventAutoHideAsync();
 

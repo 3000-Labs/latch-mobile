@@ -18,12 +18,13 @@ import { Theme } from '@/src/theme/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
 import { Asset } from '@stellar/stellar-sdk';
+import { useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFormik } from 'formik';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   ScrollView,
@@ -48,6 +49,7 @@ const Swap = () => {
   const theme = useTheme<Theme>();
   const isDark = theme.colors.mainBackground === '#000000';
   const insets = useSafeAreaInsets();
+  const queryClient = useQueryClient();
   const { smartAccountAddress, accounts, activeAccountIndex } = useWalletStore();
   const activeAccount = accounts[activeAccountIndex];
   const { tokens: trackedTokens } = useTrackedTokens();
@@ -57,6 +59,13 @@ const Swap = () => {
     activeAccount?.gAddress,
     trackedTokens,
   );
+  useFocusEffect(
+    useCallback(() => {
+      queryClient.invalidateQueries({ queryKey: ['prices'] });
+      queryClient.invalidateQueries({ queryKey: ['portfolio'] });
+    }, [queryClient]),
+  );
+
   // Tokens the account actually HOLDS (non-zero balance) — valid "From" options.
   const tokens = useMemo(() => portfolio ?? [], [portfolio]);
 
@@ -154,7 +163,7 @@ const Swap = () => {
   // Debounce the amount so we don't hit the aggregator on every keystroke.
   const [debouncedAmount, setDebouncedAmount] = useState('');
   useEffect(() => {
-    const id = setTimeout(() => setDebouncedAmount(formik.values.amount), 400);
+    const id = setTimeout(() => setDebouncedAmount(formik.values.amount), 300);
     return () => clearTimeout(id);
   }, [formik.values.amount]);
 

@@ -6,8 +6,7 @@ const versionCode = epochTimeInSeconds;
 const buildNumber = String(epochTimeInSeconds);
 const buildVersion = packageJson.version;
 const appName = env.APP_NAME;
-// const sentry = 'none';
-// const sentry = env.SENTRY_AUTH_TOKEN;
+const sentry = env.SENTRY_AUTH_TOKEN;
 
 export default {
   expo: {
@@ -133,19 +132,19 @@ export default {
           },
         },
       ],
-      // ...(sentry && sentry !== 'none'
-      //   ? [
-      //       [
-      //         '@sentry/react-native/expo',
-      //         {
-      //           url: 'https://sentry.io/',
-      //           note: sentry,
-      //           project: 'latch-mobile',
-      //           organization: 'latch',
-      //         },
-      //       ],
-      //     ]
-      //   : []),
+      ...(sentry
+        ? [
+            [
+              '@sentry/react-native/expo',
+              {
+                url: 'https://sentry.io/',
+                authToken: sentry,
+                project: 'latch-mobile',
+                organization: 'latch',
+              },
+            ],
+          ]
+        : []),
     ],
     updates: {
       url: 'https://u.expo.dev/8b122713-0d94-4940-a71c-58da86f923ad',
