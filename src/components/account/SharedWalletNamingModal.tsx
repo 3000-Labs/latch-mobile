@@ -1,6 +1,6 @@
 import { Formik } from 'formik';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Modal, StyleSheet } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, StyleSheet } from 'react-native';
 import Toast from 'react-native-toast-message';
 import * as Yup from 'yup';
 
@@ -122,104 +122,116 @@ const SharedWalletNamingModal = () => {
       statusBarTranslucent
       onRequestClose={handleNotNow}
     >
-      <Box flex={1} justifyContent="flex-end" style={styles.overlay}>
-        <Box
-          backgroundColor="cardbg"
-          borderTopLeftRadius={32}
-          borderTopRightRadius={32}
-          paddingHorizontal="m"
-          pb="xxl"
-        >
-          <Box alignItems="center" pt="m" mb="l">
-            <Box width={36} height={4} borderRadius={2} backgroundColor="gray800" />
-          </Box>
+      <KeyboardAvoidingView
+        style={styles.overlay}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <Box flex={1} justifyContent="flex-end">
+          <Box
+            backgroundColor="cardbg"
+            borderTopLeftRadius={32}
+            borderTopRightRadius={32}
+            paddingHorizontal="m"
+            pb="xxl"
+          >
+            <Box alignItems="center" pt="m" mb="l">
+              <Box width={36} height={4} borderRadius={2} backgroundColor="gray800" />
+            </Box>
 
-          {remaining > 1 && (
-            <Box alignSelf="center" backgroundColor="bg11" borderRadius={12} px="m" py="xs" mb="m">
-              <Text variant="h12" color="textSecondary">
-                {remaining} new shared wallets to review
+            {remaining > 1 && (
+              <Box
+                alignSelf="center"
+                backgroundColor="bg11"
+                borderRadius={12}
+                px="m"
+                py="xs"
+                mb="m"
+              >
+                <Text variant="h12" color="textSecondary">
+                  {remaining} new shared wallets to review
+                </Text>
+              </Box>
+            )}
+
+            <Text variant="h8" color="textPrimary" fontWeight="700" textAlign="center" mb="s">
+              New shared wallet
+            </Text>
+            <Text variant="p7" color="textSecondary" textAlign="center" mb="xs">
+              You were added as a signer. Give it a name so you can recognise it in your accounts.
+            </Text>
+
+            {(infoLoading || info) && (
+              <Box flexDirection="row" justifyContent="center" alignItems="center" mb="xs">
+                {infoLoading ? (
+                  <ActivityIndicator size="small" color={theme.colors.textSecondary} />
+                ) : info ? (
+                  <Text variant="h12" color="textSecondary" textAlign="center">
+                    {info.signerCount} signers · {info.threshold}-of-{info.signerCount} to approve
+                  </Text>
+                ) : null}
+              </Box>
+            )}
+
+            <Box flexDirection="row" justifyContent="center" alignItems="center" mb="xl">
+              <Ionicons
+                name="shield-checkmark"
+                size={13}
+                color={theme.colors.textSecondary}
+                style={{ marginRight: 4 }}
+              />
+              <Text variant="h12" color="textSecondary" textAlign="center">
+                Verified on-chain · {shortAddress}
               </Text>
             </Box>
-          )}
 
-          <Text variant="h8" color="textPrimary" fontWeight="700" textAlign="center" mb="s">
-            New shared wallet
-          </Text>
-          <Text variant="p7" color="textSecondary" textAlign="center" mb="xs">
-            You were added as a signer. Give it a name so you can recognise it in your accounts.
-          </Text>
+            <Formik
+              initialValues={{ name: '' }}
+              validationSchema={Schema}
+              onSubmit={(values) => addWallet(values.name.trim())}
+            >
+              {({ handleChange, handleBlur, handleSubmit, values, errors, touched }) => (
+                <>
+                  <Input
+                    value={values.name}
+                    onChangeText={handleChange('name')}
+                    onBlur={handleBlur('name')}
+                    placeholder="Shared Wallet"
+                    autoFocus
+                    status={touched.name && errors.name ? 'danger' : 'basic'}
+                  />
+                  {touched.name && errors.name && (
+                    <Text variant="h12" color="inputError" mt="xs">
+                      {errors.name}
+                    </Text>
+                  )}
 
-          {(infoLoading || info) && (
-            <Box flexDirection="row" justifyContent="center" alignItems="center" mb="xs">
-              {infoLoading ? (
-                <ActivityIndicator size="small" color={theme.colors.textSecondary} />
-              ) : info ? (
-                <Text variant="h12" color="textSecondary" textAlign="center">
-                  {info.signerCount} signers · {info.threshold}-of-{info.signerCount} to approve
-                </Text>
-              ) : null}
-            </Box>
-          )}
-
-          <Box flexDirection="row" justifyContent="center" alignItems="center" mb="xl">
-            <Ionicons
-              name="shield-checkmark"
-              size={13}
-              color={theme.colors.textSecondary}
-              style={{ marginRight: 4 }}
-            />
-            <Text variant="h12" color="textSecondary" textAlign="center">
-              Verified on-chain · {shortAddress}
-            </Text>
+                  <Button
+                    label="Save"
+                    variant="primary"
+                    onPress={() => handleSubmit()}
+                    loading={submitting}
+                    mt="l"
+                    mb="m"
+                  />
+                  <Button
+                    label="Use default name"
+                    variant="ghost"
+                    onPress={() => addWallet()}
+                    disabled={submitting}
+                    mb="xs"
+                  />
+                  <Button
+                    label="Not now"
+                    variant="ghost"
+                    onPress={handleNotNow}
+                    disabled={submitting}
+                  />
+                </>
+              )}
+            </Formik>
           </Box>
-
-          <Formik
-            initialValues={{ name: '' }}
-            validationSchema={Schema}
-            onSubmit={(values) => addWallet(values.name.trim())}
-          >
-            {({ handleChange, handleBlur, handleSubmit, values, errors, touched }) => (
-              <>
-                <Input
-                  value={values.name}
-                  onChangeText={handleChange('name')}
-                  onBlur={handleBlur('name')}
-                  placeholder="Shared Wallet"
-                  autoFocus
-                  status={touched.name && errors.name ? 'danger' : 'basic'}
-                />
-                {touched.name && errors.name && (
-                  <Text variant="h12" color="inputError" mt="xs">
-                    {errors.name}
-                  </Text>
-                )}
-
-                <Button
-                  label="Save"
-                  variant="primary"
-                  onPress={() => handleSubmit()}
-                  loading={submitting}
-                  mt="l"
-                  mb="m"
-                />
-                <Button
-                  label="Use default name"
-                  variant="ghost"
-                  onPress={() => addWallet()}
-                  disabled={submitting}
-                  mb="xs"
-                />
-                <Button
-                  label="Not now"
-                  variant="ghost"
-                  onPress={handleNotNow}
-                  disabled={submitting}
-                />
-              </>
-            )}
-          </Formik>
         </Box>
-      </Box>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };
