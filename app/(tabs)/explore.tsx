@@ -1,31 +1,26 @@
 import Box from '@/src/components/shared/Box';
 import Input from '@/src/components/shared/Input';
 import Text from '@/src/components/shared/Text';
+import { WELL_KNOWN_TOKENS } from '@/src/constants/known-tokens';
+import { usePrices } from '@/src/hooks/use-prices';
+import { useTokenIcon } from '@/src/hooks/use-token-list';
 import { Theme } from '@/src/theme/theme';
 import { useAppTheme } from '@/src/theme/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
+import { useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useState } from 'react';
-import { Dimensions, FlatList, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import { Dimensions, FlatList, Linking, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const banners = [
-  {
-    id: 1,
-    image: require('@/src/assets/icon/Container.png'),
-  },
-  {
-    id: 2,
-    image: require('@/src/assets/icon/Container.png'),
-  },
-  {
-    id: 3,
-    image: require('@/src/assets/icon/Container.png'),
-  },
+  { id: 1, image: require('@/src/assets/icon/Container.png') },
+  { id: 2, image: require('@/src/assets/icon/Container.png') },
+  { id: 3, image: require('@/src/assets/icon/Container.png') },
 ];
 
 const RECOMMENDED_DAPPS = [
@@ -33,48 +28,154 @@ const RECOMMENDED_DAPPS = [
     id: '1',
     name: 'StellarX',
     description: 'Decentralized exchange',
+    url: 'https://stellarx.com',
     icon: require('@/src/assets/token/stellar.png'),
   },
   {
     id: '2',
-    name: 'Lobstr',
-    description: 'AMM interface',
+    name: 'Soroswap',
+    description: 'AMM & liquidity protocol',
+    url: 'https://soroswap.finance',
     icon: require('@/src/assets/token/stellar.png'),
   },
   {
     id: '3',
-    name: 'Freighter',
-    description: 'Liquidity protocol',
+    name: 'Stellar Expert',
+    description: 'Block explorer',
+    url: 'https://stellar.expert',
     icon: require('@/src/assets/token/stellar.png'),
   },
 ];
 
-const TRENDING_ASSETS = [
-  {
-    id: '1',
-    name: 'Tether',
-    symbol: 'TT Coin',
-    amount: '+$505.00',
-    change: '+4.21%',
-    icon: require('@/src/assets/token/usdt.png'),
-  },
-  {
-    id: '2',
-    name: 'Stellar',
-    symbol: 'XLM',
-    amount: '+$1,250.00',
-    time: '3hrs ago',
-    icon: require('@/src/assets/token/stellar.png'),
-  },
-];
+// Tokens to feature in the trending section — XLM first, then well-known tokens.
+const FEATURED_CODES = ['XLM', 'USDC', 'USDT', 'EURC'];
+
+function formatChange(change: number): string {
+  const sign = change >= 0 ? '+' : '';
+  return `${sign}${change.toFixed(2)}%`;
+}
+
+function formatPrice(price: string): string {
+  const n = parseFloat(price);
+  if (!isFinite(n)) return '$—';
+  return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
+}
+
+interface TokenRowProps {
+  code: string;
+  name: string;
+  issuer?: string;
+  price: string;
+  change: number;
+  isDark: boolean;
+}
+
+function TokenRow({ code, name, issuer, price, change, isDark }: TokenRowProps) {
+  const iconUrl = useTokenIcon(code, issuer);
+  const isPositive = change >= 0;
+
+  return (
+    <Box
+      backgroundColor="bg900"
+      borderRadius={18}
+      padding="m"
+      flexDirection="row"
+      alignItems="center"
+      mb="s"
+    >
+      <Box
+        width={44}
+        height={44}
+        borderRadius={12}
+        backgroundColor="bg800"
+        justifyContent="center"
+        alignItems="center"
+        mr="m"
+        overflow="hidden"
+      >
+        {iconUrl ? (
+          <Image source={{ uri: iconUrl }} style={{ width: 28, height: 28 }} contentFit="contain" />
+        ) : (
+          <Image
+            source={require('@/src/assets/token/stellar.png')}
+            style={{ width: 24, height: 24 }}
+          />
+        )}
+      </Box>
+      <Box flex={1}>
+        <Text variant="h10" color="textPrimary">
+          {name}
+        </Text>
+        <Text variant="p8" color="textSecondary">
+          {code}
+        </Text>
+      </Box>
+      <Box alignItems="flex-end">
+        <Text variant="h10" color="textPrimary">
+          {formatPrice(price)}
+        </Text>
+        <Text variant="p8" color={isPositive ? 'success700' : 'inputError'}>
+          {formatChange(change)}
+        </Text>
+      </Box>
+    </Box>
+  );
+}
+
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const Explore = () => {
   const theme = useTheme<Theme>();
   const { isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [bannerIndex, setBannerIndex] = useState(0);
+
+  const { data: prices } = usePrices();
+
+  useFocusEffect(
+    useCallback(() => {
+      queryClient.invalidateQueries({ queryKey: ['prices'] });
+    }, [queryClient]),
+  );
+
+  const trendingTokens = useMemo(() => {
+    const tokenMap = new Map(WELL_KNOWN_TOKENS.map((t) => [t.code.toUpperCase(), t]));
+    return FEATURED_CODES.map((code) => {
+      const config = tokenMap.get(code);
+      const priceData = prices?.[code];
+      return {
+        code,
+        name: config?.name ?? code,
+        issuer: config?.issuer,
+        price: priceData?.price ?? '0',
+        change: priceData?.change_24h ?? 0,
+      };
+    });
+  }, [prices]);
+
+  const q = search.trim().toLowerCase();
+
+  const filteredDapps = useMemo(
+    () =>
+      q
+        ? RECOMMENDED_DAPPS.filter(
+            (d) => d.name.toLowerCase().includes(q) || d.description.toLowerCase().includes(q),
+          )
+        : RECOMMENDED_DAPPS,
+    [q],
+  );
+
+  const filteredTokens = useMemo(
+    () =>
+      q
+        ? trendingTokens.filter(
+            (t) => t.code.toLowerCase().includes(q) || t.name.toLowerCase().includes(q),
+          )
+        : trendingTokens,
+    [trendingTokens, q],
+  );
 
   return (
     <Box flex={1} backgroundColor="mainBackground" style={{ paddingTop: insets.top }}>
@@ -95,9 +196,6 @@ const Explore = () => {
         justifyContent="center"
         paddingHorizontal="m"
       >
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="chevron-back" size={24} color={theme.colors.textPrimary} />
-        </TouchableOpacity>
         <Text variant="h10" color="textPrimary" fontFamily="SFproSemibold">
           Explore
         </Text>
@@ -122,154 +220,116 @@ const Explore = () => {
             />
           </Box>
 
-          {/* Banner */}
           {/* Banner Carousel */}
-          <Box mb="xl">
-            <FlatList
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              data={banners}
-              onScroll={(e) => {
-                const x = e.nativeEvent.contentOffset.x;
-                const index = Math.round(x / SCREEN_WIDTH);
-                setBannerIndex(index);
-              }}
-              keyExtractor={(item) => item.id.toString()}
-              renderItem={({ item }) => (
-                <Box width={SCREEN_WIDTH} alignItems="center" justifyContent="center">
-                  <Box width={SCREEN_WIDTH - 32} height={101} overflow={'hidden'} borderRadius={12}>
-                    <Image
-                      source={item.image}
-                      style={{
-                        height: '100%',
-                        width: '100%',
-                      }}
-                      contentFit="cover"
-                    />
+          {!q && (
+            <Box mb="xl">
+              <FlatList
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                data={banners}
+                onScroll={(e) => {
+                  const x = e.nativeEvent.contentOffset.x;
+                  setBannerIndex(Math.round(x / SCREEN_WIDTH));
+                }}
+                keyExtractor={(item) => item.id.toString()}
+                renderItem={({ item }) => (
+                  <Box width={SCREEN_WIDTH} alignItems="center" justifyContent="center">
+                    <Box width={SCREEN_WIDTH - 32} height={101} overflow="hidden" borderRadius={12}>
+                      <Image
+                        source={item.image}
+                        style={{ height: '100%', width: '100%' }}
+                        contentFit="cover"
+                      />
+                    </Box>
                   </Box>
-                </Box>
-              )}
-            />
-            <Box flexDirection="row" justifyContent="center" mt="m" gap="xs">
-              {[0, 1, 2].map((i) => (
+                )}
+              />
+              <Box flexDirection="row" justifyContent="center" mt="m" gap="xs">
+                {[0, 1, 2].map((i) => (
+                  <Box
+                    key={i}
+                    width={bannerIndex === i ? 20 : 6}
+                    height={6}
+                    borderRadius={3}
+                    backgroundColor={
+                      bannerIndex === i ? 'primary700' : isDark ? 'gray800' : 'gray200'
+                    }
+                  />
+                ))}
+              </Box>
+            </Box>
+          )}
+
+          {/* Recommended dApps */}
+          {filteredDapps.length > 0 && (
+            <Box mb="xl">
+              <Text variant="p7" color="textSecondary" mb="m">
+                Recommended dApps
+              </Text>
+              {filteredDapps.map((dapp) => (
                 <Box
-                  key={i}
-                  width={bannerIndex === i ? 20 : 6}
-                  height={6}
-                  borderRadius={3}
-                  backgroundColor={
-                    bannerIndex === i ? 'primary700' : isDark ? 'gray800' : 'gray200'
-                  }
-                />
+                  key={dapp.id}
+                  backgroundColor="bg900"
+                  borderRadius={18}
+                  padding="m"
+                  flexDirection="row"
+                  alignItems="center"
+                  mb="s"
+                >
+                  <Box
+                    width={44}
+                    height={44}
+                    borderRadius={12}
+                    backgroundColor="bg800"
+                    justifyContent="center"
+                    alignItems="center"
+                    mr="m"
+                  >
+                    <Image source={dapp.icon} style={{ width: 24, height: 24 }} />
+                  </Box>
+                  <Box flex={1}>
+                    <Text variant="h10" color="textPrimary">
+                      {dapp.name}
+                    </Text>
+                    <Text variant="p8" color="textSecondary">
+                      {dapp.description}
+                    </Text>
+                  </Box>
+                  <TouchableOpacity onPress={() => Linking.openURL(dapp.url)}>
+                    <Text variant="p7" color="primary" style={{ fontWeight: '600' }}>
+                      Open
+                    </Text>
+                  </TouchableOpacity>
+                </Box>
               ))}
             </Box>
-          </Box>
-          {/* Recommended dApps */}
-          <Box mb="xl">
-            <Text variant="p7" color="textSecondary" mb="m">
-              Recommended dApps
-            </Text>
-            {RECOMMENDED_DAPPS.map((dapp) => (
-              <Box
-                key={dapp.id}
-                backgroundColor="bg900"
-                borderRadius={18}
-                padding="m"
-                flexDirection="row"
-                alignItems="center"
-                mb="s"
-              >
-                <Box
-                  width={44}
-                  height={44}
-                  borderRadius={12}
-                  backgroundColor="bg800"
-                  justifyContent="center"
-                  alignItems="center"
-                  mr="m"
-                >
-                  <Image source={dapp.icon} style={{ width: 24, height: 24 }} />
-                </Box>
-                <Box flex={1}>
-                  <Text variant="h10" color="textPrimary">
-                    {dapp.name}
-                  </Text>
-                  <Text variant="p8" color="textSecondary">
-                    {dapp.description}
-                  </Text>
-                </Box>
-                <TouchableOpacity>
-                  <Text variant="p7" color="primary" style={{ fontWeight: '600' }}>
-                    Open
-                  </Text>
-                </TouchableOpacity>
-              </Box>
-            ))}
-          </Box>
+          )}
 
           {/* Trending Assets */}
-          <Box>
-            <Text variant="p7" color="textSecondary" mb="m">
-              Trending
-            </Text>
-            {TRENDING_ASSETS.map((asset) => (
-              <Box
-                key={asset.id}
-                backgroundColor="bg900"
-                borderRadius={18}
-                padding="m"
-                flexDirection="row"
-                alignItems="center"
-                mb="s"
-              >
-                <Box
-                  width={44}
-                  height={44}
-                  borderRadius={12}
-                  backgroundColor="bg800"
-                  justifyContent="center"
-                  alignItems="center"
-                  mr="m"
-                >
-                  <Image source={asset.icon} style={{ width: 24, height: 24 }} />
-                </Box>
-                <Box flex={1}>
-                  <Text variant="h10" color="textPrimary">
-                    {asset.name}
-                  </Text>
-                  <Text variant="p8" color="textSecondary">
-                    {asset.symbol}
-                  </Text>
-                </Box>
-                <Box alignItems="flex-end">
-                  <Text variant="h10" color="textPrimary">
-                    {asset.amount}
-                  </Text>
-                  <Text variant="p8" color={asset.change ? 'success700' : 'textSecondary'}>
-                    {asset.change || asset.time}
-                  </Text>
-                </Box>
-              </Box>
-            ))}
-          </Box>
+          {filteredTokens.length > 0 && (
+            <Box>
+              <Text variant="p7" color="textSecondary" mb="m">
+                Trending
+              </Text>
+              {filteredTokens.map((token) => (
+                <TokenRow key={token.code} {...token} isDark={isDark} />
+              ))}
+            </Box>
+          )}
+
+          {q && filteredDapps.length === 0 && filteredTokens.length === 0 && (
+            <Box alignItems="center" mt="xl">
+              <Text variant="p7" color="textSecondary">
+                No results for &ldquo;{search}&rdquo;
+              </Text>
+            </Box>
+          )}
         </Box>
       </ScrollView>
     </Box>
   );
 };
 
-const styles = StyleSheet.create({
-  backButton: {
-    position: 'absolute',
-    left: 16,
-  },
-  banner: {
-    height: 120,
-    borderRadius: 24,
-    overflow: 'hidden',
-    flexDirection: 'row',
-  },
-});
 
 export default Explore;

@@ -1,7 +1,7 @@
 import { useTheme } from '@shopify/restyle';
 import * as Clipboard from 'expo-clipboard';
 import React from 'react';
-import { TouchableOpacity } from 'react-native';
+import { ActivityIndicator, TouchableOpacity } from 'react-native';
 
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
@@ -12,9 +12,10 @@ interface URLInputSheetProps {
   url: string;
   onChangeUrl: (text: string) => void;
   onConnect: () => void;
+  isConnecting?: boolean;
 }
 
-const URLInputSheet = ({ url, onChangeUrl, onConnect }: URLInputSheetProps) => {
+const URLInputSheet = ({ url, onChangeUrl, onConnect, isConnecting = false }: URLInputSheetProps) => {
   const theme = useTheme<Theme>();
 
   const handlePaste = async () => {
@@ -59,17 +60,21 @@ const URLInputSheet = ({ url, onChangeUrl, onConnect }: URLInputSheetProps) => {
         />
       </Box>
 
-      <TouchableOpacity activeOpacity={0.8} onPress={onConnect}>
+      <TouchableOpacity activeOpacity={0.8} onPress={onConnect} disabled={isConnecting || !url}>
         <Box
           height={56}
-          backgroundColor={url ? 'primary' : 'btnDisabled'}
+          backgroundColor={url && !isConnecting ? 'primary' : 'btnDisabled'}
           borderRadius={28}
           justifyContent="center"
           alignItems="center"
         >
-          <Text variant="p6" color="black" fontWeight="700">
-            Connect
-          </Text>
+          {isConnecting ? (
+            <ActivityIndicator size="small" color="#000" />
+          ) : (
+            <Text variant="p6" color="black" fontWeight="700">
+              Connect
+            </Text>
+          )}
         </Box>
       </TouchableOpacity>
     </Box>

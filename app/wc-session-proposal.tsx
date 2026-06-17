@@ -2,7 +2,7 @@ import DappHeader from '@/src/components/walletconnect/DappHeader';
 import Box from '@/src/components/shared/Box';
 import Button from '@/src/components/shared/Button';
 import Text from '@/src/components/shared/Text';
-import { approveProposal, rejectProposal } from '@/src/lib/walletconnect';
+import { WC_CHAIN, approveProposal, rejectProposal } from '@/src/lib/walletconnect';
 import { useWalletStore } from '@/src/store/wallet';
 import { useWalletConnectStore } from '@/src/store/walletconnect';
 import { router } from 'expo-router';
@@ -25,6 +25,15 @@ export default function WCSessionProposalScreen() {
   const { proposer } = pendingProposal.params;
   const meta = proposer.metadata;
   const icon = meta.icons?.[0];
+
+  const requiredChains = Object.values(pendingProposal.params.requiredNamespaces ?? {}).flatMap(
+    (ns: any) => ns.chains ?? [],
+  );
+  const chainMismatch = requiredChains.length > 0 && !requiredChains.includes(WC_CHAIN);
+  const requiredNetwork = requiredChains
+    .find((c: string) => c.startsWith('stellar:'))
+    ?.split(':')[1]
+    ?.toUpperCase();
 
   const handleApprove = async () => {
     if (!smartAccountAddress) {
@@ -84,6 +93,26 @@ export default function WCSessionProposalScreen() {
           </Text>
         </Box>
 
+        {chainMismatch && (
+          <Box
+            backgroundColor="inputError"
+            borderRadius={12}
+            padding="m"
+            width="100%"
+            mb="m"
+            style={{ opacity: 0.9 }}
+          >
+            <Text variant="p7" color="textWhite" fontFamily="SFproMedium" mb="xs">
+              Network mismatch
+            </Text>
+            <Text variant="p8" color="textWhite">
+              This dApp requires Stellar {requiredNetwork ?? 'Mainnet'}. Your wallet is on{' '}
+              {WC_CHAIN === 'stellar:testnet' ? 'Testnet' : 'Mainnet'}. Reject and reconnect with a
+              matching build.
+            </Text>
+          </Box>
+        )}
+
         <Text variant="p7" color="textSecondary" textAlign="center">
           This dApp is requesting permission to view your address and request transaction
           signatures.
@@ -91,7 +120,7 @@ export default function WCSessionProposalScreen() {
       </Box>
 
       <Box paddingHorizontal="xl" gap="s">
-        <Button label="Connect" onPress={handleApprove} loading={loading} />
+        <Button label="Connect" onPress={handleApprove} loading={loading} disabled={chainMismatch} />
         <Button
           label="Reject"
           onPress={handleReject}
