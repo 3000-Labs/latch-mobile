@@ -210,6 +210,53 @@ export async function buildAssembledTransfer(p: BuildTransferParams): Promise<As
   return { unsignedTxXdr, expiresLedger };
 }
 
+export interface BuildOperationParams {
+  /** The multisig C-address that will authorize the operation. */
+  multisigAddress: string;
+  /** Pre-built operation (e.g. a DEX swap invocation). */
+  operation: xdr.Operation;
+}
+
+/**
+ * Build + simulate + pin expiration for ANY pre-built Soroban operation.
+ * Identical to buildAssembledTransfer but takes an operation directly instead
+ * of constructing a SAC transfer — so both swap and transfer share the same
+ * signing and submit primitives (signSharedEntry / aggregateAndSubmit).
+ */
+export async function buildAssembledOperation(p: BuildOperationParams): Promise<AssembledTransfer> {
+  const { multisigAddress, operation } = p;
+  log('buildOp ▶', { multisigAddress, network: NETWORK });
+
+  const bundler = Keypair.fromSecret(bundlerSecret());
+  const account = await loadAccount(bundler.publicKey());
+
+  const tx = new TransactionBuilder(account, {
+    fee: '1000000',
+    networkPassphrase: STELLAR_NETWORK_PASSPHRASE,
+  })
+    .addOperation(operation)
+    .setTimeout(SIGNATURE_VALIDITY_LEDGERS * 5)
+    .build();
+
+  const simRaw = await sorobanCall(STELLAR_RPC_URL, 'simulateTransaction', {
+    transaction: txToBase64(tx),
+  });
+  if (simRaw.error) throw new Error(`operation simulation failed: ${simRaw.error}`);
+  const simResult = parseSimResult(simRaw);
+  describeAuthEntries('buildOp sim auth entries', simResult.result?.auth ?? []);
+
+  const expiresLedger = (simRaw.latestLedger ?? 0) + SIGNATURE_VALIDITY_LEDGERS;
+  for (const entry of simResult.result?.auth ?? []) {
+    if (entry.credentials().switch().name === 'sorobanCredentialsAddress') {
+      entry.credentials().address().signatureExpirationLedger(expiresLedger);
+    }
+  }
+  log('buildOp: pinned expiresLedger', expiresLedger);
+
+  const assembled = rpc.assembleTransaction(tx, simResult).build();
+  return { unsignedTxXdr: txToBase64(assembled), expiresLedger };
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // 2. SIGN  (each member signs the SAME single multisig entry, op.auth[0])
 // ═══════════════════════════════════════════════════════════════════════════

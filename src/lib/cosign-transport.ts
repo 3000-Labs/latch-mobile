@@ -14,10 +14,12 @@ import * as backend from '@/src/lib/cosign-backend-flow';
 import {
   approvedKeyData as p2pApprovedKeyData,
   canApprove as p2pCanApprove,
+  createSwapPacket,
   createTransferPacket,
   getMySignerKey as p2pGetMySignerKey,
   getPacket,
   onChainThreshold,
+  type CreateSwapPacketParams,
   type CreateTransferPacketParams,
 } from '@/src/lib/cosign-packet-flow';
 import { approvePacket, submitPacket } from '@/src/lib/cosign-packet-flow';
@@ -32,16 +34,41 @@ export function createTransfer(p: CreateTransferPacketParams): Promise<CosignPac
   return isBackendEnabled() ? backend.createTransferRequest(p) : createTransferPacket(p);
 }
 
-export function getEntry(id: string): Promise<CosignPacket | null> {
-  return isBackendEnabled() ? backend.getRequest(id) : getPacket(id);
+export { type CreateSwapPacketParams };
+
+export function createSwap(p: CreateSwapPacketParams): Promise<CosignPacket> {
+  // The backend queue can't carry swap display metadata (kind/swapMeta) — it
+  // only stores an encrypted XDR + threshold. So swaps always use the local P2P
+  // packet path, even when the backend transport is enabled for transfers. The
+  // dispatchers below are local-first so the rest of the flow still finds them.
+  return createSwapPacket(p);
 }
 
-export function approve(id: string): Promise<CosignPacket> {
-  return isBackendEnabled() ? backend.approveRequest(id) : approvePacket(id);
+/**
+ * A P2P packet (currently: any swap) is held in local AsyncStorage. When the
+ * backend transport is on, the per-id dispatchers must check local storage FIRST
+ * so a locally-saved swap isn't looked up in the backend (where it doesn't
+ * exist) — that mismatch is what dropped swap initiators onto the empty
+ * scan/paste screen. Backend transfers have no local copy, so they fall through.
+ */
+async function isLocalPacket(id: string): Promise<boolean> {
+  return (await getPacket(id)) !== null;
 }
 
-export function submit(id: string): Promise<{ hash: string }> {
-  return isBackendEnabled() ? backend.submitRequest(id) : submitPacket(id);
+export async function getEntry(id: string): Promise<CosignPacket | null> {
+  if (!isBackendEnabled()) return getPacket(id);
+  const local = await getPacket(id);
+  return local ?? backend.getRequest(id);
+}
+
+export async function approve(id: string): Promise<CosignPacket> {
+  if (isBackendEnabled() && !(await isLocalPacket(id))) return backend.approveRequest(id);
+  return approvePacket(id);
+}
+
+export async function submit(id: string): Promise<{ hash: string }> {
+  if (isBackendEnabled() && !(await isLocalPacket(id))) return backend.submitRequest(id);
+  return submitPacket(id);
 }
 
 export interface ApproveOutcome {
@@ -80,8 +107,9 @@ export async function approveAndMaybeSubmit(id: string): Promise<ApproveOutcome>
  * GLOBAL cancel — any member holding the capability can veto a pending request
  * for everyone (capability = membership; flagged in docs).
  */
-export function cancel(id: string): Promise<void> {
-  return isBackendEnabled() ? backend.cancelRequest(id) : removePacket(id);
+export async function cancel(id: string): Promise<void> {
+  if (isBackendEnabled() && !(await isLocalPacket(id))) return backend.cancelRequest(id);
+  await removePacket(id);
 }
 
 /** Pending approvals for one shared wallet, in the active transport. */
@@ -90,18 +118,20 @@ export function listForAccount(account: string): Promise<CosignPacket[]> {
 }
 
 /** Whether this device can still add an approval, in the active transport. */
-export function canApprove(packet: CosignPacket): Promise<boolean> {
-  return isBackendEnabled() ? backend.canApprove(packet) : p2pCanApprove(packet);
+export async function canApprove(packet: CosignPacket): Promise<boolean> {
+  if (isBackendEnabled() && !(await isLocalPacket(packet.id))) return backend.canApprove(packet);
+  return p2pCanApprove(packet);
 }
 
 /** Subset of the given signer keys (keyDataHex) that has approved, per transport. */
-export function approvedKeyData(
+export async function approvedKeyData(
   packet: CosignPacket,
   keyDataHexList: string[],
 ): Promise<Set<string>> {
-  return isBackendEnabled()
-    ? backend.approvedKeyData(packet, keyDataHexList)
-    : Promise.resolve(p2pApprovedKeyData(packet, keyDataHexList));
+  if (isBackendEnabled() && !(await isLocalPacket(packet.id))) {
+    return backend.approvedKeyData(packet, keyDataHexList);
+  }
+  return p2pApprovedKeyData(packet, keyDataHexList);
 }
 
 // Shape-based, transport-agnostic — reused as-is.

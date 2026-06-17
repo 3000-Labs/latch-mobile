@@ -168,11 +168,18 @@ const Profile = () => {
               label="Multisig Wallets"
               onPress={() => setSharedWalletVisible(true)}
             />
-            {/* <SettingItem
-              icon="checkmark-done-outline"
-              label="Approve Shared Transfer"
-              onPress={() => router.push('/cosign-review')}
-            /> */}
+            {activeAccount.isMultisig && (
+              <SettingItem
+                icon="checkmark-done-outline"
+                label="Approve a Request"
+                onPress={() => {
+                  if (activeAccount.isMultisig) {
+                    closeDrawer();
+                    router.push('/cosign-review');
+                  }
+                }}
+              />
+            )}
             <SettingItem
               icon="book-outline"
               label="Address Book"

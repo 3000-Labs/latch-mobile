@@ -84,11 +84,28 @@ const QRScanScreen = () => {
     }
   };
 
+  const handleCosignPayload = (data: string): boolean => {
+    const trimmed = data.trim();
+    // latch://cosign?d=<base64url> deep link from another owner's "Show QR".
+    const dMatch = trimmed.match(/cosign\?(?:.*&)?d=([^&\s]+)/);
+    if (dMatch) {
+      router.replace({ pathname: '/cosign-review', params: { d: dMatch[1] } });
+      return true;
+    }
+    // Raw packet JSON (fallback when shared as text and re-encoded into a QR).
+    if (trimmed.startsWith('{') && trimmed.includes('"unsignedTxXdr"')) {
+      router.replace({ pathname: '/cosign-review', params: { data: trimmed } });
+      return true;
+    }
+    return false;
+  };
+
   const handleBarcodeScanned = (data: string) => {
     if (data.startsWith('wc:')) {
       handlePairUri(data);
       return;
     }
+    if (handleCosignPayload(data)) return;
     setScannedAddress(data);
   };
 
@@ -137,7 +154,12 @@ const QRScanScreen = () => {
           <URLInputSheet
             url={inputUrl}
             onChangeUrl={setInputUrl}
-            onConnect={() => handlePairUri(inputUrl)}
+            onConnect={() => {
+              // A pasted cosign link routes to the approval screen; otherwise
+              // treat the input as a WalletConnect URI.
+              if (handleCosignPayload(inputUrl)) return;
+              handlePairUri(inputUrl);
+            }}
             isConnecting={isPairing}
           />
         </Box>

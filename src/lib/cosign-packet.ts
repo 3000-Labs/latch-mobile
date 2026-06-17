@@ -28,6 +28,13 @@ const PACKET_VERSION = 1 as const;
 const STORE_KEY = 'latch_cosign_packets';
 const NETWORK: 'testnet' | 'mainnet' = ACTIVE_NETWORK.network === 'TESTNET' ? 'testnet' : 'mainnet';
 
+export interface SwapMeta {
+  fromCode: string;
+  toCode: string;
+  amountIn: string;
+  amountOut: string;
+}
+
 export interface CosignPacket {
   v: typeof PACKET_VERSION;
   /** Client-generated id; dedupe + display only (not security-bearing). */
@@ -44,6 +51,10 @@ export interface CosignPacket {
   /** Ledger the pinned signatures expire at (mirrors signatureExpirationLedger). */
   expiresLedger: number;
   createdAt: string;
+  /** Operation kind — 'transfer' (default) or 'swap'. */
+  kind?: 'transfer' | 'swap';
+  /** Present when kind === 'swap'; display-only (security gate is the XDR auth entry). */
+  swapMeta?: SwapMeta;
   /**
    * On-chain tx hash once the request has been broadcast (backend transport
    * only). Lets a member still viewing the request detect that someone else met
@@ -67,11 +78,12 @@ function newId(): string {
   return Buffer.from(QuickCrypto.randomBytes(16)).toString('hex');
 }
 
-/** Wrap a freshly built assembled transfer into a new packet (no signatures). */
+/** Wrap a freshly built assembled operation into a new packet (no signatures). */
 export function createPacket(
   assembled: AssembledTransfer,
   smartAccountAddress: string,
   threshold: number,
+  options?: { kind?: CosignPacket['kind']; swapMeta?: SwapMeta },
 ): CosignPacket {
   return {
     v: PACKET_VERSION,
@@ -83,6 +95,8 @@ export function createPacket(
     signatures: [],
     expiresLedger: assembled.expiresLedger,
     createdAt: new Date().toISOString(),
+    kind: options?.kind ?? 'transfer',
+    swapMeta: options?.swapMeta,
   };
 }
 

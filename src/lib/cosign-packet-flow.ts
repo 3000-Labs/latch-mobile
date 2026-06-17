@@ -30,13 +30,16 @@ import {
   removePacket,
   savePacket,
   type CosignPacket,
+  type SwapMeta,
 } from '@/src/lib/cosign-packet';
 import {
   aggregateAndSubmit,
+  buildAssembledOperation,
   buildAssembledTransfer,
   signSharedEntry,
 } from '@/src/lib/multisig-send';
 import { getPasskeyStorageKeys, useWalletStore, type WalletAccount } from '@/src/store/wallet';
+import { type xdr } from '@stellar/stellar-sdk';
 
 /**
  * On-chain id of the Default context rule that holds the member signer set +
@@ -227,4 +230,46 @@ export async function canApprove(packet: CosignPacket): Promise<boolean> {
 export function approvedKeyData(packet: CosignPacket, keyDataHexList: string[]): Set<string> {
   const signed = new Set(packet.signatures.map((s) => s.signerKey));
   return new Set(keyDataHexList.filter((k) => signed.has(k)));
+}
+
+export interface CreateSwapPacketParams {
+  multisigAccount: WalletAccount;
+  /** Pre-built swap operation from a SwapProvider.buildSwapOperation call. */
+  operation: xdr.Operation;
+  swapMeta: SwapMeta;
+}
+
+/**
+ * Build an assembled swap operation, wrap in a packet, sign with this device's
+ * member key, persist, and return. Mirrors createTransferPacket but uses the
+ * pre-built DEX router operation instead of constructing a SAC transfer.
+ */
+export async function createSwapPacket(p: CreateSwapPacketParams): Promise<CosignPacket> {
+  const { multisigAccount, operation, swapMeta } = p;
+  if (!multisigAccount.smartAccountAddress) {
+    throw new Error('This multisig wallet is not deployed yet.');
+  }
+  const me = pickSigner();
+  if (!me) throw new Error('No personal account on this device to sign with.');
+
+  const threshold = await onChainThreshold(multisigAccount.smartAccountAddress);
+
+  const assembled = await buildAssembledOperation({
+    multisigAddress: multisigAccount.smartAccountAddress,
+    operation,
+  });
+
+  let packet = createPacket(assembled, multisigAccount.smartAccountAddress, threshold, {
+    kind: 'swap',
+    swapMeta,
+  });
+  const entry = await signSharedEntry(
+    packet.unsignedTxXdr,
+    me.account,
+    me.listIndex,
+    useWalletStore.getState().mnemonic,
+  );
+  packet = addEntryToPacket(packet, entry);
+  await savePacket(packet);
+  return packet;
 }

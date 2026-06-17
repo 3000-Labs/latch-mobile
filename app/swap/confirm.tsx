@@ -11,6 +11,7 @@ import {
   executeSwapFromPasskeyAccount,
   executeSwapFromSmartAccount,
 } from '@/src/services/swap/execute-swap';
+import { createSwap } from '@/src/lib/cosign-transport';
 import { getActiveSwapProvider } from '@/src/services/swap/registry';
 import { useWalletStore } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
@@ -94,21 +95,6 @@ const ConfirmSwap = () => {
   const handleConfirm = async () => {
     if (!quote || !smartAccountAddress) return;
 
-    if (activeAccount?.isMultisig) {
-      // v1 ships single-signer swaps only — shared-wallet swaps are deferred.
-      // See docs/swap-implementation.md (multisig reuses multisig-send.ts).
-      router.dismissTo({
-        pathname: '/(auth)/thank-you',
-        params: {
-          title: 'Swaps not available for shared wallets yet',
-          subtext: 'Multi-signer swap support is coming soon.',
-          buttonLabel: 'Go to Dashboard',
-          imageSource: 'error',
-        },
-      });
-      return;
-    }
-
     const confirmed = await requestAuth(
       `Swap ${params.amountIn} ${params.fromCode} for ~${quote.amountOut} ${params.toCode}`,
     );
@@ -120,6 +106,22 @@ const ConfirmSwap = () => {
         quote,
         smartAccountAddress,
       );
+
+      if (activeAccount?.isMultisig) {
+        const packet = await createSwap({
+          multisigAccount: activeAccount,
+          operation,
+          swapMeta: {
+            fromCode: params.fromCode,
+            toCode: params.toCode,
+            amountIn: params.amountIn,
+            amountOut: effectiveQuote.amountOut,
+          },
+        });
+        router.replace({ pathname: '/cosign-review', params: { id: packet.id } });
+        return;
+      }
+
       const isPasskeyAccount = !activeAccount?.gAddress;
       if (__DEV__) console.log('[swap-exec] submitting', { isPasskeyAccount, smartAccountAddress });
 
@@ -405,7 +407,11 @@ const ConfirmSwap = () => {
         onResult={handleAuthResult}
       />
 
-      <LoadingBlur visible={submitting} text="Swapping…" subText="Confirming on-chain" />
+      <LoadingBlur
+        visible={submitting}
+        text={activeAccount?.isMultisig ? 'Preparing approval…' : 'Swapping…'}
+        subText={activeAccount?.isMultisig ? 'Creating co-sign request' : 'Confirming on-chain'}
+      />
     </Box>
   );
 };
