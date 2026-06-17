@@ -3,6 +3,7 @@ import ScannerFrame from '@/src/components/scan/ScannerFrame';
 import URLInputSheet from '@/src/components/scan/URLInputSheet';
 import Box from '@/src/components/shared/Box';
 import UtilityHeader from '@/src/components/shared/UtilityHeader';
+import NetInfo from '@react-native-community/netinfo';
 import { pairWithUri } from '@/src/lib/walletconnect';
 import { useCameraPermissions } from 'expo-camera';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -56,6 +57,12 @@ const QRScanScreen = () => {
   const handlePairUri = async (uri: string) => {
     if (!uri.startsWith('wc:')) {
       Alert.alert('Invalid URL', 'Please paste a valid WalletConnect URI starting with wc:');
+      return;
+    }
+
+    const net = await NetInfo.fetch();
+    if (!net.isConnected || !net.isInternetReachable) {
+      Alert.alert('No internet', 'Connect to the internet before pairing with WalletConnect.');
       return;
     }
 

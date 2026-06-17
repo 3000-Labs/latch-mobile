@@ -1,7 +1,7 @@
 import '@walletconnect/react-native-compat';
 import * as Sentry from '@sentry/react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { QueryClientProvider } from '@tanstack/react-query';
+import { onlineManager, QueryClientProvider } from '@tanstack/react-query';
 import { IconRegistry } from '@ui-kitten/components';
 import { EvaIconsPack } from '@ui-kitten/eva-icons';
 import { useFonts } from 'expo-font';
@@ -9,6 +9,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { LogBox } from 'react-native';
+import NetInfo from '@react-native-community/netinfo';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import 'react-native-get-random-values';
@@ -21,9 +22,16 @@ import { Stack } from 'expo-router';
 import { install } from 'react-native-quick-crypto';
 import { toastConfig } from '../src/components/toast/toastConfig';
 import { queryClient } from '../src/api/client';
+import { useNetworkStatus } from '../src/hooks/use-network-status';
 import { useOtaUpdate } from '../src/hooks/use-ota-update';
 import { useWalletConnect } from '../src/hooks/use-walletconnect';
 import { AppThemeProvider, useAppTheme } from '../src/theme/ThemeContext';
+
+// Wire React Query's online/offline state to the device's actual connectivity.
+// When offline, RQ pauses all queries and retries them once the device comes back.
+onlineManager.setEventListener((setOnline) =>
+  NetInfo.addEventListener((state) => setOnline(!!state.isConnected && !!state.isInternetReachable)),
+);
 
 install();
 global.Buffer = Buffer;
@@ -48,6 +56,7 @@ function RootLayoutContent() {
   const { isDark } = useAppTheme();
   useOtaUpdate();
   useWalletConnect();
+  useNetworkStatus();
 
   return (
     <>
