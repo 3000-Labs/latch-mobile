@@ -1,3 +1,4 @@
+import { existsSync } from 'fs';
 import env from './env';
 import packageJson from './package.json';
 
@@ -27,7 +28,9 @@ export default {
       supportsTablet: true,
       bundleIdentifier: appName === 'Latch' ? 'co.getlatch.latchapp' : 'qa.getlatch.app',
       appleTeamId: 'P5QF5H77W5',
-      googleServicesFile: process.env.GOOGLE_SERVICES_IOS ?? './GoogleService-Info.plist',
+      ...(process.env.GOOGLE_SERVICES_IOS || existsSync('./GoogleService-Info.plist')
+        ? { googleServicesFile: process.env.GOOGLE_SERVICES_IOS ?? './GoogleService-Info.plist' }
+        : {}),
       buildNumber,
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
@@ -58,7 +61,9 @@ export default {
         monochromeImage: './assets/images/android-icon-monochrome.png',
       },
       predictiveBackGestureEnabled: false,
-      googleServicesFile: process.env.GOOGLE_SERVICES_ANDROID ?? './google-services.json',
+      ...(process.env.GOOGLE_SERVICES_ANDROID || existsSync('./google-services.json')
+        ? { googleServicesFile: process.env.GOOGLE_SERVICES_ANDROID ?? './google-services.json' }
+        : {}),
       permissions: [
         'android.permission.USE_BIOMETRIC',
         'android.permission.USE_FINGERPRINT',
