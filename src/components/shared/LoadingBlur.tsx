@@ -33,7 +33,11 @@ const LoadingBlur: React.FC<Props> = ({
   visible = true,
   text = 'Connecting to wallet...',
   subText,
+<<<<<<< HEAD
   intensity = 40,
+=======
+  intensity = 30,
+>>>>>>> origin/master
   tint = 'dark',
   onPress,
 }) => {
@@ -76,6 +80,7 @@ const LoadingBlur: React.FC<Props> = ({
           <BlurView intensity={intensity} tint={tint} style={StyleSheet.absoluteFill} />
         </TouchableWithoutFeedback>
 
+<<<<<<< HEAD
         <View style={styles.center}>
           <Box alignItems="center" justifyContent="center" gap="m">
             <View style={styles.discWrap}>
@@ -121,6 +126,25 @@ const LoadingBlur: React.FC<Props> = ({
             )}
           </Box>
         </View>
+=======
+      <View style={styles.center}>
+        <Box alignItems="center" justifyContent="center" gap="xs">
+          <Image
+            // source={require('@/src/assets/images/logoLoading.png')}
+            source={require('@/src/assets/images/logosym.png')}
+            style={{ width: 72, height: 72, tintColor: theme.colors.primary700 }}
+            resizeMode="contain"
+          />
+          <Text variant="h10" color={'textWhite'}>
+            {text}
+          </Text>
+          {subText && (
+            <Text variant="h10" color={'textWhite'} textAlign="center">
+              {subText}
+            </Text>
+          )}
+        </Box>
+>>>>>>> origin/master
       </View>
     </Modal>
   );

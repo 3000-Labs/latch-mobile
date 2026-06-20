@@ -25,6 +25,7 @@ export function shortenAddress(address: string | null): string {
   if (address.length <= 12) return address;
   return `${address.slice(0, 6)}…${address.slice(-6)}`;
 }
+<<<<<<< HEAD
 
 export function formatRelativeTime(dateStr?: string): string {
   if (!dateStr) return '';
@@ -110,3 +111,5 @@ export const stroopToXlm = (stroops: BigNumber | string | number): BigNumber => 
   }
   return new BigNumber(Number(stroops) / 1e7);
 };
+=======
+>>>>>>> origin/master

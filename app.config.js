@@ -106,6 +106,12 @@ export default {
           ],
         },
       ],
+      // [
+      //   '@hot-updater/react-native',
+      //   {
+      //     channel: env.EXPO_PUBLIC_APP_ENV,
+      //   },
+      // ],
       [
         'expo-camera',
         {

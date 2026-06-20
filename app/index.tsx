@@ -1,7 +1,12 @@
 import Box from '@/src/components/shared/Box';
+<<<<<<< HEAD
 import { SECURE_KEYS } from '@/src/store/wallet';
 import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
+=======
+import Text from '@/src/components/shared/Text';
+import { SECURE_KEYS } from '@/src/store/wallet';
+>>>>>>> origin/master
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import React, { useCallback, useEffect } from 'react';
@@ -15,9 +20,12 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+<<<<<<< HEAD
 // expo-image renders with SDWebImage/Glide — keeps glyph quality crisp under
 // scale + rotate transforms vs. RN's stock Image which sampling-artifacts.
 const AnimatedExpoImage = Animated.createAnimatedComponent(ExpoImage);
+=======
+>>>>>>> origin/master
 
 // ---------------------------------------------------------------------------
 // Geometry — the two glyph PNGs (g.png 254x202, c.png 176x202) are animated
@@ -254,8 +262,12 @@ const SplashAnimation = () => {
       });
 
     return () => clearTimeout(timer);
+<<<<<<< HEAD
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+=======
+  }, [aOpacity, cOpacity, checkUserStatusAndNavigate, hOpacity, lOpacity, logoOpacity, tOpacity]);
+>>>>>>> origin/master
 
   const gStyle = useAnimatedStyle(() => ({
     opacity: glyphsOpacity.value,

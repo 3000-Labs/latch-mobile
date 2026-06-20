@@ -28,8 +28,11 @@ const palette = {
   primary900: '#754101',
   primaryOrange: '#FF8C00',
   primaryIndigo: '#6366F1',
+<<<<<<< HEAD
 
   labelBg: 'rgba(255, 184, 0, 0.1)',
+=======
+>>>>>>> origin/master
 
   // Primary Dark Mode Scale (Light to Dark)
   primaryDark50: '#FADAB4',
@@ -409,8 +412,13 @@ const darkTheme = createTheme({
     displayItalic: {
       fontSize: 60,
       lineHeight: 69,
+<<<<<<< HEAD
       letterSpacing: 1,
       fontFamily: 'SFproRoundedBold',
+=======
+      letterSpacing: 1.5,
+      fontFamily: 'SFproSemiboldItalic',
+>>>>>>> origin/master
     },
     title: { fontSize: 24, lineHeight: 32, letterSpacing: -0.72, fontFamily: 'SFproBold' },
     largeTitle: { fontSize: 34, lineHeight: 42, letterSpacing: -1, fontFamily: 'SFproBold' },

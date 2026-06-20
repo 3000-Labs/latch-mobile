@@ -20,19 +20,25 @@ import '../shim';
 import { Buffer } from 'buffer';
 import { Stack } from 'expo-router';
 import { install } from 'react-native-quick-crypto';
+<<<<<<< HEAD
 import { toastConfig } from '../src/components/toast/toastConfig';
+=======
+>>>>>>> origin/master
 import { queryClient } from '../src/api/client';
 import { useNetworkStatus } from '../src/hooks/use-network-status';
 import { useOtaUpdate } from '../src/hooks/use-ota-update';
 import { useWalletConnect } from '../src/hooks/use-walletconnect';
 import { AppThemeProvider, useAppTheme } from '../src/theme/ThemeContext';
 
+<<<<<<< HEAD
 // Wire React Query's online/offline state to the device's actual connectivity.
 // When offline, RQ pauses all queries and retries them once the device comes back.
 onlineManager.setEventListener((setOnline) =>
   NetInfo.addEventListener((state) => setOnline(!!state.isConnected && !!state.isInternetReachable)),
 );
 
+=======
+>>>>>>> origin/master
 install();
 global.Buffer = Buffer;
 
@@ -47,7 +53,7 @@ if (process.env.EXPO_PUBLIC_SENTRY_DSN) {
 SplashScreen.preventAutoHideAsync();
 
 if (__DEV__) {
-  void import('../ReactotronConfig.js');
+  // void import('../ReactotronConfig.js');
 }
 
 LogBox.ignoreAllLogs(true);
@@ -70,6 +76,7 @@ function RootLayoutContent() {
         <Stack.Screen name="help-support" options={{ presentation: 'modal' }} />
         <Stack.Screen name="about" options={{ presentation: 'modal' }} />
         <Stack.Screen name="qrcode-scan" options={{ headerShown: false }} />
+<<<<<<< HEAD
         <Stack.Screen name="filter-sheet" options={{ presentation: 'modal' }} />
         <Stack.Screen name="add-device" options={{ presentation: 'modal' }} />
         <Stack.Screen name="pair-show-code" options={{ headerShown: false }} />
@@ -79,6 +86,8 @@ function RootLayoutContent() {
         <Stack.Screen name="pending-approval" options={{ headerShown: false }} />
         <Stack.Screen name="wc-session-proposal" options={{ presentation: 'modal' }} />
         <Stack.Screen name="wc-session-request" options={{ presentation: 'modal' }} />
+=======
+>>>>>>> origin/master
       </Stack>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <Toast config={toastConfig} />

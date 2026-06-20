@@ -8,7 +8,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useRef, useState } from 'react';
+<<<<<<< HEAD
 import { Dimensions, FlatList, Image, Linking, StyleSheet } from 'react-native';
+=======
+import { Dimensions, FlatList, Image } from 'react-native';
+>>>>>>> origin/master
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
@@ -126,6 +130,7 @@ const Onboarding = () => {
       />
 
       {/* Footer */}
+<<<<<<< HEAD
       <Box
         px="xl"
         style={{ paddingBottom: insets.bottom + 20 }}
@@ -133,6 +138,9 @@ const Onboarding = () => {
         mt={'l'}
         gap="m"
       >
+=======
+      <Box paddingHorizontal="xl" style={{ paddingBottom: insets.bottom + 20 }} alignItems="center" gap="m">
+>>>>>>> origin/master
         <ProgressPagination total={3} activeIndex={activeIndex} />
         <Box width="100%" gap="m">
           <Button

@@ -1,7 +1,6 @@
 import { useTheme } from '@shopify/restyle';
-import { BlurView } from 'expo-blur';
 import React from 'react';
-import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { usePendingPackets } from '../hooks/use-pending-packets';
@@ -23,35 +22,9 @@ export function CustomTabBar({ state, navigation }: any) {
   // tab so the count is visible from anywhere in the authenticated shell.
   const { count: pendingCount } = usePendingPackets();
 
-  // iOS keeps its hardcoded home-indicator spacing; Android lifts the bar by the
-  // system nav-bar inset so it isn't drawn behind the navigation buttons under
-  // edge-to-edge (gesture nav reports ~0, so this collapses cleanly there).
-  const isIOS = Platform.OS === 'ios';
-  const bottomInset = isIOS ? 0 : insets.bottom;
-
   return (
-    <View
-      style={[
-        styles.container,
-        {
-          backgroundColor: isDark ? 'rgba(0,0,0,0.85)' : '#F6F6F6',
-          height: (isIOS ? 90 : 70) + bottomInset,
-          paddingBottom: isIOS ? 20 : bottomInset,
-        },
-      ]}
-    >
-      <BlurView
-        intensity={Platform.OS === 'ios' ? 80 : 100}
-        style={StyleSheet.absoluteFill}
-        tint={isDark ? 'dark' : 'light'}
-      />
-      <View
-        style={[
-          styles.border,
-          { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' },
-        ]}
-      />
-      <View style={styles.tabBarInner}>
+    <View style={[styles.wrapper, { paddingBottom: insets.bottom + 12 }]}>
+      <View style={[styles.pill, { backgroundColor: isDark ? '#242424' : '#F2F2F2' }]}>
         {TAB_ITEMS.map((item, index) => {
           const isFocused = state.index === index;
 
@@ -68,7 +41,6 @@ export function CustomTabBar({ state, navigation }: any) {
                 navigation.navigate(route.name);
               }
             } else {
-              // Fallback or navigate by name if route not in state yet
               navigation.navigate(item.name);
             }
           };
@@ -106,21 +78,24 @@ export function CustomTabBar({ state, navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  container: {
+  wrapper: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    height: Platform.OS === 'ios' ? 90 : 70,
-    paddingBottom: Platform.OS === 'ios' ? 20 : 0,
+    paddingHorizontal: 20,
   },
-  border: {
-    height: 1,
-  },
-  tabBarInner: {
+  pill: {
     flexDirection: 'row',
-    height: 60,
+    borderRadius: 32,
+    height: 70,
     paddingHorizontal: 8,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 8,
   },
   tabButton: {
     flex: 1,

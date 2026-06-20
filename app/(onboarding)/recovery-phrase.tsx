@@ -18,7 +18,10 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+<<<<<<< HEAD
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+=======
+>>>>>>> origin/master
 
 import Box from '@/src/components/shared/Box';
 import Button from '@/src/components/shared/Button';
