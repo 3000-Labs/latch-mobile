@@ -84,7 +84,7 @@ const AddAccountPrompt = ({ onBack, onCreatePress, onAddSharedPress }: AddAccoun
           >
             <Box mb="s">
               <Text variant="h9" color="textPrimary" fontWeight="700">
-                Add Multisig Wallet
+                Import Multisig Wallet
               </Text>
             </Box>
             <Text variant="p7" color="textSecondary" lineHeight={22}>
