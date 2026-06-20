@@ -35,7 +35,7 @@ const AddAccountPrompt = ({ onBack, onCreatePress, onAddSharedPress }: AddAccoun
           <Ionicons name="chevron-back" size={24} color={theme.colors.textPrimary} />
         </TouchableOpacity>
 
-        <Text variant="h7" color="textPrimary" fontWeight="800">
+        <Text variant="h10" color="textPrimary" fontWeight="800">
           Add Account
         </Text>
         <Box width={40} />

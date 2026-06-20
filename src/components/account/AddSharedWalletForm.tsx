@@ -35,7 +35,7 @@ const AddSharedWalletForm = ({ onBack, onSubmit, isSubmitting }: Props) => {
         <TouchableOpacity onPress={onBack} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <Ionicons name="chevron-back" size={24} color={theme.colors.textPrimary} />
         </TouchableOpacity>
-        <Text variant="h7" color="textPrimary" fontWeight="800">
+        <Text variant="h10" color="textPrimary" fontWeight="800">
           Add Multisig Wallet
         </Text>
         <Box width={40} />
