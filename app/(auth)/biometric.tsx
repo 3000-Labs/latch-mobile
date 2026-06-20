@@ -8,18 +8,11 @@ import { Theme } from '@/src/theme/theme';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '@shopify/restyle';
-<<<<<<< HEAD
 import { LinearGradient } from 'expo-linear-gradient';
-=======
->>>>>>> origin/master
 import * as LocalAuthentication from 'expo-local-authentication';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { StatusBar } from 'expo-status-bar';
-<<<<<<< HEAD
-=======
-import QuickCrypto from 'react-native-quick-crypto';
->>>>>>> origin/master
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
@@ -67,12 +60,9 @@ const Biometrics = () => {
   // setup mode state
   const [showModal, setShowModal] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-<<<<<<< HEAD
   // Gate setup rendering until we know whether the device has biometrics. Avoids
   // flashing the biometric screen on devices that will be redirected to PIN.
   const [checkingSetup, setCheckingSetup] = useState(!isUnlockMode);
-=======
->>>>>>> origin/master
 
   // unlock mode state
   const [showPin, setShowPin] = useState(false);
@@ -102,7 +92,6 @@ const Biometrics = () => {
         setBiometricLabel('Touch ID');
         setBiometricIcon('finger-print');
       }
-<<<<<<< HEAD
 
       // If the device can't do biometrics, skip this screen and go straight to
       // PIN setup. proceedToPin handles the device-passcode gate + navigation;
@@ -116,10 +105,6 @@ const Biometrics = () => {
     };
     detectType();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-=======
-    };
-    detectType();
->>>>>>> origin/master
   }, [isUnlockMode]);
 
   // ─── Lockout countdown ────────────────────────────────────────────────────
@@ -146,7 +131,6 @@ const Biometrics = () => {
 
   // ─── Unlock helpers ───────────────────────────────────────────────────────
 
-<<<<<<< HEAD
   const unlockSuccess = useCallback(async () => {
     // Cold-open routing: if the active smart account has any pending
     // cosign requests waiting on this device, surface them immediately
@@ -164,9 +148,6 @@ const Biometrics = () => {
     // } catch {
     //   // Network blip — fall through to the normal landing.
     // }
-=======
-  const unlockSuccess = useCallback(() => {
->>>>>>> origin/master
     router.replace('/(tabs)');
   }, [router]);
 
@@ -289,7 +270,6 @@ const Biometrics = () => {
         const credential = createPasskeyCredential();
         await storePasskeyCredential(credential, false);
       }
-<<<<<<< HEAD
       router.replace(
         from ? { pathname: '/(onboarding)/set-pin', params: { from } } : '/(onboarding)/set-pin',
       );
@@ -297,15 +277,6 @@ const Biometrics = () => {
       Alert.alert('Setup Failed', 'Could not save your secure credential. Please try again.', [
         { text: 'OK' },
       ]);
-=======
-      router.replace('/(onboarding)/set-pin');
-    } catch {
-      Alert.alert(
-        'Setup Failed',
-        'Could not save your secure credential. Please try again.',
-        [{ text: 'OK' }],
-      );
->>>>>>> origin/master
     } finally {
       setIsProcessing(false);
     }
@@ -350,7 +321,6 @@ const Biometrics = () => {
 
       // Navigate to PIN setup so biometric users have a PIN as emergency fallback.
       // set-pin will forward to deploy-account once the PIN is confirmed.
-<<<<<<< HEAD
       router.replace(
         from ? { pathname: '/(onboarding)/set-pin', params: { from } } : '/(onboarding)/set-pin',
       );
@@ -358,15 +328,6 @@ const Biometrics = () => {
       Alert.alert('Setup Failed', 'Could not save your biometric credential. Please try again.', [
         { text: 'OK' },
       ]);
-=======
-      router.replace('/(onboarding)/set-pin');
-    } catch {
-      Alert.alert(
-        'Setup Failed',
-        'Could not save your biometric credential. Please try again.',
-        [{ text: 'OK' }],
-      );
->>>>>>> origin/master
     } finally {
       setIsProcessing(false);
     }
@@ -586,16 +547,12 @@ const Biometrics = () => {
 
       {/* Header */}
       <Box flexDirection="row" justifyContent="space-between" alignItems="center" mb="m">
-<<<<<<< HEAD
         <TouchableOpacity
           onPress={() => {
             if (router.canGoBack()) router.back();
           }}
           disabled={isProcessing}
         >
-=======
-        <TouchableOpacity onPress={() => router.back()} disabled={isProcessing}>
->>>>>>> origin/master
           <Ionicons
             name="chevron-back"
             size={24}
@@ -650,10 +607,7 @@ const Biometrics = () => {
           onPress={() => setShowModal(true)}
           bg="primary700"
           labelColor="black"
-<<<<<<< HEAD
           // shadowColor="gradientDark"
-=======
->>>>>>> origin/master
           disabled={isProcessing}
         />
         <Button
@@ -693,17 +647,10 @@ const Biometrics = () => {
               resizeMode="contain"
             />
             <Text variant="h8" color="text200" fontSize={24} mt="l">
-<<<<<<< HEAD
               Do you want to allow &quot;Latch&quot; to use biometric?
             </Text>
             <Text variant="p5" color="textTertiary" mt="xs">
               Allow Latch to access your biometric data..
-=======
-              Do you want to allow &quot;Latch&quot; to use {biometricLabel}?
-            </Text>
-            <Text variant="p5" color="text200" mt="m">
-              Allow Latch to access your {biometricLabel} data.
->>>>>>> origin/master
             </Text>
             <Box flexDirection="row" gap="m" mt="xl" width="100%">
               <Button

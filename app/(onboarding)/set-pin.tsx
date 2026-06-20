@@ -20,10 +20,7 @@ import {
   View,
 } from 'react-native';
 import QuickCrypto from 'react-native-quick-crypto';
-<<<<<<< HEAD
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-=======
->>>>>>> origin/master
 
 function hashPin(pin: string): string {
   return QuickCrypto.createHash('sha256').update(pin).digest('hex') as unknown as string;
@@ -97,7 +94,6 @@ const SetPin = () => {
                 return;
               }
 
-<<<<<<< HEAD
               // Collect email for recovery backup before deploying. Carry the
               // shared marker so the rest of the chain ends at the multisig
               // build screens instead of the personal deploy.
@@ -105,10 +101,6 @@ const SetPin = () => {
                 pathname: '/(onboarding)/collect-email',
                 params: from === 'shared' ? { flow: 'shared' } : undefined,
               });
-=======
-              // Collect email for recovery backup before deploying
-              router.push('/(onboarding)/collect-email');
->>>>>>> origin/master
             } else {
               Vibration.vibrate(400);
               setError(true);

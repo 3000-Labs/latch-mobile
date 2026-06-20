@@ -6,7 +6,6 @@ import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useMemo, useState } from 'react';
-<<<<<<< HEAD
 import {
   Dimensions,
   Image,
@@ -17,9 +16,6 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-=======
-import { Dimensions, Image, ScrollView, TouchableOpacity, Vibration, View } from 'react-native';
->>>>>>> origin/master
 
 import Box from '@/src/components/shared/Box';
 import Button from '@/src/components/shared/Button';
