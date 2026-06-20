@@ -9,7 +9,7 @@
 const fs = require('fs');
 const path = require('path');
 const {
-  Account, Address, Contract, Keypair, Networks, TransactionBuilder, scValToNative, xdr,
+  Account, Contract, Keypair, Networks, TransactionBuilder, scValToNative, xdr,
 } = require('@stellar/stellar-sdk');
 
 // minimal .env loader
