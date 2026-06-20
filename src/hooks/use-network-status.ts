@@ -9,7 +9,7 @@ export function useNetworkStatus() {
 
   useEffect(() => {
     const unsub = NetInfo.addEventListener((state) => {
-      const online = !!state.isConnected && !!state.isInternetReachable;
+      const online = state.isConnected !== false && state.isInternetReachable !== false;
 
       if (!online) {
         wentOffline.current = true;

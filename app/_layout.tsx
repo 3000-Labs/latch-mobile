@@ -30,7 +30,7 @@ import { AppThemeProvider, useAppTheme } from '../src/theme/ThemeContext';
 // Wire React Query's online/offline state to the device's actual connectivity.
 // When offline, RQ pauses all queries and retries them once the device comes back.
 onlineManager.setEventListener((setOnline) =>
-  NetInfo.addEventListener((state) => setOnline(!!state.isConnected && !!state.isInternetReachable)),
+  NetInfo.addEventListener((state) => setOnline(state.isConnected !== false && state.isInternetReachable !== false)),
 );
 
 install();
