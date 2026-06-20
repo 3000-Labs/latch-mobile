@@ -264,7 +264,7 @@ const BackupSheet = ({ visible, onClose }: Props) => {
                       ) : (
                         <Text
                           variant="h10"
-                          color={isSubmitting ? 'gray600' : 'black'}
+                          color="black"
                           fontWeight="700"
                         >
                           {backupExists ? 'Update Backup' : 'Back Up Now'}
