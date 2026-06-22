@@ -4,12 +4,9 @@ import ResultTextSection from '@/src/components/shared-wallet-result/ResultTextS
 import WalletAddressCard from '@/src/components/shared-wallet-result/WalletAddressCard';
 import WalletQRSheet from '@/src/components/shared-wallet-result/WalletQRSheet';
 import Box from '@/src/components/shared/Box';
-import { Theme } from '@/src/theme/theme';
-import { useTheme } from '@shopify/restyle';
-import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import React, { useState } from 'react';
-import { Modal, ScrollView, StyleSheet } from 'react-native';
+import { Modal, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface Props {
@@ -28,7 +25,6 @@ const SharedWalletResultModal = ({
   onClose,
 }: Props) => {
   const insets = useSafeAreaInsets();
-  const theme = useTheme<Theme>();
   const [qrVisible, setQrVisible] = useState(false);
   console.log({ errorMessage });
 
@@ -40,14 +36,7 @@ const SharedWalletResultModal = ({
       onRequestClose={onClose}
     >
       <Box flex={1} backgroundColor="mainBackground" style={{ paddingTop: insets.top }}>
-        <LinearGradient
-          colors={[theme.colors.gradientLight, theme.colors.gradientDark]}
-          locations={[0, 0.2772]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 0.9 }}
-          style={StyleSheet.absoluteFill}
-        />
-        <StatusBar style="light" />
+<StatusBar style="light" />
 
         <ScrollView
           bounces={false}
