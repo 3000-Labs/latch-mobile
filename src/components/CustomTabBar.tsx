@@ -1,56 +1,105 @@
 import { useTheme } from '@shopify/restyle';
-import React from 'react';
+import { BlurView } from 'expo-blur';
+import React, { useEffect } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Circle, Path } from 'react-native-svg';
 import { usePendingPackets } from '../hooks/use-pending-packets';
 import { useAppTheme } from '../theme/ThemeContext';
 import { Theme } from '../theme/theme';
+import { TabBarExploreIcon } from './navigation/TabBarExploreIcon';
+import { TabBarHistoryIcon } from './navigation/TabBarHistoryIcon';
+import { TabBarHomeIcon } from './navigation/TabBarHomeIcon';
+import { TabBarSwapIcon } from './navigation/TabBarSwapIcon';
+
+// Re-export Swap for compatibility with swap.tsx
+export { TabBarSwapIcon as Swap } from './navigation/TabBarSwapIcon';
 
 const TAB_ITEMS = [
-  { name: 'index', icon: Home, label: 'Home' },
-  { name: 'swap', icon: Swap, label: 'Swap' },
-  { name: 'history', icon: History, label: 'History' },
-  { name: 'explore', icon: Explore, label: 'Explore' },
+  { name: 'index', icon: TabBarHomeIcon, label: 'Home' },
+  { name: 'swap', icon: TabBarSwapIcon, label: 'Swap' },
+  { name: 'history', icon: TabBarHistoryIcon, label: 'History' },
+  { name: 'explore', icon: TabBarExploreIcon, label: 'Explore' },
 ];
+
+const PILL_PADDING = 8;
+const INDICATOR_WIDTH = 76;
+const INDICATOR_HEIGHT = 44;
+const PILL_HEIGHT = 72;
 
 export function CustomTabBar({ state, navigation }: any) {
   const theme = useTheme<Theme>();
   const { isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
-  // Pending co-sign requests live in the History tab's Pending filter; badge the
-  // tab so the count is visible from anywhere in the authenticated shell.
   const { count: pendingCount } = usePendingPackets();
 
+  const pillWidth = useSharedValue(0);
+  const activeIndex = useSharedValue(state.index);
+
+  useEffect(() => {
+    activeIndex.value = withTiming(state.index, {
+      duration: 400,
+      easing: Easing.out(Easing.cubic),
+    });
+  }, [state.index, activeIndex]);
+
+  const indicatorStyle = useAnimatedStyle(() => {
+    const tabWidth = (pillWidth.value - PILL_PADDING * 2) / TAB_ITEMS.length;
+    const x = PILL_PADDING + activeIndex.value * tabWidth + (tabWidth - INDICATOR_WIDTH) / 2;
+    return { transform: [{ translateX: x }] };
+  });
+
+  const containerBg = isDark ? 'rgba(26, 26, 28, 0.95)' : 'rgba(245, 245, 247, 0.95)';
+  const containerBorder = isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.06)';
+
+  const indicatorBg = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)';
+  const indicatorBorder = isDark ? 'rgba(255, 255, 255, 0.22)' : 'rgba(0, 0, 0, 0.12)';
+
+  const activeColor = theme.colors.primary700;
+  const inactiveColor = isDark ? 'rgba(255, 255, 255, 0.4)' : 'rgba(0, 0, 0, 0.4)';
+
   return (
-    <View style={[styles.wrapper, { paddingBottom: insets.bottom + 12 }]}>
-      <View style={[styles.pill, { backgroundColor: isDark ? '#242424' : '#F2F2F2' }]}>
+    <View style={[styles.wrapper, { bottom: insets.bottom > 0 ? insets.bottom : 16 }]}>
+      <BlurView
+        intensity={30}
+        tint={isDark ? 'dark' : 'light'}
+        style={[styles.pill, { borderColor: containerBorder }]}
+        onLayout={(e) => {
+          pillWidth.value = e.nativeEvent.layout.width;
+        }}
+      >
+        <View
+          style={[StyleSheet.absoluteFill, { borderRadius: 36, backgroundColor: containerBg }]}
+        />
+        <Animated.View
+          style={[
+            styles.indicator,
+            indicatorStyle,
+            {
+              backgroundColor: indicatorBg,
+              borderColor: indicatorBorder,
+            },
+          ]}
+        />
         {TAB_ITEMS.map((item, index) => {
           const isFocused = state.index === index;
 
           const onPress = () => {
             const route = state.routes.find((r: any) => r.name === item.name);
             if (route) {
-              const event = navigation.emit({
-                // type: 'tabPress',
-                target: route.key,
-                canPreventDefault: true,
-              });
-
-              if (!isFocused && !event.defaultPrevented) {
-                navigation.navigate(route.name);
-              }
+              const event = navigation.emit({ target: route.key, canPreventDefault: true });
+              if (!isFocused && !event.defaultPrevented) navigation.navigate(route.name);
             } else {
               navigation.navigate(item.name);
             }
           };
 
-          const color = isFocused
-            ? theme.colors.primary700
-            : isDark
-              ? theme.colors.gray600
-              : theme.colors.bgDark600;
-
+          const color = isFocused ? activeColor : inactiveColor;
           const showBadge = item.name === 'history' && pendingCount > 0;
 
           return (
@@ -60,19 +109,18 @@ export function CustomTabBar({ state, navigation }: any) {
               style={styles.tabButton}
               activeOpacity={0.7}
             >
-              <View style={styles.iconContainer}>
-                {item.icon({ width: 24, color })}
+              <View style={styles.iconWrap}>
+                <item.icon width={24} color={color} />
                 {showBadge && (
                   <View style={[styles.badge, { backgroundColor: theme.colors.primary700 }]}>
                     <Text style={styles.badgeText}>{pendingCount > 9 ? '9+' : pendingCount}</Text>
                   </View>
                 )}
               </View>
-              <Text style={[styles.label, { color }]}>{item.label}</Text>
             </TouchableOpacity>
           );
         })}
-      </View>
+      </BlurView>
     </View>
   );
 }
@@ -80,30 +128,43 @@ export function CustomTabBar({ state, navigation }: any) {
 const styles = StyleSheet.create({
   wrapper: {
     position: 'absolute',
-    bottom: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
   },
   pill: {
     flexDirection: 'row',
-    borderRadius: 32,
-    height: 70,
-    paddingHorizontal: 8,
+    borderRadius: 36,
+    height: PILL_HEIGHT,
+    paddingHorizontal: PILL_PADDING,
     alignItems: 'center',
+    overflow: 'hidden',
+    borderWidth: 1,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowRadius: 16,
+    elevation: 10,
   },
   tabButton: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    height: '100%',
   },
-  iconContainer: {
+  indicator: {
+    position: 'absolute',
+    width: INDICATOR_WIDTH,
+    height: INDICATOR_HEIGHT,
+    top: (PILL_HEIGHT - INDICATOR_HEIGHT) / 2,
+    left: 0,
+    borderRadius: 22,
+    borderWidth: 1,
+  },
+  iconWrap: {
     position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   badge: {
     position: 'absolute',
@@ -121,113 +182,4 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
   },
-  label: {
-    fontSize: 11,
-    fontWeight: '500',
-    marginTop: 4,
-  },
 });
-
-function Home({ width = 24, color }: { width: number; color: string }) {
-  return (
-    <Svg width={width} height="24" viewBox="0 0 24 24" fill="none">
-      <Path
-        fill-rule="evenodd"
-        clip-rule="evenodd"
-        d="M19.842 8.29876L13.842 3.63176C12.759 2.78876 11.242 2.78876 10.158 3.63176L4.158 8.29876C3.427 8.86676 3 9.74076 3 10.6668V17.9998C3 19.6568 4.343 20.9998 6 20.9998H18C19.657 20.9998 21 19.6568 21 17.9998V10.6668C21 9.74076 20.573 8.86676 19.842 8.29876Z"
-        stroke={color}
-        stroke-width="1.5"
-      />
-      <Path
-        d="M16 14.2378C13.79 16.4478 10.208 16.4478 8 14.2378"
-        stroke={color}
-        stroke-width="1.5"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      />
-    </Svg>
-  );
-}
-
-export function Swap({ width = 24, color }: { width: number; color: string }) {
-  return (
-    <Svg width={width} height={width} viewBox="0 0 24 24" fill="none">
-      <Path
-        d="M17 1L21 5L17 9"
-        stroke={color}
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      />
-      <Path
-        d="M3 11V9C3 7.93913 3.42143 6.92172 4.17157 6.17157C4.92172 5.42143 5.93913 5 7 5H21"
-        stroke={color}
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      />
-      <Path
-        d="M7 23L3 19L7 15"
-        stroke={color}
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      />
-      <Path
-        d="M21 13V15C21 16.0609 20.5786 17.0783 19.8284 17.8284C19.0783 18.5786 18.0609 19 17 19H3"
-        stroke={color}
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      />
-    </Svg>
-  );
-}
-
-function History({ width = 24, color }: { width: number; color: string }) {
-  return (
-    <Svg width={width} height={width} viewBox="0 0 24 24" fill="none">
-      <Circle
-        cx="12.0003"
-        cy="12.0003"
-        r="9.00375"
-        stroke={color}
-        stroke-width="1.5"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      />
-      <Path
-        d="M15.4554 13.1515L12 12.0001V5.99756"
-        stroke={color}
-        stroke-width="1.5"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      />
-    </Svg>
-  );
-}
-
-function Explore({ width = 24, color }: { width: number; color: string }) {
-  return (
-    <Svg width={width} height={width} viewBox="0 0 24 24" fill="none">
-      <Path
-        fill-rule="evenodd"
-        clip-rule="evenodd"
-        d="M7.89863 15.5084L9.0391 9.82399C9.11855 9.42799 9.42833 9.11861 9.82443 9.03966L15.5088 7.90319C15.6727 7.87057 15.842 7.92192 15.9602 8.04007C16.0783 8.15822 16.1297 8.32756 16.097 8.49143L14.9606 14.1758C14.8813 14.5715 14.572 14.8808 14.1762 14.9601L8.49187 16.1016C8.3262 16.1368 8.15397 16.0858 8.03421 15.966C7.91445 15.8463 7.86343 15.674 7.89863 15.5084Z"
-        stroke={color}
-        stroke-width="1.5"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      />
-      <Circle
-        cx="12.0003"
-        cy="12.0003"
-        r="9.00375"
-        stroke={color}
-        stroke-width="1.5"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      />
-    </Svg>
-  );
-}
