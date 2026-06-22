@@ -10,11 +10,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
 import { useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useCallback, useMemo, useState } from 'react';
-import { Dimensions, FlatList, Linking, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { Dimensions, FlatList, Linking, ScrollView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const banners = [
@@ -179,14 +178,7 @@ const Explore = () => {
 
   return (
     <Box flex={1} backgroundColor="mainBackground" style={{ paddingTop: insets.top }}>
-      <LinearGradient
-        colors={[theme.colors.gradientLight, theme.colors.gradientDark]}
-        locations={[0, 0.2772]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
-        style={StyleSheet.absoluteFill}
-      />
-      <StatusBar style="light" />
+<StatusBar style="light" />
 
       {/* Header */}
       <Box

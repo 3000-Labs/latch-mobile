@@ -21,7 +21,6 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
 import { useQuery } from '@tanstack/react-query';
 import { ImageBackground } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { memo, useEffect, useMemo, useState } from 'react';
@@ -31,7 +30,6 @@ import {
   Image,
   RefreshControl,
   ScrollView,
-  StyleSheet,
   TouchableOpacity,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -223,14 +221,7 @@ const Home = () => {
 
   return (
     <Box flex={1} backgroundColor="onboardingbg">
-      <LinearGradient
-        colors={[theme.colors.gradientLight, theme.colors.gradientDark]}
-        locations={[0, 0.2772]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 0.9 }}
-        style={StyleSheet.absoluteFill}
-      />
-      <StatusBar style={statusBarStyle} />
+<StatusBar style={statusBarStyle} />
       {/* Header */}
       <Box
         flexDirection="row"

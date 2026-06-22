@@ -10,7 +10,6 @@ import { Theme } from '@/src/theme/theme';
 import { useAppTheme } from '@/src/theme/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
-import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useMemo, useState } from 'react';
@@ -154,14 +153,7 @@ const History = () => {
 
   return (
     <Box flex={1} backgroundColor="onboardingbg" style={{ paddingTop: insets.top }}>
-      <LinearGradient
-        colors={[theme.colors.gradientLight, theme.colors.gradientDark]}
-        locations={[0, 0.2772]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
-        style={StyleSheet.absoluteFill}
-      />
-      <StatusBar style={isDark ? 'light' : 'dark'} />
+<StatusBar style={isDark ? 'light' : 'dark'} />
 
       {/* Header */}
       <Box

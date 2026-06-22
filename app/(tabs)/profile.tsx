@@ -25,11 +25,10 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '@shopify/restyle';
 import * as Clipboard from 'expo-clipboard';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { ScrollView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BIOMETRIC_ENABLED_KEY } from '../(auth)/biometric';
 
@@ -70,14 +69,7 @@ const Profile = () => {
 
   return (
     <Box flex={1} backgroundColor="cardbg" style={{ paddingTop: insets.top }}>
-      <LinearGradient
-        colors={[theme.colors.gradientLight, theme.colors.gradientDark]}
-        locations={[0, 0.2772]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
-        style={StyleSheet.absoluteFill}
-      />
-      <StatusBar style="light" />
+<StatusBar style="light" />
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -101,7 +93,11 @@ const Profile = () => {
           onPress={() => setSwitcherVisible(true)}
         />
 
-        <AccountSwitcherSheet visible={switcherVisible} onClose={() => setSwitcherVisible(false)} />
+        <AccountSwitcherSheet
+          visible={switcherVisible}
+          onClose={() => setSwitcherVisible(false)}
+          onCreateMultisig={() => setSharedWalletVisible(true)}
+        />
         <AccountInfoSheet
           visible={accountInfoVisible}
           onClose={() => setAccountInfoVisible(false)}
