@@ -96,7 +96,6 @@ const Profile = () => {
         <AccountSwitcherSheet
           visible={switcherVisible}
           onClose={() => setSwitcherVisible(false)}
-          onCreateMultisig={() => setSharedWalletVisible(true)}
         />
         <AccountInfoSheet
           visible={accountInfoVisible}

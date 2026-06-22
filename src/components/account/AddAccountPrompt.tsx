@@ -11,11 +11,19 @@ interface AddAccountPromptProps {
   onBack: () => void;
   onCreatePress: () => void;
   onAddSharedPress: () => void;
+  onCreateMultisigPress: () => void;
 }
 
-const AddAccountPrompt = ({ onBack, onCreatePress, onAddSharedPress }: AddAccountPromptProps) => {
+const AddAccountPrompt = ({
+  onBack,
+  onCreatePress,
+  onAddSharedPress,
+  onCreateMultisigPress,
+}: AddAccountPromptProps) => {
   const theme = useTheme<Theme>();
-  const [selected, setSelected] = React.useState<'create' | 'shared' | 'connect' | null>(null);
+  const [selected, setSelected] = React.useState<
+    'create' | 'shared' | 'create-multisig' | 'connect' | null
+  >(null);
 
   const handlePress = (option: 'create' | 'shared' | 'connect', callback?: () => void) => {
     setSelected(option);
@@ -67,6 +75,30 @@ const AddAccountPrompt = ({ onBack, onCreatePress, onAddSharedPress }: AddAccoun
             <Text variant="p7" color="textSecondary" lineHeight={22}>
               Set up a fresh account powered by smart contracts. Enjoy advanced security like
               multisig and session keys.
+            </Text>
+          </Box>
+        </TouchableOpacity>
+
+        {/* Create Multisig Wallet Option */}
+        <TouchableOpacity
+          activeOpacity={0.8}
+          // @ts-ignore
+          onPress={() => handlePress('create-multisig', onCreateMultisigPress)}
+        >
+          <Box
+            padding="l"
+            borderRadius={24}
+            borderWidth={1.5}
+            borderColor={selected === 'create-multisig' ? 'primary700' : 'gray800'}
+          >
+            <Box mb="s">
+              <Text variant="h9" color="textPrimary" fontWeight="700">
+                Create Multisig Wallet
+              </Text>
+            </Box>
+            <Text variant="p7" color="textSecondary" lineHeight={22}>
+              Create a shared wallet that requires multiple approvals. Invite co-owners and set how
+              many signatures are needed to send funds.
             </Text>
           </Box>
         </TouchableOpacity>
