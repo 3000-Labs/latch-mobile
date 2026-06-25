@@ -1,6 +1,8 @@
 import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import HistoryItem from '@/src/components/history/HistoryItem';
+import BuyXLMSheet from '@/src/components/home/BuyXLMSheet';
 import FundWalletSheet from '@/src/components/home/FundWalletSheet';
+import { useDepositInfo } from '@/src/hooks/use-deposit';
 import PendingApprovalBanner from '@/src/components/home/PendingApprovalBanner';
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
@@ -131,6 +133,9 @@ const Home = () => {
   const [showBalance, setShowBalance] = useState(false);
   const [bannerIndex, setBannerIndex] = useState(0);
   const [fundVisible, setFundVisible] = useState(false);
+  const [receiveVisible, setReceiveVisible] = useState(false);
+
+  const { data: depositInfo } = useDepositInfo();
 
   const activeAccount = accounts[activeAccountIndex];
   const activeAccountName = activeAccount?.name ?? 'Account 1';
@@ -221,7 +226,7 @@ const Home = () => {
 
   return (
     <Box flex={1} backgroundColor="onboardingbg">
-<StatusBar style={statusBarStyle} />
+      <StatusBar style={statusBarStyle} />
       {/* Header */}
       <Box
         flexDirection="row"
@@ -467,13 +472,6 @@ const Home = () => {
           </Box>
         </Box>
 
-        <FundWalletSheet
-          visible={fundVisible}
-          onClose={() => setFundVisible(false)}
-          address="GPROXY1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ12345"
-          memo="LATCH-USER-12345"
-        />
-
         {/* Migration banner */}
         {migrationState?.state === 'not_started' && (
           <Box paddingHorizontal="m" mb="m">
@@ -554,6 +552,23 @@ const Home = () => {
           )}
         </Box>
       </ScrollView>
+
+      <BuyXLMSheet
+        visible={fundVisible}
+        onClose={() => setFundVisible(false)}
+        onReceive={() => {
+          setFundVisible(false);
+          setReceiveVisible(true);
+        }}
+        poolAddress={depositInfo?.pool_address ?? ''}
+        memo={depositInfo?.memo}
+      />
+      <FundWalletSheet
+        visible={receiveVisible}
+        onClose={() => setReceiveVisible(false)}
+        address={depositInfo?.pool_address ?? ''}
+        memo={depositInfo?.memo}
+      />
     </Box>
   );
 };

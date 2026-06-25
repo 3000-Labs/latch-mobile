@@ -1,18 +1,18 @@
-import '@walletconnect/react-native-compat';
-import * as Sentry from '@sentry/react-native';
 import { Ionicons } from '@expo/vector-icons';
+import NetInfo from '@react-native-community/netinfo';
+import * as Sentry from '@sentry/react-native';
 import { onlineManager, QueryClientProvider } from '@tanstack/react-query';
 import { IconRegistry } from '@ui-kitten/components';
 import { EvaIconsPack } from '@ui-kitten/eva-icons';
+import '@walletconnect/react-native-compat';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { LogBox } from 'react-native';
-import NetInfo from '@react-native-community/netinfo';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { KeyboardProvider } from 'react-native-keyboard-controller';
 import 'react-native-get-random-values';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 import 'react-native-reanimated';
 import Toast from 'react-native-toast-message';
 import '../shim';
@@ -20,8 +20,8 @@ import '../shim';
 import { Buffer } from 'buffer';
 import { Stack } from 'expo-router';
 import { install } from 'react-native-quick-crypto';
-import { toastConfig } from '../src/components/toast/toastConfig';
 import { queryClient } from '../src/api/client';
+import { toastConfig } from '../src/components/toast/toastConfig';
 import { useNetworkStatus } from '../src/hooks/use-network-status';
 import { useOtaUpdate } from '../src/hooks/use-ota-update';
 import { useWalletConnect } from '../src/hooks/use-walletconnect';
@@ -30,7 +30,9 @@ import { AppThemeProvider, useAppTheme } from '../src/theme/ThemeContext';
 // Wire React Query's online/offline state to the device's actual connectivity.
 // When offline, RQ pauses all queries and retries them once the device comes back.
 onlineManager.setEventListener((setOnline) =>
-  NetInfo.addEventListener((state) => setOnline(state.isConnected !== false && state.isInternetReachable !== false)),
+  NetInfo.addEventListener((state) =>
+    setOnline(state.isConnected !== false && state.isInternetReachable !== false),
+  ),
 );
 
 install();

@@ -33,7 +33,8 @@ const runtimeEnv = z
     EXPO_PUBLIC_SOROSWAP_API_KEY: z.string().optional(),
     EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID: z.string().optional(),
     EXPO_PUBLIC_SENTRY_DSN: z.string().optional(),
-    // SENTRY_AUTH_TOKEN: z.string(),
+    EXPO_PUBLIC_MOONPAY_API_KEY: z.string().optional(),
+    SENTRY_AUTH_TOKEN: z.string(),
   })
   .partial();
 
@@ -88,6 +89,7 @@ const envObject = {
   EXPO_PUBLIC_SOROSWAP_API_KEY: process.env.EXPO_PUBLIC_SOROSWAP_API_KEY,
   EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID: process.env.EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID,
   EXPO_PUBLIC_SENTRY_DSN: process.env.EXPO_PUBLIC_SENTRY_DSN,
+  EXPO_PUBLIC_MOONPAY_API_KEY: process.env.EXPO_PUBLIC_MOONPAY_API_KEY,
   SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,
 };
 

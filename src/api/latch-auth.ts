@@ -409,3 +409,32 @@ export interface PriceData {
 export async function getPrices(tokens: string[]): Promise<Record<string, PriceData | null>> {
   return latchFetch(`/prices?tokens=${encodeURIComponent(tokens.join(','))}`);
 }
+
+// ─── Deposit ─────────────────────────────────────────────────────────────────
+
+export interface DepositInfo {
+  pool_address: string;
+  memo: string;
+}
+
+export interface DepositJob {
+  id: number;
+  stellar_op_id: string;
+  amount_stroops: number;
+  status: string;
+  error?: string;
+  created_at: string;
+  processed_at?: string;
+}
+
+export async function fetchDepositInfo(): Promise<DepositInfo> {
+  const accessToken = await SecureStore.getItemAsync(SECURE_KEYS.ACCESS_TOKEN);
+  if (!accessToken) throw new Error('Not authenticated');
+  return latchFetch('/deposit', {}, accessToken);
+}
+
+export async function fetchDepositStatus(): Promise<{ jobs: DepositJob[] }> {
+  const accessToken = await SecureStore.getItemAsync(SECURE_KEYS.ACCESS_TOKEN);
+  if (!accessToken) return { jobs: [] };
+  return latchFetch('/deposit/status', {}, accessToken);
+}
