@@ -23,6 +23,9 @@ export function useTokenIcon(code?: string, issuer?: string): string | null {
   if (codeKey === 'EURC') {
     return 'https://6778953.fs1.hubspotusercontent-na1.net/hubfs/6778953/Brand/EURC/EURC-icon_128x128.png';
   }
+  if (codeKey === 'USDC') {
+    return 'https://6778953.fs1.hubspotusercontent-na1.net/hubfs/6778953/Brand/USDC/USDC-icon_128x128.png';
+  }
 
   const fullKey = issuer ? `${codeKey}:${issuer}` : null;
 
