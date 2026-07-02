@@ -65,14 +65,18 @@ export function CustomTabBar({ state, navigation }: any) {
 
   return (
     <View style={[styles.wrapper, { bottom: insets.bottom > 0 ? insets.bottom : 16 }]}>
-      <BlurView
-        intensity={30}
-        tint={isDark ? 'dark' : 'light'}
+      {/* Plain View container — BlurView must stay a childless absolute-fill
+          layer here. On Android, expo-blur's native BlurView inserts its own
+          internal child via addView() outside RN's Yoga-managed child list,
+          so any real content (the tab row) nested inside it falls back to
+          native top-left stacking instead of flexDirection: row. */}
+      <View
         style={[styles.pill, { borderColor: containerBorder }]}
         onLayout={(e) => {
           pillWidth.value = e.nativeEvent.layout.width;
         }}
       >
+        <BlurView intensity={30} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
         <View
           style={[StyleSheet.absoluteFill, { borderRadius: 36, backgroundColor: containerBg }]}
         />
@@ -120,7 +124,7 @@ export function CustomTabBar({ state, navigation }: any) {
             </TouchableOpacity>
           );
         })}
-      </BlurView>
+      </View>
     </View>
   );
 }
