@@ -242,7 +242,7 @@
 // // the new flow but kept per the Phase 3 plan in case classification needs it.
 // export { BUNDLER_G_ADDRESS };
 import { Address, Asset, Keypair, scValToNative, xdr } from '@stellar/stellar-sdk';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { HORIZON_URL, STELLAR_NETWORK_PASSPHRASE, STELLAR_RPC_URL } from '../constants/config';
 import { WELL_KNOWN_TOKENS } from '../constants/known-tokens';
 import { useWalletStore } from '../store/wallet';
@@ -746,6 +746,7 @@ export function useStellarTransactions(cAddress: string | null) {
     queryKey: ['stellar-transactions', cAddress, gAddress],
     queryFn: () => fetchStellarPayments(cAddress!, gAddress),
     enabled: !!cAddress,
+    placeholderData: keepPreviousData,
     staleTime: 30_000,
     retry: 1,
   });
