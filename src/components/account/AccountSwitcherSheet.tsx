@@ -140,7 +140,6 @@ const AccountSwitcherSheet = ({ visible, onClose }: Props) => {
   const [deployingIndex, setDeployingIndex] = useState<number | null>(null);
   const [isAddingAccount, setIsAddingAccount] = useState(false);
   const [isAddingShared, setIsAddingShared] = useState(false);
-  const [isSwitching, setIsSwitching] = useState(false);
   const [signersFor, setSignersFor] = useState<{ name: string; address: string } | null>(null);
 
   // Multisig wizard state
@@ -449,13 +448,16 @@ const AccountSwitcherSheet = ({ visible, onClose }: Props) => {
   };
 
   const handleSwitch = (listIndex: number) => {
-    if (listIndex === activeAccountIndex || isSwitching) {
-      onClose();
-      return;
-    }
-    setIsSwitching(true);
-    switchAccount(listIndex).finally(() => setIsSwitching(false));
+    // Close the sheet's Modal first and let switchAccount fire in the background —
+    // it already updates the store synchronously (see wallet.ts), and toggling a
+    // second Modal (a loading blur) in the same tick as this Modal closing wedges
+    // the native modal host on iOS (two Modals changing presentation state in one
+    // commit), leaving the app unresponsive.
     onClose();
+    if (listIndex === activeAccountIndex) return;
+    switchAccount(listIndex).catch((err) => {
+      if (__DEV__) console.error('[account] switch failed:', err);
+    });
   };
 
   const handleCreateAccount = async (name: string, image: string | null) => {
@@ -888,8 +890,6 @@ const AccountSwitcherSheet = ({ visible, onClose }: Props) => {
           </>
         )}
       </Modal>
-
-      <LoadingBlur visible={isSwitching} text="Switching account..." />
 
       <SharedWalletResultModal
         visible={multisigResult !== null}
