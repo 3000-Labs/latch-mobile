@@ -326,6 +326,17 @@ export async function submitRequest(id: string): Promise<{ hash: string }> {
 // so the 15s pending-list poll doesn't hammer the server with 404 lookups.
 const wckFetchAttempted = new Set<string>();
 
+/**
+ * Clear the one-shot auto-fetch guard so a manual pull-to-refresh can retry a
+ * WCK that failed to arrive on an earlier poll — e.g. this device's first poll
+ * landed before the sealing device published the bundle. Without this, that
+ * single failed attempt blocks every future poll (interval AND pull-to-refresh)
+ * for the rest of the app session.
+ */
+export function resetWckFetchAttempts(): void {
+  wckFetchAttempted.clear();
+}
+
 /** All pending requests for one shared wallet (decrypted, packet-shaped). */
 export async function listForAccount(account: string): Promise<CosignPacket[]> {
   let wck = await getWalletCosignKey(account);

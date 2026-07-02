@@ -17,7 +17,13 @@ import {
   usePendingPackets,
   type PendingPacketView,
 } from '@/src/hooks/use-pending-packets';
-import { approveAndMaybeSubmit, cancel, submit } from '@/src/lib/cosign-transport';
+import {
+  approveAndMaybeSubmit,
+  cancel,
+  getEntry,
+  resetPendingFetchState,
+  submit,
+} from '@/src/lib/cosign-transport';
 import { formatTimeRemaining, isExpiringSoon } from '@/src/lib/expiry';
 import { friendlyTxError } from '@/src/lib/tx-errors';
 import { Theme } from '@/src/theme/theme';
@@ -27,7 +33,7 @@ import { useTheme } from '@shopify/restyle';
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -50,9 +56,37 @@ export default function PendingApproval() {
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: PENDING_PACKETS_QUERY_KEY });
 
+  // The backend list endpoint only ever returns status='pending' requests, so a
+  // request another signer just submitted simply disappears from `requests` on
+  // the next poll — same as one that expired or was cancelled. Diff against the
+  // previous poll and, for anything that vanished, check its actual status by id
+  // (unfiltered by status) so a successful submit surfaces here instead of the
+  // card just silently going away with no explanation.
+  const knownIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const knownIds = knownIdsRef.current;
+    const currentIds = new Set(requests.map((r) => r.id));
+    const vanished = [...knownIds].filter((id) => !currentIds.has(id));
+    knownIdsRef.current = currentIds;
+    if (vanished.length === 0) return;
+    (async () => {
+      for (const id of vanished) {
+        try {
+          const p = await getEntry(id);
+          if (p?.submittedTxHash) {
+            Alert.alert('Transfer sent', `Submitted ${p.submittedTxHash.slice(0, 10)}…`);
+          }
+        } catch {
+          // transient lookup failure — nothing to show, it just wasn't found
+        }
+      }
+    })();
+  }, [requests]);
+
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
+      resetPendingFetchState();
       await refetch();
     } finally {
       setRefreshing(false);

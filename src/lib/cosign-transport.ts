@@ -117,6 +117,15 @@ export function listForAccount(account: string): Promise<CosignPacket[]> {
   return isBackendEnabled() ? backend.listForAccount(account) : Promise.resolve([]);
 }
 
+/**
+ * Clear any per-session "already tried, gave up" fetch guards so a manual
+ * pull-to-refresh gets a genuine retry instead of replaying a stale failure.
+ * No-op for P2P (nothing to reset there).
+ */
+export function resetPendingFetchState(): void {
+  if (isBackendEnabled()) backend.resetWckFetchAttempts();
+}
+
 /** Whether this device can still add an approval, in the active transport. */
 export async function canApprove(packet: CosignPacket): Promise<boolean> {
   if (isBackendEnabled() && !(await isLocalPacket(packet.id))) return backend.canApprove(packet);
