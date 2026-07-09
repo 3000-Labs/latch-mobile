@@ -6,6 +6,7 @@
  * plaintext credentials.
  */
 
+import { StrKey } from '@stellar/stellar-sdk';
 import * as SecureStore from 'expo-secure-store';
 import { decryptBackup, encryptBackup, type EncryptedBackup } from '../lib/backup-crypto';
 import { getPasskeyStorageKeys, SECURE_KEYS, type WalletAccount } from '../store/wallet';
@@ -69,11 +70,15 @@ async function silentRefresh(): Promise<string | null> {
 export class LatchAPIError extends Error {
   status: number;
   code?: string;
-  constructor(status: number, code: string | undefined, message: string) {
+  /** Present only on GET /recovery/blob's 400 when the account has more than
+   * one wallet — the addresses to offer the user, e.g. via a wallet picker. */
+  wallets?: string[];
+  constructor(status: number, code: string | undefined, message: string, wallets?: string[]) {
     super(message);
     this.name = 'LatchAPIError';
     this.status = status;
     this.code = code;
+    this.wallets = wallets;
   }
 }
 
@@ -95,6 +100,7 @@ async function latchFetch(path: string, options: RequestInit = {}, token?: strin
       status,
       body?.error?.code,
       body?.error?.message ?? `Request failed (${status})`,
+      body?.wallets,
     );
   }
   return body?.data;
@@ -112,6 +118,29 @@ export async function clearEmailSession(): Promise<void> {
     SecureStore.deleteItemAsync(SECURE_KEYS.REFRESH_TOKEN),
     SecureStore.deleteItemAsync(SECURE_KEYS.USER_EMAIL),
   ]);
+}
+
+/**
+ * Revoke the current session's refresh token server-side. Best-effort: never
+ * throws — a network failure here shouldn't block whatever the caller is
+ * doing (logging out, or clearing a stale session before a fresh wallet
+ * takes over). Does not touch SecureStore; callers clear tokens separately.
+ */
+export async function logout(): Promise<void> {
+  try {
+    const [accessToken, refreshToken] = await Promise.all([
+      SecureStore.getItemAsync(SECURE_KEYS.ACCESS_TOKEN),
+      SecureStore.getItemAsync(SECURE_KEYS.REFRESH_TOKEN),
+    ]);
+    if (!accessToken || !refreshToken) return;
+    await latchFetch(
+      '/auth/logout',
+      { method: 'POST', body: JSON.stringify({ refresh_token: refreshToken }) },
+      accessToken,
+    );
+  } catch {
+    // Best-effort — the local token clear that follows is what actually matters.
+  }
 }
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
@@ -293,8 +322,38 @@ export async function verifyRecoveryOTP(email: string, otp: string): Promise<str
 }
 
 /**
+ * Guard against declaring recovery "complete" on a truncated or corrupted
+ * blob — validates the restored accounts array is non-empty and every entry
+ * has a well-formed C-address before any SecureStore writes happen.
+ */
+function validateRestoredAccounts(accountsJson: string | undefined): void {
+  if (!accountsJson) throw new Error('Recovered backup is incomplete or corrupted');
+
+  let accounts: WalletAccount[];
+  try {
+    accounts = JSON.parse(accountsJson);
+  } catch {
+    throw new Error('Recovered backup is incomplete or corrupted');
+  }
+
+  if (!Array.isArray(accounts) || accounts.length === 0) {
+    throw new Error('Recovered backup is incomplete or corrupted');
+  }
+  for (const account of accounts) {
+    if (!account.smartAccountAddress || !StrKey.isValidContract(account.smartAccountAddress)) {
+      throw new Error('Recovered backup is incomplete or corrupted');
+    }
+  }
+}
+
+/**
  * Fetch the encrypted backup blob, decrypt it client-side, and restore all
  * keys to SecureStore. Called after a successful recovery OTP verify.
+ *
+ * The recovery token is unscoped unless the account has exactly one wallet.
+ * If the account has more than one, the backend responds 400 with a
+ * `wallets` list on the thrown LatchAPIError — call again with the address
+ * the user picked, reusing the same still-valid token (no new OTP needed).
  *
  * Throws 'Incorrect recovery password' if the password is wrong (GCM auth tag
  * mismatch), so the caller can surface a user-facing error.
@@ -302,8 +361,12 @@ export async function verifyRecoveryOTP(email: string, otp: string): Promise<str
 export async function fetchAndRestoreBackup(
   recoveryToken: string,
   password: string,
+  smartAccountAddress?: string,
 ): Promise<void> {
-  const data = await latchFetch('/recovery/blob', { method: 'GET' }, recoveryToken);
+  const path = smartAccountAddress
+    ? `/recovery/blob?address=${encodeURIComponent(smartAccountAddress)}`
+    : '/recovery/blob';
+  const data = await latchFetch(path, { method: 'GET' }, recoveryToken);
 
   const encryptedBlob = data.encrypted_blob as EncryptedBackup;
 
@@ -315,6 +378,8 @@ export async function fetchAndRestoreBackup(
   }
 
   const blob = JSON.parse(plaintext) as Record<string, string>;
+
+  validateRestoredAccounts(blob.accounts);
 
   const writes: Promise<void>[] = [];
 
