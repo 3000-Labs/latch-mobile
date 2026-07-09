@@ -25,6 +25,7 @@ import Button from '@/src/components/shared/Button';
 import LoadingBlur from '@/src/components/shared/LoadingBlur';
 import Text from '@/src/components/shared/Text';
 import { LATCH_PRIVACY_URL } from '@/src/constants/constants';
+import { useWalletStore } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
@@ -52,6 +53,7 @@ const CollectEmail = () => {
 
   const { mode, flow } = useLocalSearchParams<{ mode?: string; flow?: string }>();
   const isRecovery = mode === 'recovery';
+  const accounts = useWalletStore((s) => s.accounts);
 
   const [phase, setPhase] = useState<Phase>('email');
   const [email, setEmail] = useState('');
@@ -133,19 +135,31 @@ const CollectEmail = () => {
         const { accessToken, refreshToken } = await verifyOTP(email, otp.trim());
         await saveAuthTokens(accessToken, refreshToken, email);
         // Each Latch email anchors at most one wallet. If foo@ already has a
-        // backup from a prior wallet, the registration we just completed is
-        // pointing at the wrong identity — clear the session and prompt the
-        // user for a different email instead of letting them invest in
-        // onboarding only to fail at upload time.
+        // backup, confirm it actually belongs to a wallet present on THIS
+        // device — checking every local account's smartAccountAddress and
+        // mnemonic-derived gAddress, not just the active/primary one — before
+        // trusting the registration we just completed. If it doesn't match
+        // any local wallet, clear the session and prompt for a different
+        // email instead of letting the user invest in onboarding only to
+        // fail at upload time (or silently overwrite a stranger's backup).
         const status = await getBackupStatus();
         if (status.exists) {
-          await clearEmailSession();
-          setPhase('email');
-          setOtp('');
-          setError(
-            'This email is already linked to a different wallet. Use a different email, or recover the existing wallet from the previous screen.',
-          );
-          return;
+          const localAddresses = new Set<string>();
+          accounts.forEach((a) => {
+            if (a.smartAccountAddress) localAddresses.add(a.smartAccountAddress);
+            if (a.gAddress) localAddresses.add(a.gAddress);
+          });
+          const matchesDevice =
+            !!status.smartAccountAddress && localAddresses.has(status.smartAccountAddress);
+          if (!matchesDevice) {
+            await clearEmailSession();
+            setPhase('email');
+            setOtp('');
+            setError(
+              "This email's existing backup doesn't match any wallet on this device. Use a different email, or recover the existing wallet from the previous screen.",
+            );
+            return;
+          }
         }
         // Navigate to set-recovery-password to collect the password that will
         // encrypt the backup before it is uploaded in deploy-account.
@@ -386,7 +400,7 @@ const CollectEmail = () => {
               </TouchableOpacity>
             </Box>
           )}
-          {phase === 'email' && !isRecovery && (
+          {phase === 'email' && !isRecovery && flow !== 're-anchor' && (
             <Box alignItems="center" mt="l">
               <TouchableOpacity
                 onPress={() => router.replace('/(onboarding)/deploy-account')}
