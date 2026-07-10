@@ -140,6 +140,7 @@ const AccountSwitcherSheet = ({ visible, onClose }: Props) => {
   const [step, setStep] = useState<SheetStep>('list');
   const [deployingIndex, setDeployingIndex] = useState<number | null>(null);
   const [isAddingAccount, setIsAddingAccount] = useState(false);
+  const [createAccountError, setCreateAccountError] = useState<string | null>(null);
   const [isAddingShared, setIsAddingShared] = useState(false);
   const [signersFor, setSignersFor] = useState<{ name: string; address: string } | null>(null);
 
@@ -465,6 +466,7 @@ const AccountSwitcherSheet = ({ visible, onClose }: Props) => {
     if (isAddingAccount) return;
     const currentLength = accounts.length;
     setIsAddingAccount(true);
+    setCreateAccountError(null);
     let newAccount: WalletAccount | null = null;
 
     try {
@@ -500,12 +502,14 @@ const AccountSwitcherSheet = ({ visible, onClose }: Props) => {
       switchAccount(currentLength);
       onClose();
     } catch (err: any) {
-      if (newAccount) await removeAccount(newAccount.index);
-      Toast.show({
-        type: 'error',
-        text1: 'Error',
-        text2: err?.message || 'Failed to create account',
-      });
+      setCreateAccountError(err?.message || 'Failed to create account');
+      if (newAccount) {
+        try {
+          await removeAccount(newAccount.index);
+        } catch (rollbackErr) {
+          if (__DEV__) console.error('[account] rollback failed:', rollbackErr);
+        }
+      }
     } finally {
       setIsAddingAccount(false);
     }
@@ -717,9 +721,13 @@ const AccountSwitcherSheet = ({ visible, onClose }: Props) => {
         return (
           <AddAccountInfo
             defaultName={`Account ${accounts.length + 1}`}
-            onBack={() => setStep('add-prompt')}
+            onBack={() => {
+              setCreateAccountError(null);
+              setStep('add-prompt');
+            }}
             onSubmit={handleCreateAccount}
             isSubmitting={isAddingAccount}
+            errorMessage={createAccountError}
           />
         );
 

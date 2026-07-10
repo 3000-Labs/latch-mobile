@@ -16,13 +16,20 @@ interface AddAccountInfoProps {
   onBack: () => void;
   onSubmit: (name: string, image: string | null) => void;
   isSubmitting?: boolean;
+  errorMessage?: string | null;
 }
 
 const AddAccountInfoSchema = Yup.object().shape({
   walletName: Yup.string().required('Account name is required'),
 });
 
-const AddAccountInfo = ({ defaultName, onBack, onSubmit, isSubmitting }: AddAccountInfoProps) => {
+const AddAccountInfo = ({
+  defaultName,
+  onBack,
+  onSubmit,
+  isSubmitting,
+  errorMessage,
+}: AddAccountInfoProps) => {
   const theme = useTheme<Theme>();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
@@ -130,6 +137,11 @@ const AddAccountInfo = ({ defaultName, onBack, onSubmit, isSubmitting }: AddAcco
 
             {/* Bottom Button */}
             <Box>
+              {errorMessage && (
+                <Text variant="h12" color="inputError" mb="m" textAlign="center">
+                  {errorMessage}
+                </Text>
+              )}
               <TouchableOpacity
                 activeOpacity={0.7}
                 onPress={() => handleSubmit()}
