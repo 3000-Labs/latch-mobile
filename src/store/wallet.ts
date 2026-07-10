@@ -222,6 +222,12 @@ interface WalletStore {
   updateAccountSmartAddress: (bip44Index: number, smartAddress: string) => Promise<void>;
 
   /**
+   * Remove an account by its BIP-44/passkey index. Used to roll back an
+   * optimistically-added account when its on-chain deployment fails.
+   */
+  removeAccount: (index: number) => Promise<void>;
+
+  /**
    * Replace the devices list and (optionally) the admin rule id for an
    * account. Used after a pair flow completes to persist the new device
    * set + freshly installed admin rule.
@@ -474,6 +480,13 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
     );
     await persistAccounts(updatedAccounts);
     set({ avatars: updatedAvatars, accounts: updatedAccounts });
+  },
+
+  removeAccount: async (index) => {
+    const { accounts } = get();
+    const updated = accounts.filter((a) => a.index !== index);
+    await persistAccounts(updated);
+    set({ accounts: updated });
   },
 
   updateAccountSmartAddress: async (bip44Index, smartAddress) => {

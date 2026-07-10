@@ -132,6 +132,7 @@ const AccountSwitcherSheet = ({ visible, onClose }: Props) => {
     addAccount,
     addPasskeyAccount,
     updateAccountSmartAddress,
+    removeAccount,
     renameAccount,
     setAccountImage,
   } = useWalletStore();
@@ -464,9 +465,9 @@ const AccountSwitcherSheet = ({ visible, onClose }: Props) => {
     if (isAddingAccount) return;
     const currentLength = accounts.length;
     setIsAddingAccount(true);
+    let newAccount: WalletAccount | null = null;
 
     try {
-      let newAccount: WalletAccount | null = null;
       if (mnemonic) {
         newAccount = await addAccount();
         if (!newAccount) return;
@@ -499,6 +500,7 @@ const AccountSwitcherSheet = ({ visible, onClose }: Props) => {
       switchAccount(currentLength);
       onClose();
     } catch (err: any) {
+      if (newAccount) await removeAccount(newAccount.index);
       Toast.show({
         type: 'error',
         text1: 'Error',
