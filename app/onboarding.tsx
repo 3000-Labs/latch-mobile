@@ -3,10 +3,12 @@ import Box from '@/src/components/shared/Box';
 import Button from '@/src/components/shared/Button';
 import ProgressPagination from '@/src/components/shared/ProgressPagination';
 import Text from '@/src/components/shared/Text';
+import { LATCH_TERMS_URL } from '@/src/constants/constants';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useRef, useState } from 'react';
-import { Dimensions, FlatList, Image } from 'react-native';
+import { Dimensions, FlatList, Image, Linking, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
@@ -16,22 +18,19 @@ const ONBOARDING_DATA = [
   {
     id: 1,
     title: 'Welcome to Latch',
-    description:
-      'Your secure gateway to the Stellar ecosystem. Manage your digital assets with confidence and simplicity.',
+    description: 'To get started, create a new wallet or import an existing one.',
     image: require('@/src/assets/images/ob1.png'),
   },
   {
     id: 2,
     title: 'Smart Accounts',
-    description:
-      'Experience enhanced security with Smart Accounts. Advanced features abstracted into a simple, user-friendly interface.',
+    description: 'Programmable wallets with better security, recovery, and control.',
     image: require('@/src/assets/images/ob3.png'),
   },
   {
     id: 3,
     title: 'Seamless Funding',
-    description:
-      'Fund your Smart Account easily using traditional Stellar G-addresses with memos. We handle the complexity for you.',
+    description: 'Fund and use a next-generation Stellar wallet with ease',
     image: require('@/src/assets/images/on2.png'),
   },
 ];
@@ -64,6 +63,13 @@ const Onboarding = () => {
 
   return (
     <Box flex={1} backgroundColor="onboardingbg">
+      <LinearGradient
+        colors={['rgba(50, 60, 14, 0.74)', '#121212']}
+        locations={[0, 0.2772]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 0.91 }}
+        style={StyleSheet.absoluteFill}
+      />
       <StatusBar style={statusBarStyle} />
       {/* Header */}
       <Box
@@ -92,20 +98,27 @@ const Onboarding = () => {
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
         keyExtractor={(item) => item.id.toString()}
+        style={{ flex: 1 }}
         renderItem={({ item }) => (
-          <Box width={width} alignItems="center" paddingTop="xl">
+          <Box
+            width={width}
+            justifyContent={'space-between'}
+            // bg={'danger500'}
+            alignItems="center"
+            paddingTop="xl"
+          >
+            <Box></Box>
             <Image
               source={item.image}
-              style={{ width: width, height: width }}
+              style={{ width: width, height: width / 1.35 }}
               resizeMode="contain"
             />
-
-            <Box paddingHorizontal="l" marginTop="xl" alignItems="center">
+            <Box alignItems="center" px="xl">
               <Text variant="h7" textAlign="center" marginBottom="s">
-                {item.title}
+                {ONBOARDING_DATA[activeIndex].title}
               </Text>
               <Text variant="p5" textAlign="center" color="textSecondary">
-                {item.description}
+                {ONBOARDING_DATA[activeIndex].description}
               </Text>
             </Box>
           </Box>
@@ -113,22 +126,54 @@ const Onboarding = () => {
       />
 
       {/* Footer */}
-      <Box paddingHorizontal="xl" style={{ paddingBottom: insets.bottom + 20 }} alignItems="center" gap="m">
+      <Box
+        px="xl"
+        style={{ paddingBottom: insets.bottom + 20 }}
+        alignItems="center"
+        mt={'l'}
+        gap="m"
+      >
         <ProgressPagination total={3} activeIndex={activeIndex} />
-
-        <Box width="100%" gap="s">
+        <Box width="100%" gap="m">
           <Button
             label="Create a New Wallet"
             variant="primary"
             onPress={() => router.navigate('/(auth)/biometric')}
+            // onPress={() => router.navigate('/(onboarding)/choose-wallet')}
           />
           <Button
             label="I Have a Wallet"
             variant="outline"
             onPress={() => router.navigate('/(onboarding)/get-started')}
+            bg={'btnDisabled'}
+            // shadowOffset={{ width: 0, height: 4 }}
+            // shadowColor="primary500"
+            // shadowRadius={15}
+            // shadowOpacity={0.12}
             labelColor={statusBarStyle === 'light' ? 'textWhite' : 'black'}
           />
         </Box>
+        <Text variant="caption" color="textSecondary" textAlign="center" mt="s" px="m">
+          By proceeding, you agree to our{' '}
+          <Text
+            variant="caption"
+            color="primary700"
+            fontWeight="600"
+            onPress={() => LATCH_TERMS_URL && Linking.openURL(LATCH_TERMS_URL)}
+          >
+            Terms of Service.
+          </Text>
+          {/* {' and '}
+          <Text
+            variant="caption"
+            color="primary700"
+            fontWeight="600"
+            onPress={() => LATCH_PRIVACY_URL && Linking.openURL(LATCH_PRIVACY_URL)}
+          >
+            Privacy Policy
+          </Text> */}
+          {/* . */}
+        </Text>
       </Box>
     </Box>
   );

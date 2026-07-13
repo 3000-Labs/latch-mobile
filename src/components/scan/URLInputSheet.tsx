@@ -1,19 +1,21 @@
 import { useTheme } from '@shopify/restyle';
 import * as Clipboard from 'expo-clipboard';
 import React from 'react';
-import { TextInput, TouchableOpacity } from 'react-native';
+import { ActivityIndicator, TouchableOpacity } from 'react-native';
 
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
 import { Theme } from '@/src/theme/theme';
+import Input from '../shared/Input';
 
 interface URLInputSheetProps {
   url: string;
   onChangeUrl: (text: string) => void;
   onConnect: () => void;
+  isConnecting?: boolean;
 }
 
-const URLInputSheet = ({ url, onChangeUrl, onConnect }: URLInputSheetProps) => {
+const URLInputSheet = ({ url, onChangeUrl, onConnect, isConnecting = false }: URLInputSheetProps) => {
   const theme = useTheme<Theme>();
 
   const handlePaste = async () => {
@@ -33,49 +35,46 @@ const URLInputSheet = ({ url, onChangeUrl, onConnect }: URLInputSheetProps) => {
         Input URL
       </Text>
 
-      <Box
-        flexDirection="row"
-        alignItems="center"
-        backgroundColor="bg900"
-        borderRadius={12}
-        paddingHorizontal="m"
-        height={56}
-        borderWidth={1}
-        borderColor="gray900"
-        mb="l"
-      >
-        <TextInput
-          placeholder="https://lobstr.co/"
+      <Box mb="l">
+        <Input
+          placeholder="https://latch.co/"
           placeholderTextColor={theme.colors.textSecondary}
           value={url}
           onChangeText={onChangeUrl}
+          rightElement={
+            <TouchableOpacity activeOpacity={0.7} onPress={handlePaste}>
+              <Box backgroundColor="primary" px="m" py="xs" borderRadius={8}>
+                <Text variant="p8" color="black" fontWeight="700">
+                  Paste
+                </Text>
+              </Box>
+            </TouchableOpacity>
+          }
           style={{
             flex: 1,
             color: theme.colors.textWhite,
             fontSize: 16,
             fontFamily: 'SFproRegular',
+            width: '100%',
           }}
         />
-        <TouchableOpacity activeOpacity={0.7} onPress={handlePaste}>
-          <Box backgroundColor="primary" px="m" py="xs" borderRadius={8}>
-            <Text variant="p8" color="black" fontWeight="700">
-              Paste
-            </Text>
-          </Box>
-        </TouchableOpacity>
       </Box>
 
-      <TouchableOpacity activeOpacity={0.8} onPress={onConnect}>
+      <TouchableOpacity activeOpacity={0.8} onPress={onConnect} disabled={isConnecting || !url}>
         <Box
           height={56}
-          backgroundColor={url ? 'primary' : 'btnDisabled'}
+          backgroundColor={url && !isConnecting ? 'primary' : 'btnDisabled'}
           borderRadius={28}
           justifyContent="center"
           alignItems="center"
         >
-          <Text variant="p6" color="black" fontWeight="700">
-            Connect
-          </Text>
+          {isConnecting ? (
+            <ActivityIndicator size="small" color="#000" />
+          ) : (
+            <Text variant="p6" color="black" fontWeight="700">
+              Connect
+            </Text>
+          )}
         </Box>
       </TouchableOpacity>
     </Box>

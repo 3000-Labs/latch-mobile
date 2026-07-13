@@ -12,20 +12,20 @@ import {
   Dimensions,
   Image,
   Keyboard,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
   StyleSheet,
   TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import Box from '@/src/components/shared/Box';
 import Button from '@/src/components/shared/Button';
 import LoadingBlur from '@/src/components/shared/LoadingBlur';
 import Text from '@/src/components/shared/Text';
 import { Theme } from '@/src/theme/theme';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const { width } = Dimensions.get('window');
 
@@ -33,6 +33,7 @@ const ImportPhrase = () => {
   const theme = useTheme<Theme>();
   const statusBarStyle = useStatusBarStyle();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { setPendingWallet } = useWalletStore();
 
   const [words, setWords] = useState<string[]>(Array(12).fill(''));
@@ -40,7 +41,7 @@ const ImportPhrase = () => {
   const [error, setError] = useState<string | null>(null);
 
   const inputsRef = useRef<(TextInput | null)[]>([]);
-  const scrollRef = useRef<ScrollView | null>(null);
+  const scrollRef = useRef<any>(null);
 
   const itemWidth = (width - theme.spacing.m * 2 - theme.spacing.m) / 2;
 
@@ -103,8 +104,8 @@ const ImportPhrase = () => {
       setPendingWallet(wallet);
 
       router.push({
-        pathname: '/(onboarding)/set-pin',
-        params: { from: 'import-phrase', accountAddress: wallet.gAddress },
+        pathname: '/(auth)/biometric',
+        params: { from: 'import-phrase' },
       });
     } catch {
       setError('Failed to restore wallet. Please try again.');
@@ -114,25 +115,29 @@ const ImportPhrase = () => {
   };
 
   return (
-    <Box flex={1} backgroundColor="mainBackground">
+    <Box flex={1} backgroundColor="onboardingbg">
+      <LinearGradient
+        colors={['rgba(50, 60, 14, 0.74)', '#121212']}
+        locations={[0, 0.2772]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 0.91 }}
+        style={StyleSheet.absoluteFill}
+      />
       <StatusBar style={statusBarStyle} />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 100}
+      <KeyboardAwareScrollView
+        bounces={false}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        ref={scrollRef}
+        contentContainerStyle={{
+          paddingHorizontal: theme.spacing.m,
+          paddingBottom: 40,
+          paddingTop: 60,
+          flexGrow: 1,
+        }}
         style={{ flex: 1 }}
+        bottomOffset={16}
       >
-        <ScrollView
-          bounces={false}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          ref={(r) => { scrollRef.current = r; }}
-          contentContainerStyle={{
-            paddingHorizontal: theme.spacing.m,
-            paddingBottom: 40,
-            paddingTop: 60,
-            flexGrow: 1,
-          }}
-        >
           {/* Header */}
           <Box flexDirection="row" justifyContent="space-between" mb="m">
             <TouchableOpacity onPress={() => router.back()}>
@@ -140,7 +145,7 @@ const ImportPhrase = () => {
             </TouchableOpacity>
 
             <Image
-              source={require('@/src/assets/images/logosym.png')}
+              source={require('@/src/assets/images/logoLoading.png')}
               style={{ width: 35, height: 35 }}
               resizeMode="contain"
             />
@@ -167,13 +172,9 @@ const ImportPhrase = () => {
                     {
                       width: itemWidth,
                       backgroundColor:
-                        statusBarStyle !== 'light'
-                          ? theme.colors.text50
-                          : theme.colors.gray900,
+                        statusBarStyle !== 'light' ? theme.colors.text50 : theme.colors.gray900,
                       borderRadius: 12,
-                      borderColor: error
-                        ? theme.colors.danger900
-                        : theme.colors.gray800,
+                      borderColor: error ? theme.colors.danger900 : theme.colors.gray800,
                     },
                   ]}
                 >
@@ -186,11 +187,13 @@ const ImportPhrase = () => {
                     {index + 1}
                   </Text>
                   <TextInput
-                    ref={(el) => { inputsRef.current[index] = el; }}
+                    ref={(el) => {
+                      inputsRef.current[index] = el;
+                    }}
                     value={word}
                     onChangeText={(t) => handleChange(t, index)}
                     onFocus={() => handleFocus(index)}
-                    placeholder={`word ${index + 1}`}
+                    placeholder={``}
                     placeholderTextColor={theme.colors.gray600}
                     style={{ color: theme.colors.textPrimary, flex: 1, padding: 0 }}
                     autoCapitalize="none"
@@ -214,11 +217,15 @@ const ImportPhrase = () => {
               </Text>
             )}
           </Box>
-        </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
 
       {/* Import Button fixed at bottom */}
-      <Box padding="m" mb="l" backgroundColor="mainBackground">
+      <Box
+        paddingHorizontal="m"
+        paddingTop="m"
+        backgroundColor="mainBackground"
+        style={{ paddingBottom: Math.max(insets.bottom, 24) }}
+      >
         <Button
           label="Import Wallet"
           variant={allFilled ? 'primary' : 'disabled'}

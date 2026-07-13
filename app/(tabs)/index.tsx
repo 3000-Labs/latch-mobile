@@ -1,22 +1,31 @@
 import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
+import HistoryItem from '@/src/components/history/HistoryItem';
+import BuyXLMSheet from '@/src/components/home/BuyXLMSheet';
+import FundWalletSheet from '@/src/components/home/FundWalletSheet';
+import { useDepositInfo } from '@/src/hooks/use-deposit';
+import PendingApprovalBanner from '@/src/components/home/PendingApprovalBanner';
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
-import TransactionItem from '@/src/components/shared/TransactionItem';
-import { STELLAR_NETWORK_PASSPHRASE, STELLAR_RPC_URL } from '@/src/constants/config';
+import TokenIcon from '@/src/components/shared/TokenIcon';
 import { useDrawer } from '@/src/context/drawer-context';
-import { useStellarTransactions } from '@/src/hooks/use-stellar-transactions';
-// import { discoverMigration } from '@/src/lib/migration';
+import { usePortfolio, type TokenBalance } from '@/src/hooks/use-portfolio';
+import { usePrices } from '@/src/hooks/use-prices';
+import { StellarPayment, useStellarTransactions } from '@/src/hooks/use-stellar-transactions';
+import { useTokenIcon } from '@/src/hooks/use-token-list';
+import { useTrackedTokens } from '@/src/hooks/use-tracked-tokens';
+import { discoverMigration } from '@/src/lib/migration';
+import { useLoadingOverlay } from '@/src/store/loading-overlay';
 import { useWalletStore } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
 import { useAppTheme } from '@/src/theme/ThemeContext';
+import { calculatePortfolio24hChangeFormatted, getTotalUSDBalance } from '@/src/utils';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
-import { Address, Asset, scValToNative, xdr } from '@stellar/stellar-sdk';
 import { useQuery } from '@tanstack/react-query';
 import { ImageBackground } from 'expo-image';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { memo, useState } from 'react';
+import React, { memo, useEffect, useMemo, useState } from 'react';
 import {
   Dimensions,
   FlatList,
@@ -29,160 +38,195 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-/**
- * Read the native XLM balance of a Soroban smart account (C-address) directly
- * from the Stellar Asset Contract (SAC) ledger entries via Soroban RPC.
- *
- * Horizon's /accounts/{id} only works for classic G-addresses. For C-addresses
- * the balance lives in the native SAC's contract storage under the key:
- *   ContractData { contract: nativeSac, key: Vec([Symbol("Balance"), Address(cAddress)]) }
- *
- * The stored ScVal is a map { amount: i128 (stroops), authorized: bool, clawback: bool }.
- * Uses XMLHttpRequest to avoid the Axios Android TLS failure on Soroban JSON-RPC calls.
- */
-function fetchNativeSacBalance(cAddress: string): Promise<string> {
-  const nativeSacId = Asset.native().contractId(STELLAR_NETWORK_PASSPHRASE);
-
-  const balanceKey = xdr.LedgerKey.contractData(
-    new xdr.LedgerKeyContractData({
-      contract: new Address(nativeSacId).toScAddress(),
-      key: xdr.ScVal.scvVec([xdr.ScVal.scvSymbol('Balance'), new Address(cAddress).toScVal()]),
-      durability: xdr.ContractDataDurability.persistent(),
-    }),
-  );
-
-  // btoa byte-loop — avoids Buffer polyfill issues in React Native
-  const bytes = new Uint8Array(balanceKey.toXDR());
-  let binary = '';
-  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-  const keyB64 = btoa(binary);
-
-  return new Promise((resolve) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', STELLAR_RPC_URL, true);
-    xhr.setRequestHeader('Content-Type', 'application/json');
-    xhr.setRequestHeader('Accept', 'application/json');
-    xhr.timeout = 15000;
-    xhr.onload = () => {
-      try {
-        const json = JSON.parse(xhr.responseText);
-        const entries: any[] = json.result?.entries ?? [];
-        if (entries.length === 0) {
-          resolve('0');
-          return;
-        }
-        const entryData = xdr.LedgerEntryData.fromXDR(entries[0].xdr, 'base64');
-        const val = entryData.contractData().val();
-        const parsed = scValToNative(val) as { amount: bigint };
-        resolve((Number(parsed.amount) / 10_000_000).toFixed(7));
-      } catch {
-        resolve('0');
-      }
-    };
-    xhr.onerror = () => resolve('0');
-    xhr.ontimeout = () => resolve('0');
-    xhr.send(
-      JSON.stringify({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'getLedgerEntries',
-        params: { keys: [keyB64] },
-      }),
-    );
-  });
-}
-
 function RaysBackgroundInner() {
   return (
-    <Box position="absolute" style={{ top: 0, left: '28%' }}>
+    <Box position="absolute" style={{ top: -30, left: '28%' }}>
       <ImageBackground
         source={require('@/src/assets/icon/Circle.png')}
-        style={{
-          position: 'absolute',
-          width: 182,
-          height: 182,
-        }}
+        style={{ position: 'absolute', width: 182, height: 182 }}
       />
     </Box>
   );
 }
 const RaysBackground = memo(RaysBackgroundInner);
+
 const banners = [
-  {
-    id: 1,
-    image: require('@/src/assets/icon/Container.png'),
-  },
-  {
-    id: 2,
-    image: require('@/src/assets/icon/Container.png'),
-  },
-  {
-    id: 3,
-    image: require('@/src/assets/icon/Container.png'),
-  },
+  { id: 1, image: require('@/src/assets/icon/Container.png') },
+  { id: 2, image: require('@/src/assets/icon/Container.png') },
+  { id: 3, image: require('@/src/assets/icon/Container.png') },
 ];
+
+function TokenRow({
+  token,
+  showBalance,
+  isDark,
+  theme,
+}: {
+  token: TokenBalance;
+  showBalance: boolean;
+  isDark: boolean;
+  theme: Theme;
+}) {
+  const iconUrl = useTokenIcon(token.code, token.issuer);
+  const amount = parseFloat(token.amount);
+  const formattedAmount = amount.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: token.code === 'XLM' ? 7 : 2,
+  });
+  const formattedUsd = token.usdValue.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+  return (
+    <Box
+      flexDirection="row"
+      alignItems="center"
+      backgroundColor={'bg11'}
+      padding="m"
+      borderRadius={20}
+      mb="s"
+      style={
+        !isDark
+          ? {
+              borderWidth: 1,
+              borderColor: '#F5F5F5',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.05,
+              shadowRadius: 4,
+              elevation: 2,
+            }
+          : {}
+      }
+    >
+      <Box backgroundColor={isDark ? 'black' : 'text400'} borderRadius={24} mr="m">
+        <TokenIcon iconUrl={iconUrl} size={48} />
+      </Box>
+      <Box flex={1}>
+        <Text variant="h11" color="textPrimary" fontWeight="700">
+          {token.code}
+        </Text>
+        <Text variant="p8" color="textSecondary" mt="xs">
+          {token.code === 'XLM' ? 'Stellar Lumens' : token.code}
+        </Text>
+      </Box>
+      <Box alignItems="flex-end">
+        <Text variant="h11" color="textPrimary" fontWeight="700">
+          {showBalance ? `${formattedAmount} ${token.code}` : '****'}
+        </Text>
+        <Text variant="p8" color="textSecondary" mt="xs">
+          {showBalance ? `$${formattedUsd}` : '****'}
+        </Text>
+      </Box>
+    </Box>
+  );
+}
+
 const Home = () => {
   const theme = useTheme<Theme>();
   const { isDark } = useAppTheme();
   const statusBarStyle = useStatusBarStyle();
   const insets = useSafeAreaInsets();
 
-  const {
-    smartAccountAddress,
-    accounts,
-    activeAccountIndex,
-    // , mnemonic
-  } = useWalletStore();
-  const [showBalance, setShowBalance] = useState(true);
+  const { smartAccountAddress, accounts, activeAccountIndex, mnemonic, avatars } = useWalletStore();
+  const [showBalance, setShowBalance] = useState(false);
   const [bannerIndex, setBannerIndex] = useState(0);
+  const [fundVisible, setFundVisible] = useState(false);
+  const [receiveVisible, setReceiveVisible] = useState(false);
+
+  const { data: depositInfo } = useDepositInfo();
 
   const activeAccount = accounts[activeAccountIndex];
   const activeAccountName = activeAccount?.name ?? 'Account 1';
+  const activeAccountImage = activeAccount ? avatars[activeAccount.publicKeyHex] : undefined;
 
   const { openDrawer } = useDrawer();
 
+  const { tokens: trackedTokens } = useTrackedTokens();
+
+  const { data: prices, refetch: refetchPrices } = usePrices();
   const {
-    data: xlmBalance,
-    isLoading: balanceLoading,
-    refetch: refetchBalance,
-    isRefetching: isRefetchingBalance,
-  } = useQuery({
-    queryKey: ['stellar-balance', smartAccountAddress],
-    queryFn: () => fetchNativeSacBalance(smartAccountAddress!),
-    enabled: !!smartAccountAddress,
-    staleTime: 30_000,
-  });
+    data: portfolio,
+    isLoading: portfolioLoading,
+    refetch: refetchPortfolio,
+  } = usePortfolio(smartAccountAddress, activeAccount?.gAddress, trackedTokens);
 
   const {
     data: transactions,
     refetch: refetchTx,
-    isRefetching: isRefetchingTx,
+    isLoading: txLoading,
   } = useStellarTransactions(smartAccountAddress);
 
-  // Soroban contract accounts don't have classic Stellar subentries or sponsorship,
-  // so the full balance is spendable (no minimum reserve deduction).
-  const spendableXlm = Number(xlmBalance ?? '0');
+  const showOverlay = useLoadingOverlay((s) => s.show);
+  const hideOverlay = useLoadingOverlay((s) => s.hide);
 
-  const handleRefresh = () => {
-    refetchBalance();
-    refetchTx();
+  useEffect(() => {
+    if (portfolioLoading || txLoading) {
+      showOverlay('Loading...');
+    } else {
+      hideOverlay();
+    }
+    return () => hideOverlay();
+  }, [portfolioLoading, txLoading, showOverlay, hideOverlay]);
+
+  const { data: migrationState } = useQuery({
+    queryKey: ['migration-state', smartAccountAddress, activeAccount?.gAddress],
+    queryFn: () => discoverMigration(activeAccount!),
+    enabled: !!activeAccount?.gAddress && !!smartAccountAddress && !!mnemonic,
+    staleTime: 60_000,
+  });
+
+  const [manualRefreshing, setManualRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setManualRefreshing(true);
+    await Promise.all([refetchPrices(), refetchPortfolio(), refetchTx()]);
+    setManualRefreshing(false);
   };
 
-  // const { data: migrationState } = useQuery({
-  //   queryKey: ['migration-state', smartAccountAddress, activeAccount?.gAddress],
-  //   queryFn: () => discoverMigration(activeAccount!),
-  //   enabled: !!activeAccount?.gAddress && !!smartAccountAddress && !!mnemonic,
-  //   staleTime: 60_000,
-  // });
+  const livePrices = useMemo<Record<string, any>>(() => prices ?? {}, [prices]);
+  const totalUsd = useMemo(
+    () => getTotalUSDBalance({ portfolio, livePrices }),
+    [portfolio, livePrices],
+  );
 
-  const recentTx = transactions?.slice(0, 5) ?? [];
-  const XLM_PRICE = 0.16; // TODO: Fetch real-time price from API
-  const usdBalance = spendableXlm * XLM_PRICE;
+  const dayChange = useMemo(() => {
+    return calculatePortfolio24hChangeFormatted({
+      prices: livePrices,
+      portfolio: portfolio as TokenBalance[],
+    });
+  }, [portfolio, livePrices]);
+
+  const xlmToken = useMemo(() => portfolio?.find((t) => t.code === 'XLM'), [portfolio]);
+  const spendableXlm = useMemo(() => parseFloat(xlmToken?.amount ?? '0') || 0, [xlmToken]);
+  const recentTx = useMemo(() => transactions?.slice(0, 3) ?? [], [transactions]);
+
+  const handleRowPress = (tx: StellarPayment) => {
+    const isSent = tx.from === smartAccountAddress;
+    const direction = isSent ? 'sent' : 'received';
+
+    router.push({
+      pathname: '/transaction/[id]',
+      params: {
+        id: tx.id,
+        hash: tx.transactionHash,
+        type: tx.type,
+        from: tx.from,
+        to: tx.to,
+        amount: tx.amount,
+        assetType: tx.assetType,
+        assetCode: tx.assetCode ?? 'XLM',
+        createdAt: tx.createdAt,
+        direction,
+        gAddress: tx.from,
+      },
+    });
+  };
 
   return (
-    <Box flex={1} backgroundColor="mainBackground">
+    <Box flex={1} backgroundColor="onboardingbg">
       <StatusBar style={statusBarStyle} />
-
       {/* Header */}
       <Box
         flexDirection="row"
@@ -210,10 +254,15 @@ const Home = () => {
               backgroundColor="primary700"
               justifyContent="center"
               alignItems="center"
+              overflow={'hidden'}
             >
-              <Text variant="p7" color="textWhite" fontWeight="700">
-                {activeAccountName.charAt(0)}
-              </Text>
+              {activeAccountImage ? (
+                <Image source={{ uri: activeAccountImage }} style={{ width: 32, height: 32 }} />
+              ) : (
+                <Text variant="p7" color="textWhite" fontWeight="700">
+                  {activeAccountName.charAt(0)}
+                </Text>
+              )}
             </Box>
             <Text variant="h11" color="textPrimary" fontWeight="700">
               {activeAccountName}
@@ -244,15 +293,17 @@ const Home = () => {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={isRefetchingBalance || isRefetchingTx}
+            refreshing={manualRefreshing}
             onRefresh={handleRefresh}
             tintColor={theme.colors.primary700}
           />
         }
         contentContainerStyle={{ paddingBottom: 120 }}
       >
+        <PendingApprovalBanner />
+
         {/* Balance Section */}
-        <Box alignItems="center" pb="xl" position="relative" mt="s">
+        <Box alignItems="center" pb="xl" position="relative" mt="xl">
           {!isDark && <RaysBackground />}
           <TouchableOpacity
             onPress={() => setShowBalance(!showBalance)}
@@ -270,13 +321,13 @@ const Home = () => {
 
           <Text variant="h5" color="textPrimary" style={{ fontWeight: '700', letterSpacing: -1 }}>
             {showBalance
-              ? balanceLoading
+              ? portfolioLoading
                 ? '...'
-                : `$${Number(usdBalance).toLocaleString(undefined, {
+                : `$${totalUsd.toLocaleString(undefined, {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
                   })}`
-              : '•••'}
+              : '***'}
           </Text>
 
           <Box flexDirection="row" alignItems="center" gap="s" mt="xs">
@@ -286,17 +337,19 @@ const Home = () => {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 7,
                   })} XLM`
-                : '••••'}
+                : '****'}
             </Text>
             <Box
               backgroundColor={isDark ? 'gray900' : 'gray100'}
               borderRadius={6}
               paddingHorizontal="s"
+              justifyContent={'center'}
+              alignItems={'center'}
               paddingVertical="xs"
               style={!isDark ? { borderWidth: 1, borderColor: '#F0F0F0' } : {}}
             >
               <Text variant="p7" color="textPrimary" fontWeight="700">
-                0.00%
+                {showBalance ? `${dayChange ?? 0.0}%` : '****'}
               </Text>
             </Box>
           </Box>
@@ -305,7 +358,7 @@ const Home = () => {
         {/* Action Buttons */}
         <Box flexDirection="row" justifyContent="space-around" paddingHorizontal="m" mb="xl" mt="m">
           {[
-            { label: 'Add', icon: require('@/src/assets/icon/plus-big.png') },
+            { label: 'Fund', icon: require('@/src/assets/icon/plus-big.png') },
             { label: 'Send', icon: require('@/src/assets/icon/ArrowUp.png'), route: '/send-token' },
             {
               label: 'Receive',
@@ -321,7 +374,9 @@ const Home = () => {
               <TouchableOpacity
                 activeOpacity={0.7}
                 onPress={() => {
-                  if ('route' in item && item.route) {
+                  if (item.label === 'Fund') {
+                    setFundVisible(true);
+                  } else if ('route' in item && item.route) {
                     router.push(item.route as any);
                   }
                 }}
@@ -351,6 +406,34 @@ const Home = () => {
           ))}
         </Box>
 
+        {/* Your Assets */}
+        {(portfolio ?? []).length > 0 && (
+          <Box paddingHorizontal="m" mb="xl">
+            <Box flexDirection="row" justifyContent="space-between" alignItems="center" mb="m">
+              <Text variant="h9" color="textPrimary" fontWeight="700">
+                Your Assets
+              </Text>
+              <TouchableOpacity onPress={() => router.push('/add-token')}>
+                <Text variant="p7" color="primary700" fontWeight="700">
+                  Manage
+                </Text>
+              </TouchableOpacity>
+            </Box>
+            {(portfolio ?? []).map((token) => {
+              const usd = parseFloat(token.amount) * (livePrices[token.code]?.price || 0);
+              return (
+                <TokenRow
+                  key={token.code + (token.issuer ?? '')}
+                  token={{ ...token, usdValue: isNaN(usd) ? 0 : usd }}
+                  showBalance={showBalance}
+                  isDark={isDark}
+                  theme={theme}
+                />
+              );
+            })}
+          </Box>
+        )}
+
         {/* Banner Carousel */}
         <Box mb="xl">
           <FlatList
@@ -369,10 +452,7 @@ const Home = () => {
                 <Box width={SCREEN_WIDTH - 32} height={101} overflow={'hidden'} borderRadius={12}>
                   <Image
                     source={item.image}
-                    style={{
-                      height: '100%',
-                      width: '100%',
-                    }}
+                    style={{ height: '100%', width: '100%' }}
                     resizeMode="cover"
                   />
                 </Box>
@@ -392,8 +472,8 @@ const Home = () => {
           </Box>
         </Box>
 
-        {/* Migration banner — shown when G-address has assets to sweep */}
-        {/* {migrationState?.state === 'not_started' && (
+        {/* Migration banner */}
+        {migrationState?.state === 'not_started' && (
           <Box paddingHorizontal="m" mb="m">
             <TouchableOpacity activeOpacity={0.85} onPress={() => router.push('/(migration)')}>
               <Box
@@ -419,22 +499,22 @@ const Home = () => {
                   <Ionicons name="swap-horizontal" size={20} color="#000" />
                 </Box>
                 <Box flex={1}>
-                  <Text variant="h11" fontWeight="700" style={{ color: isDark ? '#FFD666' : '#874D00' }}>
+                  <Text
+                    variant="h11"
+                    fontWeight="700"
+                    style={{ color: isDark ? '#FFD666' : '#874D00' }}
+                  >
                     Assets on classic account
                   </Text>
                   <Text variant="p8" style={{ color: isDark ? '#B8860B' : '#AD6800' }} mt="xs">
                     Tap to migrate them to your smart account
                   </Text>
                 </Box>
-                <Ionicons
-                  name="chevron-forward"
-                  size={16}
-                  color={isDark ? '#B8860B' : '#AD6800'}
-                />
+                <Ionicons name="chevron-forward" size={16} color={isDark ? '#B8860B' : '#AD6800'} />
               </Box>
             </TouchableOpacity>
           </Box>
-        )} */}
+        )}
 
         {/* Recent Activity */}
         <Box paddingHorizontal="m">
@@ -442,7 +522,7 @@ const Home = () => {
             <Text variant="h9" color="textPrimary" fontWeight="700">
               Recent Activity
             </Text>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/history')}>
               <Text variant="p7" color="primary700" fontWeight="700">
                 View All
               </Text>
@@ -462,11 +542,33 @@ const Home = () => {
             </Box>
           ) : (
             recentTx.map((tx) => (
-              <TransactionItem key={tx.id} tx={tx} walletAddress={smartAccountAddress} />
+              <HistoryItem
+                key={tx.id}
+                item={tx}
+                smartAccountAddress={smartAccountAddress}
+                handleRowPress={handleRowPress}
+              />
             ))
           )}
         </Box>
       </ScrollView>
+
+      <BuyXLMSheet
+        visible={fundVisible}
+        onClose={() => setFundVisible(false)}
+        onReceive={() => {
+          setFundVisible(false);
+          setReceiveVisible(true);
+        }}
+        poolAddress={depositInfo?.pool_address ?? ''}
+        memo={depositInfo?.memo}
+      />
+      <FundWalletSheet
+        visible={receiveVisible}
+        onClose={() => setReceiveVisible(false)}
+        address={depositInfo?.pool_address ?? ''}
+        memo={depositInfo?.memo}
+      />
     </Box>
   );
 };

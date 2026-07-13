@@ -6,13 +6,23 @@ import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Dimensions, Image, ScrollView, TouchableOpacity, Vibration, View } from 'react-native';
+import {
+  Dimensions,
+  Image,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+  Vibration,
+  View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import Box from '@/src/components/shared/Box';
 import Button from '@/src/components/shared/Button';
 import LoadingBlur from '@/src/components/shared/LoadingBlur';
 import Text from '@/src/components/shared/Text';
 import { Theme } from '@/src/theme/theme';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const { width } = Dimensions.get('window');
 
@@ -20,6 +30,7 @@ const VerifyPhrase = () => {
   const theme = useTheme<Theme>();
   const statusBarStyle = useStatusBarStyle();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const { pendingWallet, clearPendingWallet } = useWalletStore();
   const recoveryPhrase = useMemo(
@@ -92,7 +103,14 @@ const VerifyPhrase = () => {
   const itemWidth = (width - theme.spacing.m * 2 - theme.spacing.m * 2) / 3;
 
   return (
-    <Box flex={1} backgroundColor="mainBackground">
+    <Box flex={1} backgroundColor="onboardingbg">
+      <LinearGradient
+        colors={[theme.colors.gradientLight, theme.colors.gradientDark]}
+        locations={[0, 0.2772]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 0.9 }}
+        style={StyleSheet.absoluteFill}
+      />
       <StatusBar style={statusBarStyle} />
       <View style={{ flex: 1 }}>
         <ScrollView
@@ -116,7 +134,7 @@ const VerifyPhrase = () => {
             </TouchableOpacity>
 
             <Image
-              source={require('@/src/assets/images/logosym.png')}
+              source={require('@/src/assets/images/logoLoading.png')}
               style={{ width: 35, height: 35 }}
               resizeMode="contain"
             />
@@ -235,7 +253,12 @@ const VerifyPhrase = () => {
         </ScrollView>
 
         {/* Verify Button - Always at Bottom */}
-        <Box padding="m" mb="l" backgroundColor="mainBackground">
+        <Box
+          paddingHorizontal="m"
+          paddingTop="m"
+          backgroundColor="mainBackground"
+          style={{ paddingBottom: Math.max(insets.bottom, 24) }}
+        >
           <Button
             label="Verify"
             variant={isAllFilled ? 'primary' : 'disabled'}

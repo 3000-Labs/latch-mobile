@@ -18,12 +18,14 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import Box from '@/src/components/shared/Box';
 import Button from '@/src/components/shared/Button';
 import LoadingBlur from '@/src/components/shared/LoadingBlur';
 import Text from '@/src/components/shared/Text';
 import { Theme } from '@/src/theme/theme';
+import { LinearGradient } from 'expo-linear-gradient';
 
 export const PENDING_MNEMONIC_KEY = 'latch_pending_mnemonic';
 
@@ -33,6 +35,7 @@ const RecoveryPhrase = () => {
   const theme = useTheme<Theme>();
   const statusBarStyle = useStatusBarStyle();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [isRevealed, setIsRevealed] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isGenerating, setIsGenerating] = useState(true);
@@ -79,7 +82,14 @@ const RecoveryPhrase = () => {
   const itemWidth = (width - theme.spacing.m * 2 - theme.spacing.m * 2) / 3;
 
   return (
-    <Box flex={1} backgroundColor="mainBackground">
+    <Box flex={1} backgroundColor="onboardingbg">
+      <LinearGradient
+        colors={['rgba(50, 60, 14, 0.74)', '#121212']}
+        locations={[0, 0.2772]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 0.91 }}
+        style={StyleSheet.absoluteFill}
+      />
       <StatusBar style={statusBarStyle} />
       <View style={{ flex: 1 }}>
         <ScrollView
@@ -99,7 +109,7 @@ const RecoveryPhrase = () => {
             </TouchableOpacity>
 
             <Image
-              source={require('@/src/assets/images/logosym.png')}
+              source={require('@/src/assets/images/logoLoading.png')}
               style={{ width: 35, height: 35 }}
               resizeMode="contain"
             />
@@ -214,7 +224,12 @@ const RecoveryPhrase = () => {
         </ScrollView>
 
         {/* Continue Button - Always at Bottom */}
-        <Box padding="m" mb={'l'} backgroundColor="mainBackground">
+        <Box
+          paddingHorizontal="m"
+          paddingTop="m"
+          backgroundColor="mainBackground"
+          style={{ paddingBottom: Math.max(insets.bottom, 24) }}
+        >
           <Button
             label="Continue"
             variant={isRevealed && !isGenerating ? 'primary' : 'disabled'}

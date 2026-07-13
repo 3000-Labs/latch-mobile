@@ -1,3 +1,4 @@
+import { existsSync } from 'fs';
 import env from './env';
 import packageJson from './package.json';
 
@@ -6,6 +7,7 @@ const versionCode = epochTimeInSeconds;
 const buildNumber = String(epochTimeInSeconds);
 const buildVersion = packageJson.version;
 const appName = env.APP_NAME;
+const sentry = env.SENTRY_AUTH_TOKEN;
 
 export default {
   expo: {
@@ -18,14 +20,17 @@ export default {
     scheme: 'latch',
     userInterfaceStyle: 'automatic',
     splash: {
-      image: './assets/images/icon.png',
-      resizeMode: 'contain',
-      backgroundColor: '#000000',
+      // image: './assets/images/icon.png',
+      // resizeMode: 'cover',
+      backgroundColor: '#121212',
     },
     ios: {
       supportsTablet: true,
       bundleIdentifier: appName === 'Latch' ? 'co.getlatch.latchapp' : 'qa.getlatch.app',
       appleTeamId: 'P5QF5H77W5',
+      ...(process.env.GOOGLE_SERVICES_IOS || existsSync('./GoogleService-Info.plist')
+        ? { googleServicesFile: process.env.GOOGLE_SERVICES_IOS ?? './GoogleService-Info.plist' }
+        : {}),
       buildNumber,
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
@@ -56,10 +61,14 @@ export default {
         monochromeImage: './assets/images/android-icon-monochrome.png',
       },
       predictiveBackGestureEnabled: false,
+      ...(process.env.GOOGLE_SERVICES_ANDROID || existsSync('./google-services.json')
+        ? { googleServicesFile: process.env.GOOGLE_SERVICES_ANDROID ?? './google-services.json' }
+        : {}),
       permissions: [
         'android.permission.USE_BIOMETRIC',
         'android.permission.USE_FINGERPRINT',
         'android.permission.CAMERA',
+        'android.permission.POST_NOTIFICATIONS',
       ],
     },
     web: {
@@ -67,19 +76,24 @@ export default {
       favicon: './assets/images/favicon.png',
     },
     plugins: [
+      './plugins/withJitpackContentFilter',
       'expo-router',
+      'expo-notifications',
       '@react-native-community/datetimepicker',
       'expo-image',
       [
         'expo-splash-screen',
         {
-          image: './assets/images/splash-icon-light.png',
-          imageWidth: 159.5,
+          // 1x1 transparent image: keeps a logo-less dark splash while still
+          // generating the splashscreen_logo drawable that Theme.App.SplashScreen
+          // hard-references, so AAPT2 release resource linking succeeds.
+          image: './assets/images/splash-transparent.png',
+          imageWidth: 48,
           resizeMode: 'contain',
-          backgroundColor: '#ffffff',
+          backgroundColor: '#121212',
           dark: {
-            image: './assets/images/splash-icon-dark.png',
-            backgroundColor: '#000000',
+            image: './assets/images/splash-transparent.png',
+            backgroundColor: '#121212',
           },
         },
       ],
@@ -92,7 +106,22 @@ export default {
             './assets/fonts/SFPRO-Medium.ttf',
             './assets/fonts/SFPRO-bold.ttf',
             './assets/fonts/SFPRO-Semibolditalic.otf',
+            './assets/fonts/SFProRounded-Medium.ttf',
+            './assets/fonts/SFProRounded-Bold.ttf',
           ],
+        },
+      ],
+      // [
+      //   '@hot-updater/react-native',
+      //   {
+      //     channel: env.EXPO_PUBLIC_APP_ENV,
+      //   },
+      // ],
+      [
+        'expo-camera',
+        {
+          cameraPermission: 'Allow $(PRODUCT_NAME) to access your camera',
+          barcodeScannerEnabled: true,
         },
       ],
       // [
@@ -114,11 +143,19 @@ export default {
           },
         },
       ],
-      // Injects network_security_config.xml into the Android build so OkHttp
-      // trusts the system CA store.  Without this, Android 7+ (API 24+) throws:
-      //   CertPathValidatorException: Trust anchor for certification path not found
-      // './trust-local-certs.js',
-      // ['react-native-quick-crypto', { sodiumEnabled: true }], // Optional configuration
+      ...(sentry
+        ? [
+            [
+              '@sentry/react-native/expo',
+              {
+                url: 'https://sentry.io/',
+                authToken: sentry,
+                project: 'latch-mobile',
+                organization: 'latch',
+              },
+            ],
+          ]
+        : []),
     ],
     updates: {
       url: 'https://u.expo.dev/8b122713-0d94-4940-a71c-58da86f923ad',
@@ -131,6 +168,7 @@ export default {
       reactCompiler: true,
     },
     extra: {
+      otaCritical: true,
       eas: {
         projectId: '8b122713-0d94-4940-a71c-58da86f923ad',
       },

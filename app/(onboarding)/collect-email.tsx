@@ -2,16 +2,18 @@
  * CollectEmail — two-phase screen for email-based auth and account recovery.
  *
  * mode=register (default): onboarding flow
- *   Phase 1 → POST /auth/register → Phase 2 → POST /auth/verify → deploy-account
+ *   Phase 1 → POST /auth/register → Phase 2 → POST /auth/verify → set-recovery-password (set)
  *
  * mode=recovery: account recovery flow
  *   Phase 1 → POST /recovery/initiate → Phase 2 → POST /recovery/verify
- *           → GET /recovery/blob → restore keys → set-pin
+ *           → set-recovery-password (enter) → client-side decrypt → set-pin
  */
 
 import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import {
-  fetchAndRestoreBackup,
+  checkEmailHasBackup,
+  clearEmailSession,
+  getBackupStatus,
   initiateRecovery,
   registerEmail,
   saveAuthTokens,
@@ -20,23 +22,25 @@ import {
 } from '@/src/api/latch-auth';
 import Box from '@/src/components/shared/Box';
 import Button from '@/src/components/shared/Button';
+import LoadingBlur from '@/src/components/shared/LoadingBlur';
 import Text from '@/src/components/shared/Text';
+import { LATCH_PRIVACY_URL } from '@/src/constants/constants';
+import { useWalletStore } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '@shopify/restyle';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Image,
-  KeyboardAvoidingView,
-  Platform,
+  Linking,
   StyleSheet,
   TextInput,
   TouchableOpacity,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type Phase = 'email' | 'otp';
@@ -47,8 +51,9 @@ const CollectEmail = () => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const { mode } = useLocalSearchParams<{ mode?: string }>();
+  const { mode, flow } = useLocalSearchParams<{ mode?: string; flow?: string }>();
   const isRecovery = mode === 'recovery';
+  const accounts = useWalletStore((s) => s.accounts);
 
   const [phase, setPhase] = useState<Phase>('email');
   const [email, setEmail] = useState('');
@@ -86,6 +91,16 @@ const CollectEmail = () => {
       if (isRecovery) {
         await initiateRecovery(trimmed);
       } else {
+        // Pre-OTP collision check: if this email already anchors a wallet,
+        // tell the user up front rather than letting them go through OTP
+        // and onboarding only to fail at upload time.
+        const hasBackup = await checkEmailHasBackup(trimmed);
+        if (hasBackup) {
+          setError(
+            'This email is already tied to another wallet. Use a different email, or recover the existing wallet from the previous screen.',
+          );
+          return;
+        }
         await registerEmail(trimmed);
       }
       setEmail(trimmed);
@@ -110,16 +125,48 @@ const CollectEmail = () => {
     try {
       if (isRecovery) {
         const recoveryToken = await verifyRecoveryOTP(email, otp.trim());
-        await fetchAndRestoreBackup(recoveryToken);
-        // Mark onboarding complete so the app doesn't loop back to onboarding
-        await AsyncStorage.setItem('latch_onboarding_complete', 'true');
-        // Passkey credential is restored — navigate to set-pin so user sets a
-        // new PIN (PIN is not backed up). from=recovery skips deploy-account.
-        router.replace({ pathname: '/(onboarding)/set-pin', params: { from: 'recovery' } });
+        // Navigate to set-recovery-password to collect the password needed to
+        // decrypt the backup client-side. That screen calls fetchAndRestoreBackup.
+        router.replace({
+          pathname: '/(onboarding)/set-recovery-password',
+          params: { mode: 'enter', recoveryToken },
+        });
       } else {
         const { accessToken, refreshToken } = await verifyOTP(email, otp.trim());
         await saveAuthTokens(accessToken, refreshToken, email);
-        router.replace('/(onboarding)/deploy-account');
+        // Each Latch email anchors at most one wallet. If foo@ already has a
+        // backup, confirm it actually belongs to a wallet present on THIS
+        // device — checking every local account's smartAccountAddress and
+        // mnemonic-derived gAddress, not just the active/primary one — before
+        // trusting the registration we just completed. If it doesn't match
+        // any local wallet, clear the session and prompt for a different
+        // email instead of letting the user invest in onboarding only to
+        // fail at upload time (or silently overwrite a stranger's backup).
+        const status = await getBackupStatus();
+        if (status.exists) {
+          const localAddresses = new Set<string>();
+          accounts.forEach((a) => {
+            if (a.smartAccountAddress) localAddresses.add(a.smartAccountAddress);
+            if (a.gAddress) localAddresses.add(a.gAddress);
+          });
+          const matchesDevice =
+            !!status.smartAccountAddress && localAddresses.has(status.smartAccountAddress);
+          if (!matchesDevice) {
+            await clearEmailSession();
+            setPhase('email');
+            setOtp('');
+            setError(
+              "This email's existing backup doesn't match any wallet on this device. Use a different email, or recover the existing wallet from the previous screen.",
+            );
+            return;
+          }
+        }
+        // Navigate to set-recovery-password to collect the password that will
+        // encrypt the backup before it is uploaded in deploy-account.
+        router.replace({
+          pathname: '/(onboarding)/set-recovery-password',
+          params: { mode: 'set', flow },
+        });
       }
     } catch (err: any) {
       setError(err?.message ?? 'Invalid or expired code. Please try again.');
@@ -153,7 +200,7 @@ const CollectEmail = () => {
       ? 'Recover Your Account'
       : 'Check Your Email'
     : phase === 'email'
-      ? 'Secure Your Recovery'
+      ? 'Protect Your Wallet With 2FA'
       : 'Check Your Email';
 
   const subtitle = isRecovery
@@ -161,19 +208,28 @@ const CollectEmail = () => {
       ? 'Enter the email you used when setting up Latch.'
       : `We sent a recovery code to ${email}`
     : phase === 'email'
-      ? 'Add an email so you can recover your wallet if you lose your device.'
+      ? 'Secure your funds with 2FA.'
       : `We sent a verification code to ${email}`;
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    <Box
+      flex={1}
+      backgroundColor="onboardingbg"
+      paddingHorizontal="m"
+      style={{ paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, 24) }}
     >
-      <Box
-        flex={1}
-        backgroundColor="mainBackground"
-        paddingHorizontal="m"
-        style={{ paddingTop: insets.top }}
+      <LinearGradient
+        colors={[theme.colors.gradientLight, theme.colors.gradientDark]}
+        locations={[0, 0.2772]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 0.9 }}
+        style={StyleSheet.absoluteFill}
+      />
+      <KeyboardAwareScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ flexGrow: 1 }}
+        bottomOffset={16}
+        keyboardShouldPersistTaps="handled"
       >
         <StatusBar style={statusBarStyle} />
 
@@ -198,7 +254,7 @@ const CollectEmail = () => {
             />
           </TouchableOpacity>
           <Image
-            source={require('@/src/assets/images/logosym.png')}
+            source={require('@/src/assets/images/logoLoading.png')}
             style={{ width: 35, height: 35 }}
             resizeMode="contain"
           />
@@ -213,7 +269,7 @@ const CollectEmail = () => {
           <Text
             variant="body"
             color="textSecondary"
-            mt="s"
+            // mt="s"
             textAlign="center"
             style={{ width: '85%' }}
           >
@@ -223,30 +279,57 @@ const CollectEmail = () => {
 
         {/* Input */}
         {phase === 'email' ? (
-          <Box
-            backgroundColor={statusBarStyle !== 'light' ? 'text50' : 'gray900'}
-            borderRadius={16}
-            paddingHorizontal="m"
-            height={56}
-            justifyContent="center"
-            mb="m"
-          >
-            <TextInput
-              value={email}
-              onChangeText={(t) => {
-                setEmail(t);
-                setError('');
-              }}
-              placeholder="your@email.com"
-              placeholderTextColor={theme.colors.textSecondary}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              returnKeyType="send"
-              onSubmitEditing={handleSendCode}
-              style={[styles.input, { color: theme.colors.textPrimary }]}
-            />
-          </Box>
+          <>
+            <Text variant="h11" mb="xs">
+              Email Address
+            </Text>
+            <Box
+              backgroundColor={statusBarStyle !== 'light' ? 'text50' : 'gray900'}
+              borderRadius={16}
+              paddingHorizontal="m"
+              height={56}
+              justifyContent="center"
+              mb="s"
+            >
+              <TextInput
+                value={email}
+                onChangeText={(t) => {
+                  setEmail(t);
+                  setError('');
+                }}
+                placeholder="your@email.com"
+                placeholderTextColor={theme.colors.textSecondary}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="send"
+                onSubmitEditing={handleSendCode}
+                style={[
+                  styles.input,
+                  {
+                    flex: 1,
+                    color: theme.colors.textPrimary,
+                    fontFamily: 'SFproRegular',
+                    fontSize: 16,
+                    letterSpacing: -0.32,
+                    padding: 0,
+                  },
+                ]}
+              />
+            </Box>
+            <Text variant="caption" color="textSecondary" mb="m">
+              We use email for security alerts, for unsubscribing, and other details. See our
+              <Text
+                variant="caption"
+                color="primary700"
+                fontWeight="600"
+                onPress={() => LATCH_PRIVACY_URL && Linking.openURL(LATCH_PRIVACY_URL)}
+              >
+                {' '}
+                privacy policy
+              </Text>
+            </Text>
+          </>
         ) : (
           <Box
             backgroundColor={statusBarStyle !== 'light' ? 'text50' : 'gray900'}
@@ -267,9 +350,9 @@ const CollectEmail = () => {
               placeholderTextColor={theme.colors.textSecondary}
               keyboardType="number-pad"
               maxLength={6}
-              returnKeyType="done"
+              // returnKeyType="done"
               onSubmitEditing={handleVerify}
-              style={[styles.input, { color: theme.colors.textPrimary, letterSpacing: 8 }]}
+              style={[styles.input, { color: theme.colors.textPrimary }]}
             />
           </Box>
         )}
@@ -282,59 +365,69 @@ const CollectEmail = () => {
         )}
 
         {/* Primary button */}
-        <Button
-          label={
-            isLoading ? '' : phase === 'email' ? 'Send Code' : isRecovery ? 'Recover Account' : 'Verify'
-          }
-          variant={isLoading ? 'disabled' : 'primary'}
-          bg={isLoading ? 'btnDisabled' : 'primary700'}
-          labelColor={isLoading ? 'gray600' : 'black'}
-          onPress={phase === 'email' ? handleSendCode : handleVerify}
-          disabled={isLoading}
-        />
+        <Box mt={'auto'}>
+          <Button
+            label={
+              isLoading
+                ? ''
+                : phase === 'email'
+                  ? 'Send Code'
+                  : isRecovery
+                    ? 'Recover Account'
+                    : 'Verify'
+            }
+            variant={isLoading ? 'disabled' : 'primary'}
+            bg={isLoading ? 'btnDisabled' : 'primary700'}
+            labelColor={isLoading ? 'gray600' : 'black'}
+            onPress={phase === 'email' ? handleSendCode : handleVerify}
+            disabled={isLoading}
+            mt={'auto'}
+          />
+          {phase === 'otp' && (
+            <Box alignItems="center" mt="l">
+              <TouchableOpacity
+                onPress={handleResend}
+                disabled={resendCooldown > 0 || isLoading}
+                activeOpacity={0.7}
+              >
+                <Text
+                  variant="body"
+                  color={resendCooldown > 0 ? 'textSecondary' : 'primary700'}
+                  fontWeight="600"
+                >
+                  {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend code'}
+                </Text>
+              </TouchableOpacity>
+            </Box>
+          )}
+          {phase === 'email' && !isRecovery && flow !== 're-anchor' && (
+            <Box alignItems="center" mt="l">
+              <TouchableOpacity
+                onPress={() => router.replace('/(onboarding)/deploy-account')}
+                disabled={isLoading}
+                activeOpacity={0.7}
+              >
+                <Text variant="body" color="textSecondary">
+                  Skip for now
+                </Text>
+              </TouchableOpacity>
+            </Box>
+          )}
+        </Box>
 
         {/* Loading indicator inside button area */}
-        {isLoading && (
+        {/* {isLoading && (
           <Box position="absolute" alignSelf="center" style={{ top: '55%' }}>
             <ActivityIndicator color={theme.colors.primary700} />
           </Box>
-        )}
+        )} */}
 
         {/* Resend */}
-        {phase === 'otp' && (
-          <Box alignItems="center" mt="l">
-            <TouchableOpacity
-              onPress={handleResend}
-              disabled={resendCooldown > 0 || isLoading}
-              activeOpacity={0.7}
-            >
-              <Text
-                variant="body"
-                color={resendCooldown > 0 ? 'textSecondary' : 'primary700'}
-                fontWeight="600"
-              >
-                {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend code'}
-              </Text>
-            </TouchableOpacity>
-          </Box>
-        )}
 
         {/* Skip (register mode only) */}
-        {phase === 'email' && !isRecovery && (
-          <Box alignItems="center" mt="l">
-            <TouchableOpacity
-              onPress={() => router.replace('/(onboarding)/deploy-account')}
-              disabled={isLoading}
-              activeOpacity={0.7}
-            >
-              <Text variant="body" color="textSecondary">
-                Skip for now
-              </Text>
-            </TouchableOpacity>
-          </Box>
-        )}
-      </Box>
-    </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
+      <LoadingBlur visible={isLoading} text="Submitting..." />
+    </Box>
   );
 };
 

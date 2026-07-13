@@ -1,3 +1,4 @@
+import { useAppTheme } from '@/src/theme/ThemeContext';
 import { useTheme } from '@shopify/restyle';
 import React, { useEffect } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
@@ -25,6 +26,7 @@ const TRANSLATE_X = SWITCH_WIDTH - THUMB_WIDTH - PADDING * 2;
 
 const Switch: React.FC<Props> = ({ value, onValueChange, disabled }) => {
   const theme = useTheme<Theme>();
+  const { isDark } = useAppTheme();
   const translateX = useSharedValue(value ? TRANSLATE_X : 0);
 
   useEffect(() => {
@@ -39,13 +41,13 @@ const Switch: React.FC<Props> = ({ value, onValueChange, disabled }) => {
     const backgroundColor = interpolateColor(
       translateX.value,
       [0, TRANSLATE_X],
-      [theme.colors.bg800, theme.colors.primary]
+      [theme.colors.bg800, theme.colors.primary],
     );
 
     const borderColor = interpolateColor(
       translateX.value,
       [0, TRANSLATE_X],
-      [theme.colors.bg700, theme.colors.primary]
+      [theme.colors.bg600, theme.colors.primary],
     );
 
     return {
@@ -100,7 +102,7 @@ const Switch: React.FC<Props> = ({ value, onValueChange, disabled }) => {
             height={10}
             borderRadius={7}
             borderWidth={2}
-            borderColor="bg400"
+            borderColor={isDark ? 'bg400' : 'textTertiary'}
           />
         </Box>
 

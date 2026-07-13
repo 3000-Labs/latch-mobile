@@ -5,6 +5,7 @@ import { SECURE_KEYS, useWalletStore } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { StatusBar } from 'expo-status-bar';
@@ -19,6 +20,7 @@ import {
   View,
 } from 'react-native';
 import QuickCrypto from 'react-native-quick-crypto';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function hashPin(pin: string): string {
   return QuickCrypto.createHash('sha256').update(pin).digest('hex') as unknown as string;
@@ -41,6 +43,7 @@ const SetPin = () => {
   const statusBarStyle = useStatusBarStyle();
   const { from } = useLocalSearchParams();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { pendingWallet, clearPendingWallet } = useWalletStore();
 
   const [phase, setPhase] = useState<'set' | 'confirm'>('set');
@@ -91,8 +94,13 @@ const SetPin = () => {
                 return;
               }
 
-              // Collect email for recovery backup before deploying
-              router.push('/(onboarding)/collect-email');
+              // Collect email for recovery backup before deploying. Carry the
+              // shared marker so the rest of the chain ends at the multisig
+              // build screens instead of the personal deploy.
+              router.push({
+                pathname: '/(onboarding)/collect-email',
+                params: from === 'shared' ? { flow: 'shared' } : undefined,
+              });
             } else {
               Vibration.vibrate(400);
               setError(true);
@@ -110,7 +118,7 @@ const SetPin = () => {
       setPhase('set');
       setConfirmPin('');
       setError(false);
-    } else {
+    } else if (router.canGoBack()) {
       router.back();
     }
   };
@@ -118,7 +126,14 @@ const SetPin = () => {
   const keySize = (width - theme.spacing.m * 2 - theme.spacing.m * 2) / 3;
 
   return (
-    <Box flex={1} backgroundColor="mainBackground">
+    <Box flex={1} backgroundColor="onboardingbg">
+      <LinearGradient
+        colors={[theme.colors.gradientLight, theme.colors.gradientDark]}
+        locations={[0, 0.2772]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 0.9 }}
+        style={StyleSheet.absoluteFill}
+      />
       <StatusBar style={statusBarStyle} />
       <View style={{ flex: 1 }}>
         <ScrollView
@@ -126,7 +141,7 @@ const SetPin = () => {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{
             paddingHorizontal: theme.spacing.m,
-            paddingBottom: 20,
+            paddingBottom: Math.max(insets.bottom, 20),
             paddingTop: 60,
             flexGrow: 1,
             justifyContent: 'space-between',
@@ -144,7 +159,7 @@ const SetPin = () => {
               </TouchableOpacity>
 
               <Image
-                source={require('@/src/assets/images/logosym.png')}
+                source={require('@/src/assets/images/logoLoading.png')}
                 style={{ width: 35, height: 35 }}
                 resizeMode="contain"
               />
@@ -163,8 +178,21 @@ const SetPin = () => {
               >
                 {phase === 'set' ? 'Set Your Access Pin' : 'Confirm Your Pin'}
               </Text>
-              <Text variant="body" color="textSecondary" mt="s" textAlign="center">
-                Used to unlock the app on this device.
+              <Text color="textSecondary" mt="xs" textAlign="center">
+                {phase === 'set' ? (
+                  <Text variant="p4" color="textSecondary" textAlign="center">
+                    This is used to secure your wallet on all your devices.
+                    <Text variant="p4" color="primary7" textAlign="center">
+                      {' '}
+                      This cannot be recovered.
+                    </Text>
+                  </Text>
+                ) : (
+                  <Text variant="p4" color="primary7" textAlign="center">
+                    If you forget this PIN you will not be able to recover your wallet on new
+                    devices.
+                  </Text>
+                )}
               </Text>
               {error && (
                 <Text

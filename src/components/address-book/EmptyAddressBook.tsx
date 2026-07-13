@@ -23,7 +23,7 @@ const EmptyAddressBook = ({ onAdd }: EmptyAddressBookProps) => {
       <Text variant="p6" color="textPrimary" textAlign="center" lineHeight={24}>
         Tap the &quot;Add Address&quot; button to start saving your frequently used addresses.
       </Text>
-      <Box position="absolute" bottom={40} width="100%">
+      <Box width="100%" mt="auto" paddingBottom="m">
         <TouchableOpacity activeOpacity={0.8} onPress={onAdd}>
           <Box
             height={56}

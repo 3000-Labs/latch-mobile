@@ -3,10 +3,11 @@ import { useTheme } from '@shopify/restyle';
 import React from 'react';
 import { TouchableOpacity } from 'react-native';
 
-import Box from '@/src/components/shared/Box';
 import BottomSheetHandle from '@/src/components/shared/BottomSheetHandle';
+import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
 import { Theme } from '@/src/theme/theme';
+import { useAppTheme } from '@/src/theme/ThemeContext';
 
 interface UtilityHeaderProps {
   title: string;
@@ -17,6 +18,7 @@ interface UtilityHeaderProps {
 
 const UtilityHeader = ({ title, onBack, rightElement, showHandle = true }: UtilityHeaderProps) => {
   const theme = useTheme<Theme>();
+  const { isDark } = useAppTheme();
 
   return (
     <Box>
@@ -29,7 +31,11 @@ const UtilityHeader = ({ title, onBack, rightElement, showHandle = true }: Utili
         paddingHorizontal="m"
       >
         <TouchableOpacity onPress={onBack} style={{ padding: 8, marginLeft: -8 }}>
-          <Ionicons name="chevron-back" size={24} color={theme.colors.white} />
+          <Ionicons
+            name="chevron-back"
+            size={24}
+            color={isDark ? theme.colors.white : theme.colors.black}
+          />
         </TouchableOpacity>
         <Text variant="h10" color="textPrimary" fontWeight="700">
           {title}

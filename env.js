@@ -28,13 +28,20 @@ const runtimeEnv = z
     EXPO_PUBLIC_COUNTER_ADDRESS: z.string(),
     EXPO_PUBLIC_SMART_ACCOUNT_WASM_HASH: z.string(),
     EXPO_PUBLIC_FACTORY_ADDRESS: z.string(),
+    EXPO_PUBLIC_BUNDLER_SECRET: z.string(),
+    EXPO_PUBLIC_SOROSWAP_API_URL: z.string().default('https://api.soroswap.finance'),
+    EXPO_PUBLIC_SOROSWAP_API_KEY: z.string().optional(),
+    EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID: z.string().optional(),
+    EXPO_PUBLIC_SENTRY_DSN: z.string().optional(),
+    EXPO_PUBLIC_MOONPAY_API_KEY: z.string().optional(),
+    SENTRY_AUTH_TOKEN: z.string(),
   })
   .partial();
 
 const buildtimeEnv = runtimeEnv.partial().and(
   z.object({
     APP_NAME: z.string().default('Latch'),
-    SSENTRY_AUTH_TOKEN: z.string().default('none'),
+    SENTRY_AUTH_TOKEN: z.string().optional(),
   }),
 );
 
@@ -77,6 +84,13 @@ const envObject = {
   EXPO_PUBLIC_COUNTER_ADDRESS: process.env.EXPO_PUBLIC_COUNTER_ADDRESS,
   EXPO_PUBLIC_SMART_ACCOUNT_WASM_HASH: process.env.EXPO_PUBLIC_SMART_ACCOUNT_WASM_HASH,
   EXPO_PUBLIC_FACTORY_ADDRESS: process.env.EXPO_PUBLIC_FACTORY_ADDRESS,
+  EXPO_PUBLIC_BUNDLER_SECRET: process.env.EXPO_PUBLIC_BUNDLER_SECRET,
+  EXPO_PUBLIC_SOROSWAP_API_URL: process.env.EXPO_PUBLIC_SOROSWAP_API_URL,
+  EXPO_PUBLIC_SOROSWAP_API_KEY: process.env.EXPO_PUBLIC_SOROSWAP_API_KEY,
+  EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID: process.env.EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID,
+  EXPO_PUBLIC_SENTRY_DSN: process.env.EXPO_PUBLIC_SENTRY_DSN,
+  EXPO_PUBLIC_MOONPAY_API_KEY: process.env.EXPO_PUBLIC_MOONPAY_API_KEY,
+  SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,
 };
 
 module.exports = envSchema.parse({ ...process.env, ...envObject });

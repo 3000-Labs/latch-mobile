@@ -28,6 +28,7 @@ const ThankYou = () => {
     subtext?: string;
     buttonLabel?: string;
     buttonFunction?: string;
+    buttonFunctionRaw?: string;
     imageSource?: string;
     accountAddress?: string;
   }>();
@@ -39,7 +40,9 @@ const ThankYou = () => {
   const imageSource = params.imageSource || 'success';
 
   const handleButtonPress = () => {
-    if (params.buttonFunction) {
+    if (params.buttonFunctionRaw === 'true') {
+      router.back();
+    } else if (params.buttonFunction) {
       router.push(params.buttonFunction as any);
     } else {
       router.replace('/(tabs)');
@@ -91,7 +94,7 @@ const ThankYou = () => {
           <Box />
         )}
         <Image
-          source={require('@/src/assets/images/logosym.png')}
+          source={require('@/src/assets/images/logoLoading.png')}
           style={{ width: 35, height: 35 }}
           resizeMode="contain"
         />

@@ -1,6 +1,7 @@
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
 import { Theme } from '@/src/theme/theme';
+import { useAppTheme } from '@/src/theme/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@shopify/restyle';
 import React from 'react';
@@ -40,17 +41,20 @@ const SwapCard: React.FC<SwapCardProps> = ({
   onAddFunds,
 }) => {
   const theme = useTheme<Theme>();
+  const { isDark } = useAppTheme();
   const [isFocused, setIsFocused] = React.useState(false);
 
   const formatDisplayAmount = (value: string) => {
     if (!value) return '';
     const num = parseFloat(value);
     if (isNaN(num)) return value;
-    return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    // Up to 7 dp (Stellar token precision) so small estimated outputs aren't
+    // truncated to 0.00 (e.g. a fraction of a BTC).
+    return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 7 });
   };
 
   return (
-    <Box backgroundColor="cardBackground" borderRadius={18} padding="m">
+    <Box backgroundColor={isDark ? 'cardBackground' : 'btnDisabled'} borderRadius={18} padding="m">
       <Box flexDirection="row" alignItems="center" marginBottom="m">
         <TouchableOpacity onPress={onTokenSelect} activeOpacity={0.7} style={styles.tokenSection}>
           <Image source={tokenIcon} style={styles.tokenIcon} />
@@ -85,7 +89,7 @@ const SwapCard: React.FC<SwapCardProps> = ({
         </Box>
       </Box>
 
-      <Box height={1} backgroundColor="bg800" marginBottom="m" />
+      <Box height={1} backgroundColor={isDark ? 'bg800' : 'btnDisabled'} marginBottom="m" />
 
       <Box flexDirection="row" alignItems="center" justifyContent="space-between">
         <TouchableOpacity onPress={onWalletSelect} activeOpacity={0.7} style={styles.walletSection}>

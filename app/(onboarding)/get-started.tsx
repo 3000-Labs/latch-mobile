@@ -3,12 +3,15 @@ import { useTheme } from '@shopify/restyle';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useState } from 'react';
-import { Image, ScrollView, TouchableOpacity } from 'react-native';
+import { ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import Box from '@/src/components/shared/Box';
 import Button from '@/src/components/shared/Button';
+import Header from '@/src/components/shared/Header';
 import Text from '@/src/components/shared/Text';
 import { Theme } from '@/src/theme/theme';
+import { LinearGradient } from 'expo-linear-gradient';
 
 type OptionType = 'new-account' | 'seed-phrase' | 'existing-wallet' | 'recover';
 
@@ -16,7 +19,8 @@ const GetStarted = () => {
   const theme = useTheme<Theme>();
   const statusBarStyle = useStatusBarStyle();
   const router = useRouter();
-  const [selectedOption, setSelectedOption] = useState<OptionType>('new-account');
+  const insets = useSafeAreaInsets();
+  const [selectedOption, setSelectedOption] = useState<OptionType | null>(null);
 
   const options = [
     // {
@@ -29,10 +33,15 @@ const GetStarted = () => {
       title: 'Import With Seed Phrase',
       description: 'Restore your account using your 12-word recovery phrase',
     },
+    // {
+    //   id: 'existing-wallet' as OptionType,
+    //   title: 'Connect Existing Stellar Wallet',
+    //   description: 'Link your existing stellar wallet to this smart account',
+    // },
     {
-      id: 'existing-wallet' as OptionType,
-      title: 'Connect Existing Stellar Wallet',
-      description: 'Link your existing stellar wallet to this smart account',
+      id: 'recover' as OptionType,
+      title: 'Recover Account',
+      description: 'Restore your wallet using your recovery email',
     },
     {
       id: 'recover' as OptionType,
@@ -62,7 +71,14 @@ const GetStarted = () => {
   };
 
   return (
-    <Box flex={1} backgroundColor="mainBackground">
+    <Box flex={1} backgroundColor="onboardingbg">
+      <LinearGradient
+        colors={['rgba(50, 60, 14, 0.74)', '#121212']}
+        locations={[0, 0.2772]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 0.91 }}
+        style={StyleSheet.absoluteFill}
+      />
       <StatusBar style={statusBarStyle} />
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -74,11 +90,8 @@ const GetStarted = () => {
       >
         {/* Header Section */}
         <Box alignItems="center" mb="xxl">
-          <Image
-            source={require('@/src/assets/images/logosym.png')}
-            style={{ width: 35, height: 35, marginBottom: theme.spacing.xs }}
-            resizeMode="contain"
-          />
+          <Header />
+
           <Text variant="h7" mt="m" fontSize={32} textAlign="center">
             I Have A Wallet
           </Text>
@@ -127,13 +140,19 @@ const GetStarted = () => {
       </ScrollView>
 
       {/* Continue Button at Bottom */}
-      <Box padding="m" mb={'l'} backgroundColor="mainBackground">
+      <Box
+        paddingHorizontal="m"
+        paddingTop="m"
+        backgroundColor="mainBackground"
+        style={{ paddingBottom: Math.max(insets.bottom, 24) }}
+      >
         <Button
           label="Continue"
-          variant="primary"
+          variant={selectedOption ? 'primary' : 'disabled'}
           onPress={handleContinue}
-          bg="primary700"
-          labelColor="black"
+          bg={selectedOption ? 'primary700' : 'btnDisabled'}
+          labelColor={selectedOption ? 'black' : 'gray600'}
+          disabled={!selectedOption}
         />
       </Box>
     </Box>

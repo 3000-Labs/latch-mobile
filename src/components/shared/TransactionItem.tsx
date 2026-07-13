@@ -1,8 +1,9 @@
+import { useTokenIcon } from '@/src/hooks/use-token-list';
 import { useAppTheme } from '@/src/theme/ThemeContext';
-import { Image } from 'expo-image';
 import React from 'react';
 import Box from './Box';
 import Text from './Text';
+import TokenIcon from './TokenIcon';
 
 interface TransactionItemProps {
   tx: {
@@ -11,18 +12,11 @@ interface TransactionItemProps {
     from: string;
     amount: string;
     assetCode?: string;
+    assetIssuer?: string;
     createdAt?: string;
   };
   walletAddress: string | null;
 }
-
-const TOKEN_ICONS: Record<string, ReturnType<typeof require>> = {
-  ETH: require('@/src/assets/token/eth.png'),
-  USDT: require('@/src/assets/token/usdt.png'),
-};
-const DEFAULT_TOKEN_ICON = require('@/src/assets/token/stellar.png');
-
-const getTokenIcon = (code?: string) => TOKEN_ICONS[code?.toUpperCase() ?? ''] ?? DEFAULT_TOKEN_ICON;
 
 function formatRelativeTime(dateStr?: string): string {
   if (!dateStr) return '';
@@ -49,6 +43,7 @@ function formatTokenAmount(amount: string, assetCode?: string): string {
 
 const TransactionItem = ({ tx, walletAddress }: TransactionItemProps) => {
   const { isDark } = useAppTheme();
+  const iconUrl = useTokenIcon(tx.assetCode, tx.assetIssuer);
 
   const isSoroban = tx.type === 'invoke_host_function';
   const isSent = !isSoroban && tx.from === walletAddress;
@@ -83,11 +78,7 @@ const TransactionItem = ({ tx, walletAddress }: TransactionItemProps) => {
         justifyContent="center"
         alignItems="center"
       >
-        <Image
-          source={getTokenIcon(tx.assetCode)}
-          style={{ width: '100%', height: '100%' }}
-          contentFit="contain"
-        />
+        <TokenIcon iconUrl={iconUrl} size={48} />
       </Box>
       <Box flex={1} ml="m">
         <Text variant="h11" color="textPrimary" fontWeight="700">

@@ -20,14 +20,12 @@
  */
 
 import { getPasskeyStorageKeys, SECURE_KEYS } from '@/src/store/wallet';
+import { p256 } from '@noble/curves/nist.js';
+import { sha256 } from '@noble/hashes/sha2.js';
 import { Address, hash, xdr } from '@stellar/stellar-sdk';
 import * as SecureStore from 'expo-secure-store';
 import QuickCrypto from 'react-native-quick-crypto';
 import { hashSorobanAuthPayload } from './soroban-auth-payload';
-
-// ─── secp256r1 curve order for low-S normalisation ───────────────────────────
-
-const SECP256R1_N = BigInt('0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551');
 
 // ─── base64url helpers (btoa-based — no Buffer polyfill) ─────────────────────
 
@@ -175,86 +173,65 @@ export interface PasskeySignature {
  * authenticatorData and clientDataJSON exactly as the browser would produce them.
  *
  * Verifier checks:
- *   secp256r1_verify(pubKey, SHA256(authData || SHA256(clientData)), sig)
+ *   secp256r1_verify(pubKey, SHA256(authenticatorData || SHA256(clientDataJSON)), signature)
  *
- * We pass (authData || SHA256(clientData)) to crypto.subtle.sign, which
- * computes SHA256 internally before signing.
+ * Uses @noble/curves p256.sign (pure JS) to avoid crypto.subtle platform
+ * inconsistencies in React Native where ECDSA/SHA-256 may not hash internally.
  *
  * @param privateKeyHex  Stored P-256 private key (64 hex chars)
- * @param publicKeyHex   Stored P-256 uncompressed public key (130 hex chars, 0x04 prefix)
  * @param authDigest     32-byte auth digest the passkey must commit to
  * @param rpId           Relying party ID used as origin and for rpIdHash in authenticatorData
  */
 export async function signWithPasskey(
   privateKeyHex: string,
-  publicKeyHex: string,
   authDigest: Uint8Array,
   rpId: string,
 ): Promise<PasskeySignature> {
-  // ── authenticatorData: rpIdHash(32) + flags(1) + signCount(4) ─────────────
-  const rpIdHashRaw = QuickCrypto.createHash('sha256')
-    .update(rpId)
-    .digest() as unknown as Uint8Array;
-  const rpIdHash = new Uint8Array(rpIdHashRaw);
-  const flags = new Uint8Array([0x05]); // UP=1, UV=1 (user presence + verification)
-  const signCount = new Uint8Array([0x00, 0x00, 0x00, 0x00]); // always 0 for soft keys
+  // authenticatorData: rpIdHash(32) + flags(1) + signCount(4)
+  const rpIdHash = sha256(new TextEncoder().encode(rpId));
+  const flags = new Uint8Array([0x05]); // UP=1, UV=1
+  const signCount = new Uint8Array([0x00, 0x00, 0x00, 0x00]);
 
   const authenticatorData = new Uint8Array(37);
   authenticatorData.set(rpIdHash, 0);
   authenticatorData.set(flags, 32);
   authenticatorData.set(signCount, 33);
 
-  // ── clientDataJSON: type, challenge (= base64url(authDigest)), origin ──────
+  // clientDataJSON: type, challenge (= base64url(authDigest)), origin
   const challenge = b64uEncode(authDigest);
-  const clientDataJSON = new TextEncoder().encode(
-    JSON.stringify({ type: 'webauthn.get', challenge, origin: rpId }),
-  );
+  const clientDataJSONStr = JSON.stringify({ type: 'webauthn.get', challenge, origin: rpId });
+  const clientDataJSON = new TextEncoder().encode(clientDataJSONStr);
 
-  // ── message = authData || SHA256(clientData) — subtle.sign hashes it again ─
-  const clientDataHashRaw = QuickCrypto.createHash('sha256')
-    .update(clientDataJSON)
-    .digest() as unknown as Uint8Array;
-  const clientDataHash = new Uint8Array(clientDataHashRaw);
+  if (__DEV__) {
+    console.log('[PASSKEY DIAG] challenge:', challenge);
+    console.log('[PASSKEY DIAG] clientDataJSON:', clientDataJSONStr);
+  }
 
+  // Sign SHA256(authenticatorData || SHA256(clientDataJSON)) with P-256
+  const clientDataHash = sha256(clientDataJSON);
   const messageToSign = new Uint8Array(authenticatorData.length + clientDataHash.length);
   messageToSign.set(authenticatorData, 0);
   messageToSign.set(clientDataHash, authenticatorData.length);
+  const msgHash = sha256(messageToSign);
 
-  // ── Import P-256 private key as JWK for crypto.subtle ─────────────────────
-  const privBytes = hexToBytes(privateKeyHex); // 32 bytes
-  const pubBytes = hexToBytes(publicKeyHex); // 65 bytes (0x04 || x || y)
+  if (__DEV__) {
+    console.log('[PASSKEY DIAG] msgHash:', Buffer.from(msgHash).toString('hex'));
+  }
 
-  const jwk = {
-    kty: 'EC',
-    crv: 'P-256',
-    d: b64uEncode(privBytes),
-    x: b64uEncode(pubBytes.slice(1, 33)),
-    y: b64uEncode(pubBytes.slice(33, 65)),
-  };
-
-  const privateKey = await crypto.subtle.importKey(
-    'jwk',
-    jwk,
-    { name: 'ECDSA', namedCurve: 'P-256' },
-    false,
-    ['sign'],
-  );
-
-  // crypto.subtle.sign(ECDSA, SHA-256) computes SHA256(messageToSign) internally
-  const sigArrayBuffer = await crypto.subtle.sign(
-    { name: 'ECDSA', hash: { name: 'SHA-256' } },
-    privateKey,
-    messageToSign,
-  );
-
-  // Output is IEEE P1363 (r || s, 64 bytes) — apply low-S normalisation
-  const signature = normalizeToLowS(new Uint8Array(sigArrayBuffer));
+  // msgHash is already the final digest the on-chain verifier checks, so we must
+  // sign it as-is. @noble/curves v2 defaults `prehash: true` (v1 defaulted false),
+  // which would sign sha256(msgHash) and silently break on-chain secp256r1
+  // verification — pass `prehash: false` to sign the digest directly. v2 also
+  // rejects hex-string secret keys (must be 32 bytes) and sign() returns the
+  // 64-byte compact signature directly (no .toCompactRawBytes()).
+  const secretKey = Buffer.from(privateKeyHex.padStart(64, '0'), 'hex');
+  const signature = p256.sign(msgHash, secretKey, { lowS: true, prehash: false });
 
   return { authenticatorData, clientDataJSON, signature };
 }
 
 /**
- * Sign using the passkey stored in SecureStore.
+ * Sign using the passkey stored in SecureStore for list index 0.
  *
  * Biometric users: reading the private key triggers Face ID / Touch ID automatically
  * (key was stored with requireAuthentication: true / Secure Enclave on iOS).
@@ -272,27 +249,121 @@ export async function signWithStoredPasskey(
   rpId: string,
   promptMsg = 'Authenticate to sign this transaction',
 ): Promise<PasskeySignature> {
-  const requiresBiometric = await SecureStore.getItemAsync(SECURE_KEYS.PASSKEY_REQUIRES_BIOMETRIC);
-  // Default to biometric if the flag is absent (accounts created before this change)
+  const { sig } = await signWithStoredPasskeyAtIndex(0, authDigest, rpId, promptMsg);
+  return sig;
+}
+
+/**
+ * Sign using the passkey stored at a specific account list index and return both
+ * the signature and keyDataHex (needed to build the on-chain auth payload).
+ *
+ * @param listIndex    Position in the accounts array (0 = first account)
+ * @param authDigest   32-byte auth digest to sign
+ * @param rpId         Relying party ID (e.g. "latch.finance")
+ * @param promptMsg    Message shown in the biometric prompt (biometric path only)
+ */
+/**
+ * Read the device's stored WebAuthn key_data (65-byte P-256 pubkey + credential
+ * id) for an account list index, without triggering a biometric prompt. Used to
+ * match this device against the account's on-chain registered signer.
+ */
+export async function getStoredKeyDataHex(listIndex: number): Promise<string | null> {
+  const keys = getPasskeyStorageKeys(listIndex);
+  return SecureStore.getItemAsync(keys.keyDataHex);
+}
+
+/**
+ * Read the device's stored P-256 private key (hex) for an account list index.
+ * Respects the account's biometric flag — reading a biometric-gated key triggers
+ * Face ID / Touch ID. Used to open a WCK bundle sealed to this device's passkey.
+ */
+export async function getStoredPrivateKeyHex(
+  listIndex: number,
+  promptMsg = 'Authenticate to receive this wallet’s key',
+): Promise<string | null> {
+  const keys = getPasskeyStorageKeys(listIndex);
+  const requiresBiometric = await SecureStore.getItemAsync(keys.requiresBiometric);
+  const useBiometric = requiresBiometric !== 'false';
+  return SecureStore.getItemAsync(
+    keys.privateKey,
+    useBiometric ? { requireAuthentication: true, authenticationPrompt: promptMsg } : undefined,
+  );
+}
+
+export async function signWithStoredPasskeyAtIndex(
+  listIndex: number,
+  authDigest: Uint8Array,
+  rpId: string,
+  promptMsg = 'Authenticate to sign this transaction',
+): Promise<{ sig: PasskeySignature; keyDataHex: string }> {
+  const keys = getPasskeyStorageKeys(listIndex);
+
+  const requiresBiometric = await SecureStore.getItemAsync(keys.requiresBiometric);
   const useBiometric = requiresBiometric !== 'false';
 
   const privateKeyHex = await SecureStore.getItemAsync(
-    SECURE_KEYS.PASSKEY_PRIVATE_KEY,
+    keys.privateKey,
     useBiometric ? { requireAuthentication: true, authenticationPrompt: promptMsg } : undefined,
   );
-
   if (!privateKeyHex) {
     throw new Error('No passkey found. Please complete biometric setup first.');
   }
 
-  // Public key is the first 130 hex chars of keyDataHex (65 bytes uncompressed)
-  const keyDataHex = await SecureStore.getItemAsync(SECURE_KEYS.KEY_DATA_HEX);
+  const keyDataHex = await SecureStore.getItemAsync(keys.keyDataHex);
   if (!keyDataHex) {
     throw new Error('Key data missing. Please complete biometric setup first.');
   }
-  const publicKeyHex = keyDataHex.slice(0, 130);
 
-  return signWithPasskey(privateKeyHex, publicKeyHex, authDigest, rpId);
+  // Pad private key to 32 bytes — QuickCrypto ECDH may return fewer if leading zeros are stripped
+  const paddedPrivKey = privateKeyHex.padStart(64, '0');
+
+  // Verify the stored private key corresponds to the registered public key.
+  // A mismatch means credentials were regenerated after the smart account was deployed,
+  // leaving an on-chain signer that can never verify. Fail fast with a clear error.
+  const storedPub = keyDataHex.slice(0, 130);
+  try {
+    const derivedPub = Buffer.from(
+      p256.getPublicKey(Buffer.from(paddedPrivKey, 'hex'), false),
+    ).toString('hex');
+    if (__DEV__) {
+      console.log('[PASSKEY DIAG] privKeyLen:', privateKeyHex.length, '| pubKeyPrefix:', storedPub.slice(0, 10));
+      console.log('[PASSKEY DIAG] keyPairMatch:', derivedPub === storedPub);
+      if (derivedPub !== storedPub) {
+        console.log('[PASSKEY DIAG] storedPub :', storedPub.slice(0, 20));
+        console.log('[PASSKEY DIAG] derivedPub:', derivedPub.slice(0, 20));
+      }
+    }
+    if (derivedPub !== storedPub) {
+      throw new Error(
+        'PASSKEY_KEY_MISMATCH: The stored credential no longer matches the deployed smart account. Re-initialize your account to continue.',
+      );
+    }
+  } catch (e: any) {
+    if (e.message?.startsWith('PASSKEY_KEY_MISMATCH')) throw e;
+    if (__DEV__) console.log('[PASSKEY DIAG] getPublicKey error:', e);
+  }
+
+  const sig = await signWithPasskey(paddedPrivKey, authDigest, rpId);
+
+  if (__DEV__) {
+    try {
+      const pubBytes = new Uint8Array(Buffer.from(keyDataHex.slice(0, 130), 'hex'));
+      const cDataHash = sha256(sig.clientDataJSON);
+      const msgBytes = new Uint8Array(sig.authenticatorData.length + cDataHash.length);
+      msgBytes.set(sig.authenticatorData);
+      msgBytes.set(cDataHash, sig.authenticatorData.length);
+      const mHash = sha256(msgBytes);
+      // prehash: false so this mirrors the on-chain verifier (which checks the
+      // sig over mHash directly). Without it, v2 double-hashes and reports a
+      // false "valid" even when on-chain secp256r1 verification fails.
+      const localValid = p256.verify(sig.signature, mHash, pubBytes, { prehash: false });
+      console.log('[PASSKEY DIAG] localVerify:', localValid);
+    } catch (e) {
+      console.log('[PASSKEY DIAG] localVerify error:', e);
+    }
+  }
+
+  return { sig, keyDataHex };
 }
 
 // ─── Auth digest ──────────────────────────────────────────────────────────────
@@ -326,6 +397,8 @@ export function computeAuthDigest(
  * WebAuthnSigData { authenticator_data: Bytes, client_data: Bytes, signature: BytesN<64> }
  */
 export function encodeWebAuthnSigData(sig: PasskeySignature): Uint8Array {
+  // Soroban requires contracttype struct fields in alphabetical key order.
+  // WebAuthnSigData fields sorted: authenticator_data < client_data < signature
   return new Uint8Array(
     xdr.ScVal.scvMap([
       new xdr.ScMapEntry({
@@ -343,7 +416,6 @@ export function encodeWebAuthnSigData(sig: PasskeySignature): Uint8Array {
     ]).toXDR(),
   );
 }
-
 /**
  * Build the full AuthPayload ScVal for the on-chain smart account.
  *
@@ -378,35 +450,64 @@ export function buildWebAuthnAuthPayload(
   ]);
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Recovery ────────────────────────────────────────────────────────────────
 
-function hexToBytes(hex: string): Uint8Array {
-  const bytes = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < bytes.length; i++) {
-    bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
-  }
-  return bytes;
-}
+/**
+ * Fix a PASSKEY_KEY_MISMATCH by deriving the correct public key from the
+ * stored private key, updating keyDataHex in SecureStore, and redeploying
+ * the smart account with the correct signer.
+ *
+ * Returns the new smart account C-address. Any assets at the old address
+ * remain there — transfer them before calling this if needed.
+ *
+ * Triggers biometric prompt (private key read).
+ */
+export async function redeployWithCurrentKey(listIndex: number): Promise<string> {
+  const keys = getPasskeyStorageKeys(listIndex);
 
-function normalizeToLowS(sig: Uint8Array): Uint8Array {
-  const r = sig.slice(0, 32);
-  let s = BigInt(
-    '0x' +
-      Array.from(sig.slice(32))
-        .map((b) => b.toString(16).padStart(2, '0'))
-        .join(''),
+  const requiresBiometric = await SecureStore.getItemAsync(keys.requiresBiometric);
+  const useBiometric = requiresBiometric !== 'false';
+
+  const privateKeyHex = await SecureStore.getItemAsync(
+    keys.privateKey,
+    useBiometric
+      ? {
+        requireAuthentication: true,
+        authenticationPrompt: 'Authenticate to re-initialize your account',
+      }
+      : undefined,
   );
+  if (!privateKeyHex) throw new Error('No passkey found. Please complete biometric setup first.');
 
-  if (s > SECP256R1_N / 2n) {
-    s = SECP256R1_N - s;
+  const paddedPrivKey = privateKeyHex.padStart(64, '0');
+  const derivedPubKeyHex = Buffer.from(
+    p256.getPublicKey(Buffer.from(paddedPrivKey, 'hex'), false),
+  ).toString('hex');
+
+  // Re-use existing credentialId if present; generate a new one otherwise.
+  const existingCredId = await SecureStore.getItemAsync(keys.credentialId);
+  const credentialId =
+    existingCredId ??
+    (QuickCrypto.randomBytes(16) as unknown as { toString(enc: string): string }).toString('hex');
+
+  const newKeyDataHex = derivedPubKeyHex + credentialId;
+
+  // Update stored public material so it matches the private key.
+  await SecureStore.setItemAsync(keys.keyDataHex, newKeyDataHex);
+  if (!existingCredId) {
+    await SecureStore.setItemAsync(keys.credentialId, credentialId);
   }
 
-  const sHex = s.toString(16).padStart(64, '0');
-  const sBytes = new Uint8Array(32);
-  for (let i = 0; i < 32; i++) sBytes[i] = parseInt(sHex.slice(i * 2, i * 2 + 2), 16);
+  // Deploy a new smart account with the corrected key (force-skip the address cache).
+  const { deploySmartAccount } = await import('@/src/api/passkey');
+  const result = await deploySmartAccount(credentialId, newKeyDataHex, true);
+  if (result.error) throw new Error(result.error);
 
-  const result = new Uint8Array(64);
-  result.set(r, 0);
-  result.set(sBytes, 32);
-  return result;
+  // Update the persisted smart account address.
+  await SecureStore.setItemAsync(SECURE_KEYS.SMART_ACCOUNT, result.smartAccountAddress);
+  await SecureStore.setItemAsync(SECURE_KEYS.DEPLOYED_KEY_DATA, newKeyDataHex);
+
+  return result.smartAccountAddress;
 }
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────

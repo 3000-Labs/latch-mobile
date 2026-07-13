@@ -56,13 +56,14 @@ const Button: React.FC<Props> = ({
 
   return (
     <ButtonContainer
-      variant={disabled ? 'disabled' : variant}
+      variant={disabled || loading ? 'disabled' : variant}
       // @ts-ignore
       onPress={onPress}
       disabled={disabled || loading}
       activeOpacity={0.8}
       flexDirection="row"
-      backgroundColor={loading ? 'btnHover' : bg}
+      backgroundColor={loading ? 'btnDisabled' : bg}
+      height={48}
       {...rest}
     >
       {leftIcon && !loading && <Box marginRight="s">{leftIcon}</Box>}

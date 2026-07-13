@@ -1,4 +1,7 @@
+import { fetchDefaultContextRule } from '@/src/api/account-admin';
 import { deriveWalletAtIndex, restoreStellarWallet, StellarWallet } from '@/src/lib/seed-wallet';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Networks } from '@stellar/stellar-sdk';
 import * as SecureStore from 'expo-secure-store';
 import { create } from 'zustand';
 
@@ -14,11 +17,56 @@ export const SECURE_KEYS = {
   KEY_DATA_HEX: 'latch_key_data_hex',
   PASSKEY_PRIVATE_KEY: 'latch_passkey_private_key',
   PASSKEY_REQUIRES_BIOMETRIC: 'latch_passkey_requires_biometric',
+  // Fingerprint of the keyDataHex used when the smart account was last deployed.
+  // If this differs from the current KEY_DATA_HEX, the account must be re-deployed.
+  DEPLOYED_KEY_DATA: 'latch_deployed_key_data',
   // Latch backend auth tokens
   ACCESS_TOKEN: 'latch_access_token',
   REFRESH_TOKEN: 'latch_refresh_token',
   USER_EMAIL: 'latch_user_email',
+  // Wallet-scope (SEP-10-inspired) tokens — separate from the email tokens above.
+  WALLET_ACCESS_TOKEN: 'latch_wallet_access_token',
+  WALLET_REFRESH_TOKEN: 'latch_wallet_refresh_token',
+  // Temporary session key — holds recovery password during onboarding only.
+  // Deleted immediately after the first successful backup upload.
+  RECOVERY_PASSWORD_SESSION: 'latch_recovery_password_session',
 } as const;
+
+export const ASYNC_KEYS = {
+  AVATARS: 'latch_account_avatars',
+} as const;
+
+/**
+ * A device paired to a smart account. The first device is the one that
+ * deployed the account; subsequent devices are added via the pairing flow
+ * (Phase P2). Multi-device accounts use a split-policy: 1-of-N for normal
+ * ops, ⌈N/2⌉-of-N for admin ops — see docs/multisig-build-plan.md.
+ */
+export interface Device {
+  /**
+   * Canonical signer key used to identify this device in cosign requests
+   * and in the on-chain signer set. G-address for Ed25519 signers, hex
+   * public key for WebAuthn signers, contract/account address for
+   * delegated signers.
+   */
+  signerKey: string;
+  /** Human-readable label, e.g. "iPhone 15", "Pixel 8". */
+  label: string;
+  /** Which on-chain Signer variant this device is. */
+  kind: 'ed25519' | 'webauthn' | 'delegated';
+  /** Public key material for external signers (hex). Empty string for 'delegated'. */
+  keyDataHex: string;
+  /**
+   * Stable on-chain signer id assigned by `add_signer` / `batch_add_signer`.
+   * Needed for `remove_signer` calls. Null until the device's add_signer tx
+   * has been confirmed.
+   */
+  onChainSignerId: number | null;
+  /** True for the device that holds this signer's private key. */
+  isLocal: boolean;
+  /** ISO-8601 timestamp of when the device was paired. */
+  pairedAt: string;
+}
 
 /**
  * One wallet account derived from the user's seed phrase.
@@ -35,8 +83,53 @@ export interface WalletAccount {
   publicKeyHex: string;
   /** Deployed C-address on Stellar, null if not yet deployed */
   smartAccountAddress: string | null;
+  /** Custom profile image URI, null if default */
+  image: string | null;
   /** Passkey credential ID (hex). Present only on passkey accounts added after account 0. */
   credentialId?: string;
+  /**
+   * Paired devices on this account. Always has at least one entry once the
+   * smart account is deployed. Backfilled to [] for accounts deployed
+   * before the multisig migration.
+   */
+  devices?: Device[];
+  /**
+   * Context rule id for the admin (⌈N/2⌉-of-N) rule. Null until the second
+   * device is paired and the admin rule is installed.
+   */
+  adminRuleId?: number | null;
+  /**
+   * True for shared (multisig) wallets created via the shared-wallet wizard.
+   * These have `index: -1` and empty `gAddress`/`publicKeyHex` like passkey
+   * accounts, but their signers are delegated member C-addresses with a
+   * threshold — so they have NO local passkey/mnemonic credential and cannot
+   * sign transfers single-handedly. Used to route away from the single-device
+   * signing paths (see send-token.tsx). Absent/false on personal accounts.
+   */
+  isMultisig?: boolean;
+  /**
+   * Number of member approvals required to authorize a transfer from this
+   * shared wallet (the on-chain threshold). Set at creation. Multisig only.
+   */
+  multisigThreshold?: number;
+  /**
+   * Delegated signer addresses (member personal-account C-addresses,
+   * including the creator's). Used as the cosign roster and to match each
+   * member's nested auth entry during signing. Multisig only.
+   */
+  multisigSigners?: string[];
+  /**
+   * Stable fingerprint of this wallet's member set + threshold (see
+   * `multisigMembershipHash`). Used only to warn when re-creating a wallet with
+   * an identical member set. Multisig only.
+   */
+  multisigMembershipHash?: string;
+  /**
+   * Per-wallet uniqueness nonce (hex) folded into the deploy salt. The creator's
+   * record of how the address was derived; lets a future P2P onboarding flow
+   * share it so joiners can predict the address. Multisig only.
+   */
+  multisigNonceHex?: string;
 }
 
 /**
@@ -84,6 +177,8 @@ interface WalletStore {
   activeWallet: StellarWallet | null;
   /** Deployed C-address for the active account */
   smartAccountAddress: string | null;
+  /** In-memory map from publicKeyHex → data:image/jpeg;base64,... */
+  avatars: Record<string, string>;
 
   // ─── Legacy setters (called by deploy-account.tsx) ────────────────────────
   setPendingWallet: (wallet: StellarWallet) => void;
@@ -104,17 +199,73 @@ interface WalletStore {
    */
   addPasskeyAccount: (credentialId: string, publicKeyHex: string) => Promise<WalletAccount>;
 
+  /**
+   * Append a fully-formed account (e.g. a shared/multisig wallet the device is a
+   * signer on) to the list. Deduplicates by smart-account address. Pass
+   * makeActive to switch to it. Returns the appended (or pre-existing) account.
+   */
+  appendAccount: (account: WalletAccount, makeActive?: boolean) => Promise<WalletAccount>;
+
   /** Switch the active account to the given list position. */
   switchAccount: (listIndex: number) => Promise<void>;
 
   /** Rename an account by its list position. */
   renameAccount: (listIndex: number, name: string) => Promise<void>;
 
+  /** Set a custom image for an account. */
+  setAccountImage: (listIndex: number, imageUri: string | null) => Promise<void>;
+
   /**
    * Called after a new account is deployed on-chain. Updates its C-address
    * in both the in-memory list and SecureStore.
    */
   updateAccountSmartAddress: (bip44Index: number, smartAddress: string) => Promise<void>;
+
+  /**
+   * Remove an account by its BIP-44/passkey index. Used to roll back an
+   * optimistically-added account when its on-chain deployment fails.
+   */
+  removeAccount: (index: number) => Promise<void>;
+
+  /**
+   * Replace the devices list and (optionally) the admin rule id for an
+   * account. Used after a pair flow completes to persist the new device
+   * set + freshly installed admin rule.
+   */
+  updateAccountDevices: (
+    bip44Index: number,
+    devices: Device[],
+    adminRuleId?: number | null,
+  ) => Promise<void>;
+
+  /**
+   * Tag an account (by array position) as a shared/multisig wallet and store
+   * its delegated signer roster + threshold. Used to recover accounts created
+   * before the `isMultisig` flag existed, once an on-chain read confirms the
+   * account's rule holds delegated signers (see lib/tx-diagnostics.ts). The
+   * on-chain rule is the source of truth, so this is a correction, not a guess.
+   */
+  markAccountMultisig: (
+    listIndex: number,
+    threshold: number,
+    signers: string[],
+  ) => Promise<void>;
+
+  /**
+   * Reconcile an account's local `devices` list against the on-chain signer
+   * set of its Default context rule. The chain is the source of truth for
+   * which signers exist; local fields (label, isLocal, pairedAt,
+   * onChainSignerId) are preserved by matching on signerKey. Newly
+   * discovered signers are added as non-local devices.
+   *
+   * Takes the account's position in `accounts` (NOT its `index` field, which
+   * is the non-unique `-1` sentinel for passkey/multisig accounts).
+   *
+   * No-op (resolves false) when the account has no deployed smart account.
+   * Network/parse failures are swallowed and logged — the cached list stays.
+   * Returns true if a reconcile ran (regardless of whether anything changed).
+   */
+  syncSignersFromChain: (accountListIndex: number) => Promise<boolean>;
 
   /**
    * Restore wallet + accounts from SecureStore.
@@ -132,6 +283,30 @@ async function persistAccounts(accounts: WalletAccount[]): Promise<void> {
   await SecureStore.setItemAsync(SECURE_KEYS.ACCOUNTS, JSON.stringify(accounts));
 }
 
+async function loadAvatars(): Promise<Record<string, string>> {
+  try {
+    const raw = await AsyncStorage.getItem(ASYNC_KEYS.AVATARS);
+    return raw ? (JSON.parse(raw) as Record<string, string>) : {};
+  } catch { return {}; }
+}
+
+async function persistAvatars(avatars: Record<string, string>): Promise<void> {
+  await AsyncStorage.setItem(ASYNC_KEYS.AVATARS, JSON.stringify(avatars));
+}
+
+// Keyed by BIP-44 account index. Mnemonic is session-immutable, so this mapping
+// is stable for the lifetime of a session. Avoids re-running PBKDF2 on every switch.
+const derivedWalletCache = new Map<number, StellarWallet>();
+
+function getCachedWallet(mnemonic: string, bip44Index: number): StellarWallet {
+  let wallet = derivedWalletCache.get(bip44Index);
+  if (!wallet) {
+    wallet = deriveWalletAtIndex(mnemonic, bip44Index);
+    derivedWalletCache.set(bip44Index, wallet);
+  }
+  return wallet;
+}
+
 export const useWalletStore = create<WalletStore>((set, get) => ({
   pendingWallet: null,
   mnemonic: null,
@@ -139,6 +314,7 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
   activeAccountIndex: 0,
   activeWallet: null,
   smartAccountAddress: null,
+  avatars: {},
 
   // ─── Legacy setters ───────────────────────────────────────────────────────
 
@@ -162,7 +338,7 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
         ? { ...a, gAddress: wallet.gAddress, publicKeyHex: wallet.publicKeyHex }
         : a,
     );
-    persistAccounts(updated).catch(() => {});
+    persistAccounts(updated).catch(() => { });
     set({ activeWallet: wallet, accounts: updated });
   },
 
@@ -179,9 +355,9 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
     const updated = accounts.map((a, i) =>
       i === activeAccountIndex ? { ...a, smartAccountAddress: address } : a,
     );
-    persistAccounts(updated).catch(() => {});
+    persistAccounts(updated).catch(() => { });
     // Also write the legacy key so app/index.tsx can still find it
-    SecureStore.setItemAsync(SECURE_KEYS.SMART_ACCOUNT, address).catch(() => {});
+    SecureStore.setItemAsync(SECURE_KEYS.SMART_ACCOUNT, address).catch(() => { });
     set({ smartAccountAddress: address, accounts: updated });
   },
 
@@ -193,7 +369,7 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
 
     // Next BIP-44 index is one beyond the highest existing index
     const nextIndex = accounts.reduce((max, a) => Math.max(max, a.index), -1) + 1;
-    const wallet = deriveWalletAtIndex(mnemonic, nextIndex);
+    const wallet = getCachedWallet(mnemonic, nextIndex);
 
     const newAccount: WalletAccount = {
       index: nextIndex,
@@ -201,6 +377,7 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
       gAddress: wallet.gAddress,
       publicKeyHex: wallet.publicKeyHex,
       smartAccountAddress: null,
+      image: null,
     };
 
     const updated = [...accounts, newAccount];
@@ -219,6 +396,7 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
       gAddress: '',
       publicKeyHex,
       smartAccountAddress: null,
+      image: null,
       credentialId,
     };
     const updated = [...accounts, newAccount];
@@ -227,33 +405,86 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
     return newAccount;
   },
 
-  switchAccount: async (listIndex) => {
-    const { mnemonic, accounts } = get();
-    const account = accounts[listIndex];
-    if (!account) return;
-
-    const activeWallet = mnemonic ? deriveWalletAtIndex(mnemonic, account.index) : null;
-
-    await SecureStore.setItemAsync(
-      SECURE_KEYS.ACTIVE_ACCOUNT_INDEX,
-      String(listIndex),
+  appendAccount: async (account, makeActive = false) => {
+    const { accounts } = get();
+    // Dedupe by smart-account address — re-adding the same shared wallet is a no-op.
+    const existingIndex = accounts.findIndex(
+      (a) => a.smartAccountAddress && a.smartAccountAddress === account.smartAccountAddress,
     );
-
-    // Update the legacy SMART_ACCOUNT key so app/index.tsx still works
-    if (account.smartAccountAddress) {
-      await SecureStore.setItemAsync(SECURE_KEYS.SMART_ACCOUNT, account.smartAccountAddress);
+    if (existingIndex >= 0) {
+      if (makeActive) await get().switchAccount(existingIndex);
+      return accounts[existingIndex];
     }
 
+    const updated = [...accounts, account];
+    const newIndex = updated.length - 1;
+    await persistAccounts(updated);
+    set({ accounts: updated });
+    if (makeActive) await get().switchAccount(newIndex);
+    return account;
+  },
+
+  switchAccount: (listIndex) => {
+    const { mnemonic, accounts } = get();
+    const account = accounts[listIndex];
+    if (!account) return Promise.resolve();
+
+    // index < 0 is the sentinel for passkey + multisig accounts, which have no
+    // BIP-44-derived keypair. Guard like rehydrate does — deriving at a negative
+    // index would be invalid.
+    const activeWallet = mnemonic && account.index >= 0 ? getCachedWallet(mnemonic, account.index) : null;
+
+    // Update store first so the UI responds immediately, then persist in the background.
+    // Awaiting Keychain writes before set() was causing 3–5 s UI freezes on iOS.
     set({
       activeAccountIndex: listIndex,
       activeWallet,
       smartAccountAddress: account.smartAccountAddress,
     });
+
+    const writes: Promise<void>[] = [
+      SecureStore.setItemAsync(SECURE_KEYS.ACTIVE_ACCOUNT_INDEX, String(listIndex)),
+    ];
+    if (account.smartAccountAddress) {
+      // Update the legacy SMART_ACCOUNT key so app/index.tsx still works
+      writes.push(SecureStore.setItemAsync(SECURE_KEYS.SMART_ACCOUNT, account.smartAccountAddress));
+    }
+    return Promise.all(writes).then(() => { });
   },
 
   renameAccount: async (listIndex, name) => {
     const { accounts } = get();
     const updated = accounts.map((a, i) => (i === listIndex ? { ...a, name } : a));
+    await persistAccounts(updated);
+    set({ accounts: updated });
+  },
+
+  setAccountImage: async (listIndex, imageDataUri) => {
+    const { accounts, avatars } = get();
+    const account = accounts[listIndex];
+    if (!account) return;
+    const key = account.publicKeyHex;
+    let updatedAvatars: Record<string, string>;
+    if (imageDataUri && key) {
+      updatedAvatars = { ...avatars, [key]: imageDataUri };
+    } else if (!imageDataUri && key) {
+      const { [key]: _removed, ...rest } = avatars;
+      updatedAvatars = rest;
+    } else {
+      updatedAvatars = { ...avatars };
+    }
+    await persistAvatars(updatedAvatars);
+    // Null out the image field so the SecureStore blob never carries image data
+    const updatedAccounts = accounts.map((a, i) =>
+      i === listIndex ? { ...a, image: null } : a,
+    );
+    await persistAccounts(updatedAccounts);
+    set({ avatars: updatedAvatars, accounts: updatedAccounts });
+  },
+
+  removeAccount: async (index) => {
+    const { accounts } = get();
+    const updated = accounts.filter((a) => a.index !== index);
     await persistAccounts(updated);
     set({ accounts: updated });
   },
@@ -277,6 +508,138 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
       accounts: updated,
       ...(isActive ? { smartAccountAddress: smartAddress } : {}),
     });
+  },
+
+  markAccountMultisig: async (listIndex, threshold, signers) => {
+    const { accounts } = get();
+    if (!accounts[listIndex]) return;
+    const updated = accounts.map((a, i) =>
+      i === listIndex ? { ...a, isMultisig: true, multisigThreshold: threshold, multisigSigners: signers } : a,
+    );
+    await persistAccounts(updated);
+    set({ accounts: updated });
+  },
+
+  updateAccountDevices: async (bip44Index, devices, adminRuleId) => {
+    const { accounts } = get();
+    const updated = accounts.map((a) =>
+      a.index === bip44Index
+        ? {
+            ...a,
+            devices,
+            // Only overwrite adminRuleId if the caller explicitly passed it.
+            ...(adminRuleId !== undefined ? { adminRuleId } : {}),
+          }
+        : a,
+    );
+    await persistAccounts(updated);
+    set({ accounts: updated });
+  },
+
+  syncSignersFromChain: async (accountListIndex) => {
+    // Locate by array position, NOT by `index`: shared/multisig and passkey
+    // accounts both use the `-1` sentinel, so `index` is not unique and a
+    // find() can resolve to the wrong account.
+    const account = get().accounts[accountListIndex];
+    if (!account?.smartAccountAddress) {
+      if (__DEV__) {
+        console.log(
+          `[syncSigners] abort: no smartAccountAddress (listIndex=${accountListIndex}, account=${account ? account.name : 'undefined'})`,
+        );
+      }
+      return false;
+    }
+
+    const factoryAddress = process.env.EXPO_PUBLIC_FACTORY_ADDRESS;
+    if (!factoryAddress) {
+      if (__DEV__) console.log('[syncSigners] abort: EXPO_PUBLIC_FACTORY_ADDRESS not set in bundle');
+      return false;
+    }
+    if (__DEV__) {
+      console.log(
+        `[syncSigners] start: account=${account.smartAccountAddress.slice(0, 8)}… factory=${factoryAddress.slice(0, 8)}…`,
+      );
+    }
+    const rpcUrl =
+      process.env.EXPO_PUBLIC_SOROBAN_RPC_URL || 'https://soroban-testnet.stellar.org';
+    const networkPassphrase = process.env.EXPO_PUBLIC_NETWORK_PASSPHRASE || Networks.TESTNET;
+
+    let rule;
+    try {
+      rule = await fetchDefaultContextRule(
+        { rpcUrl, networkPassphrase, factoryAddress },
+        account.smartAccountAddress,
+      );
+    } catch (e) {
+      if (__DEV__) console.warn('syncSignersFromChain failed:', e);
+      return false;
+    }
+
+    // Reconcile against chain truth. Existing local metadata (label, isLocal,
+    // pairedAt, onChainSignerId) is preserved by matching on signerKey; newly
+    // discovered signers are added as remote devices.
+    const existing = account.devices ?? [];
+    const byKey = new Map(existing.map((d) => [d.signerKey, d]));
+    const hadLocal = existing.some((d) => d.isLocal);
+
+    // Candidate signer keys that identify THIS device, so we can mark the
+    // local signer (vs. members) and not mislabel it. Seed accounts sign with
+    // an Ed25519 key; passkey/shared accounts sign with the device's WebAuthn
+    // credential stored in SecureStore.
+    const localKeys = new Set<string>();
+    if (account.gAddress && account.publicKeyHex) {
+      localKeys.add(`ed25519:${account.publicKeyHex}`);
+    }
+    try {
+      const selfPasskey = await SecureStore.getItemAsync(SECURE_KEYS.KEY_DATA_HEX);
+      if (selfPasskey) localKeys.add(`webauthn:${selfPasskey}`);
+    } catch {
+      // best-effort; isLocal labelling degrades gracefully without it
+    }
+
+    const reconciled: Device[] = rule.signers.map((s) => {
+      const prev = byKey.get(s.signerKey);
+      if (prev) return prev;
+      const isLocal = !hadLocal && localKeys.has(s.signerKey);
+      const label = isLocal
+        ? 'This Device'
+        : s.kind === 'delegated'
+          ? 'Member wallet'
+          : 'Paired device';
+      return {
+        signerKey: s.signerKey,
+        label,
+        kind: s.kind,
+        keyDataHex: s.keyDataHex,
+        onChainSignerId: null,
+        isLocal,
+        pairedAt: new Date().toISOString(),
+      };
+    });
+
+    // Stable order: local device(s) first, then the rest.
+    reconciled.sort((a, b) => Number(b.isLocal) - Number(a.isLocal));
+
+    const changed =
+      reconciled.length !== existing.length ||
+      reconciled.some(
+        (d, i) => existing[i]?.signerKey !== d.signerKey || existing[i]?.isLocal !== d.isLocal,
+      );
+    if (__DEV__) {
+      console.log(
+        `[syncSigners] ${account.smartAccountAddress?.slice(0, 6)}… chain=${rule.signers.length} local=${existing.length} changed=${changed}`,
+      );
+    }
+    if (changed) {
+      // Update positionally so we touch only this account (see lookup note).
+      const accounts = get().accounts;
+      const updated = accounts.map((a, i) =>
+        i === accountListIndex ? { ...a, devices: reconciled } : a,
+      );
+      await persistAccounts(updated);
+      set({ accounts: updated });
+    }
+    return true;
   },
 
   // ─── Rehydration ──────────────────────────────────────────────────────────
@@ -303,7 +666,30 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
 
       if (accountsJson) {
         // ── Case 2: new multi-account format ─────────────────────────────────
-        accounts = JSON.parse(accountsJson) as WalletAccount[];
+        accounts = (JSON.parse(accountsJson) as WalletAccount[]).map((a) => ({
+          ...a,
+          // Backfill multisig fields for accounts persisted before they existed.
+          devices: a.devices ?? [],
+          adminRuleId: a.adminRuleId ?? null,
+        }));
+
+        // Backfill `isMultisig` for shared wallets created before the flag
+        // existed. A multisig and a passkey account both have index -1 + empty
+        // gAddress, so we can't tell them apart by shape. But a passkey account
+        // always stores a credential; a multisig never does. keyDataHex is the
+        // PUBLIC half, so reading it never triggers Face ID. Absent credential
+        // on an index -1, non-G account ⇒ it's a shared wallet. Without this,
+        // an old multisig routes through the passkey send path and the on-chain
+        // __check_auth rejects the unrecognized signer (Error(Contract,#3016)).
+        accounts = await Promise.all(
+          accounts.map(async (a, listIndex) => {
+            if (a.isMultisig || a.index !== -1 || a.gAddress || a.credentialId) return a;
+            const keyData = await SecureStore.getItemAsync(
+              getPasskeyStorageKeys(listIndex).keyDataHex,
+            );
+            return keyData ? a : { ...a, isMultisig: true };
+          }),
+        );
         activeAccountIndex = activeIndexStr ? parseInt(activeIndexStr, 10) : 0;
       } else {
         // ── Case 3: migrate old single-account format ─────────────────────────
@@ -316,6 +702,7 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
               gAddress: wallet.gAddress,
               publicKeyHex: wallet.publicKeyHex,
               smartAccountAddress: legacySmartAccount ?? null,
+              image: null,
             },
           ];
         } else {
@@ -327,6 +714,7 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
               gAddress: '',
               publicKeyHex: '',
               smartAccountAddress: legacySmartAccount ?? null,
+              image: null,
             },
           ];
         }
@@ -334,12 +722,26 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
         await persistAccounts(accounts);
       }
 
+      // One-time migration: strip stale file:// image URIs — avatars now live in AsyncStorage
+      const hasStaleImages = accounts.some(
+        (a) => a.image !== null && !a.image?.startsWith('data:'),
+      );
+      if (hasStaleImages) {
+        accounts = accounts.map((a) => ({
+          ...a,
+          image: a.image?.startsWith('data:') ? a.image : null,
+        }));
+        persistAccounts(accounts).catch(() => {});
+      }
+
       // Derive the in-memory keypair for the active account
       const activeAccount = accounts[activeAccountIndex] ?? accounts[0];
       const activeWallet =
         mnemonic && activeAccount.index >= 0
-          ? deriveWalletAtIndex(mnemonic, activeAccount.index)
+          ? getCachedWallet(mnemonic, activeAccount.index)
           : null;
+
+      const storedAvatars = await loadAvatars();
 
       set({
         mnemonic,
@@ -347,6 +749,7 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
         activeAccountIndex,
         activeWallet,
         smartAccountAddress: activeAccount.smartAccountAddress,
+        avatars: storedAvatars,
       });
 
       return true;
@@ -358,6 +761,7 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
   // ─── Full reset ────────────────────────────────────────────────────────────
 
   clearAll: async () => {
+    derivedWalletCache.clear();
     const { accounts } = get();
 
     // Delete indexed passkey keys for accounts beyond account 0
@@ -382,10 +786,13 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
       SecureStore.deleteItemAsync(SECURE_KEYS.PENDING_MNEMONIC),
       SecureStore.deleteItemAsync(SECURE_KEYS.ACCESS_TOKEN),
       SecureStore.deleteItemAsync(SECURE_KEYS.REFRESH_TOKEN),
+      SecureStore.deleteItemAsync(SECURE_KEYS.WALLET_ACCESS_TOKEN),
+      SecureStore.deleteItemAsync(SECURE_KEYS.WALLET_REFRESH_TOKEN),
       SecureStore.deleteItemAsync(SECURE_KEYS.USER_EMAIL),
       SecureStore.deleteItemAsync(SECURE_KEYS.CREDENTIAL_ID),
       SecureStore.deleteItemAsync(SECURE_KEYS.KEY_DATA_HEX),
       SecureStore.deleteItemAsync(SECURE_KEYS.PASSKEY_PRIVATE_KEY),
+      AsyncStorage.removeItem(ASYNC_KEYS.AVATARS),
       ...indexedPasskeyDeletions,
     ]);
     set({
@@ -395,6 +802,7 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
       activeAccountIndex: 0,
       activeWallet: null,
       smartAccountAddress: null,
+      avatars: {},
     });
   },
 }));
