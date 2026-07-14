@@ -4,7 +4,6 @@ import {
   isVerifierCompatible,
   type ChainSigner,
 } from '@/src/api/account-admin';
-import { uploadBackup } from '@/src/api/latch-auth';
 import { deploySmartAccount as deploySmartAccountPasskey } from '@/src/api/passkey';
 import {
   deployMultiSigSmartAccount,
@@ -77,6 +76,11 @@ const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 interface Props {
   visible: boolean;
   onClose: () => void;
+  /** Called after a new account/multisig wallet is created, once this sheet
+   * has closed, so the caller can prompt for the recovery password and back
+   * it up (e.g. by opening BackupSheet) — uploadBackup() can't do this
+   * itself post-onboarding, since the password session is gone by then. */
+  onNeedsBackup?: () => void;
 }
 
 type SheetStep =
@@ -118,7 +122,7 @@ function describeMemberReadError(message: string): string {
   return 'could not read account';
 }
 
-const AccountSwitcherSheet = ({ visible, onClose }: Props) => {
+const AccountSwitcherSheet = ({ visible, onClose, onNeedsBackup }: Props) => {
   const theme = useTheme<Theme>();
   const { isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
@@ -411,10 +415,6 @@ const AccountSwitcherSheet = ({ visible, onClose }: Props) => {
         if (__DEV__) console.log('[membership] announce failed:', err?.message);
       });
 
-      uploadBackup().catch((err) => {
-        if (__DEV__) console.log('[backup] upload failed:', err?.message);
-      });
-
       setMultisigResult({ success: true, walletAddress: deployResult.smartAccountAddress });
     } catch (err) {
       if (__DEV__) console.error('[multisig] deploy failed:', err);
@@ -446,6 +446,10 @@ const AccountSwitcherSheet = ({ visible, onClose }: Props) => {
       resetMultisigState();
       setStep('list');
       onClose();
+      // Close this sheet's Modal before opening BackupSheet's — two Modals
+      // changing presentation state in the same tick wedges the native
+      // modal host on iOS (see handleSwitch below for the same constraint).
+      onNeedsBackup?.();
     }
   };
 
@@ -501,6 +505,10 @@ const AccountSwitcherSheet = ({ visible, onClose }: Props) => {
 
       switchAccount(currentLength);
       onClose();
+      // This account's key material has never been backed up — prompt for
+      // the recovery password via BackupSheet rather than silently skipping
+      // it (uploadBackup() can't run here itself; see onNeedsBackup above).
+      onNeedsBackup?.();
     } catch (err: any) {
       setCreateAccountError(err?.message || 'Failed to create account');
       if (newAccount) {

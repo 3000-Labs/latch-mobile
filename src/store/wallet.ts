@@ -34,6 +34,10 @@ export const SECURE_KEYS = {
 
 export const ASYNC_KEYS = {
   AVATARS: 'latch_account_avatars',
+  // Set when an onboarding backup upload fails so the app can nudge the user
+  // to complete it once they reach the dashboard, instead of losing the
+  // failure silently. Cleared as soon as the nudge is shown (one-shot).
+  BACKUP_PENDING: 'latch_backup_pending',
 } as const;
 
 /**
@@ -793,6 +797,7 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
       SecureStore.deleteItemAsync(SECURE_KEYS.KEY_DATA_HEX),
       SecureStore.deleteItemAsync(SECURE_KEYS.PASSKEY_PRIVATE_KEY),
       AsyncStorage.removeItem(ASYNC_KEYS.AVATARS),
+      AsyncStorage.removeItem(ASYNC_KEYS.BACKUP_PENDING),
       ...indexedPasskeyDeletions,
     ]);
     set({
