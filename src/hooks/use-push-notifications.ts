@@ -11,7 +11,7 @@
 import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
 import { useEffect, useRef } from 'react';
-import { AppState } from 'react-native';
+import { AppState, InteractionManager } from 'react-native';
 
 import { discoverSharedWallets, retryPendingAnnouncements } from '@/src/lib/membership';
 import { registerPushToken } from '@/src/lib/push-registration';
@@ -67,11 +67,19 @@ export function usePushNotifications(): void {
         if (__DEV__) console.log('[membership] discovery failed:', err?.message);
       });
     };
-    run();
+    // Defer the initial sweep until after the dashboard's first paint and any
+    // in-flight touch/gesture settle. discoverSharedWallets() ends in a
+    // synchronous pure-JS P-256 signature (signWithPasskey) for passkey
+    // accounts signing in for the first time — running it on the mount tick
+    // froze the JS thread right as the user landed on the dashboard.
+    const interaction = InteractionManager.runAfterInteractions(run);
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active') run();
     });
-    return () => sub.remove();
+    return () => {
+      interaction.cancel();
+      sub.remove();
+    };
   }, []);
 
   useEffect(() => {
