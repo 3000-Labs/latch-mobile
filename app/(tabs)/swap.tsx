@@ -11,6 +11,7 @@ import { usePrices } from '@/src/hooks/use-prices';
 import { useSwapQuote } from '@/src/hooks/use-swap-quote';
 import { useTokenIcon } from '@/src/hooks/use-token-list';
 import { useTrackedTokens } from '@/src/hooks/use-tracked-tokens';
+import { useTabBarScroll } from '@/src/context/tab-bar-scroll';
 import { getActiveSwapProvider } from '@/src/services/swap/registry';
 import type { SwapToken } from '@/src/services/swap/types';
 import { useWalletStore } from '@/src/store/wallet';
@@ -48,6 +49,7 @@ const Swap = () => {
   const theme = useTheme<Theme>();
   const isDark = theme.colors.mainBackground === '#000000';
   const insets = useSafeAreaInsets();
+  const tabBarScroll = useTabBarScroll();
   const queryClient = useQueryClient();
   const { smartAccountAddress, accounts, activeAccountIndex } = useWalletStore();
   const activeAccount = accounts[activeAccountIndex];
@@ -249,6 +251,7 @@ const Swap = () => {
       </Box>
 
       <ScrollView
+        {...tabBarScroll}
         contentContainerStyle={{ paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
         bounces={false}

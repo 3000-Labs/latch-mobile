@@ -11,7 +11,7 @@
  */
 
 import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
-import { fetchAndRestoreBackup, LatchAPIError } from '@/src/api/latch-auth';
+import { fetchAndRestoreBackup, LatchAPIError, uploadBackup } from '@/src/api/latch-auth';
 import Box from '@/src/components/shared/Box';
 import Button from '@/src/components/shared/Button';
 import Text from '@/src/components/shared/Text';
@@ -120,6 +120,14 @@ const SetRecoveryPassword = () => {
         router.replace({ pathname: '/(onboarding)/set-pin', params: { from: 'recovery' } });
       } else {
         await SecureStore.setItemAsync(SECURE_KEYS.RECOVERY_PASSWORD_SESSION, values.password);
+        if (flow === 're-anchor') {
+          // Re-anchoring an already-deployed wallet to a (re-)registered email —
+          // deploy-account unconditionally redeploys and overwrites account 0, so
+          // it must never run here. uploadBackup() consumes the session password.
+          await uploadBackup();
+          router.replace('/(tabs)');
+          return;
+        }
         // Both flows deploy the creator's personal account first via deploy-account.
         // For the shared flow we carry `flow` through so deploy-account continues
         // into the multisig build screens (create-shared) instead of the dashboard.

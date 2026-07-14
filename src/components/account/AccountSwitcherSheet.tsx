@@ -136,6 +136,7 @@ const AccountSwitcherSheet = ({ visible, onClose, onNeedsBackup }: Props) => {
     addAccount,
     addPasskeyAccount,
     updateAccountSmartAddress,
+    removeAccount,
     renameAccount,
     setAccountImage,
   } = useWalletStore();
@@ -143,6 +144,7 @@ const AccountSwitcherSheet = ({ visible, onClose, onNeedsBackup }: Props) => {
   const [step, setStep] = useState<SheetStep>('list');
   const [deployingIndex, setDeployingIndex] = useState<number | null>(null);
   const [isAddingAccount, setIsAddingAccount] = useState(false);
+  const [createAccountError, setCreateAccountError] = useState<string | null>(null);
   const [isAddingShared, setIsAddingShared] = useState(false);
   const [signersFor, setSignersFor] = useState<{ name: string; address: string } | null>(null);
 
@@ -468,9 +470,10 @@ const AccountSwitcherSheet = ({ visible, onClose, onNeedsBackup }: Props) => {
     if (isAddingAccount) return;
     const currentLength = accounts.length;
     setIsAddingAccount(true);
+    setCreateAccountError(null);
+    let newAccount: WalletAccount | null = null;
 
     try {
-      let newAccount: WalletAccount | null = null;
       if (mnemonic) {
         newAccount = await addAccount();
         if (!newAccount) return;
@@ -507,11 +510,14 @@ const AccountSwitcherSheet = ({ visible, onClose, onNeedsBackup }: Props) => {
       // it (uploadBackup() can't run here itself; see onNeedsBackup above).
       onNeedsBackup?.();
     } catch (err: any) {
-      Toast.show({
-        type: 'error',
-        text1: 'Error',
-        text2: err?.message || 'Failed to create account',
-      });
+      setCreateAccountError(err?.message || 'Failed to create account');
+      if (newAccount) {
+        try {
+          await removeAccount(newAccount.index);
+        } catch (rollbackErr) {
+          if (__DEV__) console.error('[account] rollback failed:', rollbackErr);
+        }
+      }
     } finally {
       setIsAddingAccount(false);
     }
@@ -723,9 +729,13 @@ const AccountSwitcherSheet = ({ visible, onClose, onNeedsBackup }: Props) => {
         return (
           <AddAccountInfo
             defaultName={`Account ${accounts.length + 1}`}
-            onBack={() => setStep('add-prompt')}
+            onBack={() => {
+              setCreateAccountError(null);
+              setStep('add-prompt');
+            }}
             onSubmit={handleCreateAccount}
             isSubmitting={isAddingAccount}
+            errorMessage={createAccountError}
           />
         );
 

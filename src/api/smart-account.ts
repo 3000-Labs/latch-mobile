@@ -350,6 +350,9 @@ export async function deploySmartAccount(
       if (returnValueXdr) {
         smartAccountAddress = extractAddressFromMeta(returnValueXdr) ?? '';
       }
+      if (!smartAccountAddress) {
+        throw new Error('Transaction settled but could not extract smart account address');
+      }
       if (__DEV__) console.log(`Deployment successful via factory: ${smartAccountAddress}`);
     } else {
       throw new Error(`Factory deployment transaction status: ${finalStatus}`);

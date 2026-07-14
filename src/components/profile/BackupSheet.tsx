@@ -22,6 +22,7 @@ import { Formik } from 'formik';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Dimensions,
   Modal,
@@ -57,6 +58,7 @@ const BackupSheet = ({ visible, onClose }: Props) => {
   const theme = useTheme<Theme>();
   const { isDark } = useAppTheme();
   const [backupExists, setBackupExists] = useState<boolean | null>(null);
+  const [registeredEmail, setRegisteredEmail] = useState<string | null>(null);
 
   // Determined fresh on every open: a session with no ACCESS_TOKEN has no
   // email attached at all, distinct from "email attached, no backup yet" —
@@ -84,6 +86,7 @@ const BackupSheet = ({ visible, onClose }: Props) => {
     setOtp('');
     setEmailError('');
     setSessionExpired(expired);
+    setRegisteredEmail(null);
   };
 
   useEffect(() => {
@@ -103,6 +106,9 @@ const BackupSheet = ({ visible, onClose }: Props) => {
           enterAddEmailPhase(false);
           return;
         }
+        SecureStore.getItemAsync(SECURE_KEYS.USER_EMAIL).then((storedEmail) => {
+          if (!cancelled) setRegisteredEmail(storedEmail);
+        });
         checkBackupExists()
           .then((exists) => {
             if (cancelled) return;
@@ -190,6 +196,7 @@ const BackupSheet = ({ visible, onClose }: Props) => {
     try {
       const { accessToken, refreshToken } = await verifyOTP(email, otp.trim());
       await saveAuthTokens(accessToken, refreshToken, email);
+      setRegisteredEmail(email);
       setPhase('backup');
       checkBackupExists()
         .then(setBackupExists)
@@ -248,6 +255,25 @@ const BackupSheet = ({ visible, onClose }: Props) => {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleRemoveEmail = () => {
+    Alert.alert(
+      'Remove email?',
+      'This removes the registered email from this device only — it does not sign you out. Your existing backup stays on the server; you can re-register the same or a different email anytime.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            await clearEmailSession();
+            setBackupExists(false);
+            enterAddEmailPhase(false);
+          },
+        },
+      ],
+    );
   };
 
   return (
@@ -458,7 +484,21 @@ const BackupSheet = ({ visible, onClose }: Props) => {
                         ? 'Enter your recovery password to update it.'
                         : 'Set a recovery password to back up your wallet.'}
                     </Text>
+                    {registeredEmail ? (
+                      <Box flexDirection="row" alignItems="center" mt="xs">
+                        <Text variant="p8" color="textSecondary">
+                          Registered email: {registeredEmail}
+                        </Text>
+                      </Box>
+                    ) : null}
                   </Box>
+                  {registeredEmail ? (
+                    <TouchableOpacity onPress={handleRemoveEmail} hitSlop={8}>
+                      <Text variant="p8" color="danger900" fontWeight="600">
+                        Remove
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
                 </Box>
 
                 <Formik
@@ -466,85 +506,85 @@ const BackupSheet = ({ visible, onClose }: Props) => {
                   validationSchema={schema}
                   onSubmit={handleSubmit}
                 >
-              {({
-                handleChange,
-                handleBlur,
-                handleSubmit: submit,
-                values,
-                errors,
-                touched,
-                isSubmitting,
-              }) => (
-                <Box flex={1}>
-                  <Input
-                    value={values.password}
-                    onChangeText={handleChange('password')}
-                    onBlur={handleBlur('password')}
-                    placeholder="Recovery password"
-                    secureTextEntry
-                    showPasswordToggle
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    returnKeyType="next"
-                    status={touched.password && errors.password ? 'danger' : 'basic'}
-                  />
-                  {touched.password && errors.password ? (
-                    <Text variant="p8" color="danger900" mt="xs" mb="s" ml="xs">
-                      {errors.password}
-                    </Text>
-                  ) : (
-                    <Box mb="s" />
-                  )}
-
-                  <Input
-                    value={values.confirm}
-                    onChangeText={handleChange('confirm')}
-                    onBlur={handleBlur('confirm')}
-                    placeholder="Confirm password"
-                    secureTextEntry
-                    showPasswordToggle
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    // returnKeyType="done"
-                    onSubmitEditing={() => submit()}
-                    status={touched.confirm && errors.confirm ? 'danger' : 'basic'}
-                  />
-                  {touched.confirm && errors.confirm ? (
-                    <Text variant="p8" color="danger900" mt="xs" mb="m" ml="xs">
-                      {errors.confirm}
-                    </Text>
-                  ) : (
-                    <Box mb="m" />
-                  )}
-
-                  <TouchableOpacity
-                    activeOpacity={0.8}
-                    onPress={() => submit()}
-                    disabled={isSubmitting}
-                    style={{ marginTop: 'auto' }}
-                  >
-                    <Box
-                      height={64}
-                      backgroundColor={isSubmitting ? 'btnDisabled' : 'primary700'}
-                      borderRadius={32}
-                      justifyContent="center"
-                      alignItems="center"
-                    >
-                      {isSubmitting ? (
-                        <ActivityIndicator color={theme.colors.gray600} />
-                      ) : (
-                        <Text
-                          variant="h10"
-                          color="black"
-                          fontWeight="700"
-                        >
-                          {backupExists ? 'Update Backup' : 'Back Up Now'}
+                  {({
+                    handleChange,
+                    handleBlur,
+                    handleSubmit: submit,
+                    values,
+                    errors,
+                    touched,
+                    isSubmitting,
+                  }) => (
+                    <Box flex={1}>
+                      <Input
+                        value={values.password}
+                        onChangeText={handleChange('password')}
+                        onBlur={handleBlur('password')}
+                        placeholder="Recovery password"
+                        secureTextEntry
+                        showPasswordToggle
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        returnKeyType="next"
+                        status={touched.password && errors.password ? 'danger' : 'basic'}
+                      />
+                      {touched.password && errors.password ? (
+                        <Text variant="p8" color="danger900" mt="xs" mb="s" ml="xs">
+                          {errors.password}
                         </Text>
+                      ) : (
+                        <Box mb="s" />
                       )}
+
+                      <Input
+                        value={values.confirm}
+                        onChangeText={handleChange('confirm')}
+                        onBlur={handleBlur('confirm')}
+                        placeholder="Confirm password"
+                        secureTextEntry
+                        showPasswordToggle
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        // returnKeyType="done"
+                        onSubmitEditing={() => submit()}
+                        status={touched.confirm && errors.confirm ? 'danger' : 'basic'}
+                      />
+                      {touched.confirm && errors.confirm ? (
+                        <Text variant="p8" color="danger900" mt="xs" mb="m" ml="xs">
+                          {errors.confirm}
+                        </Text>
+                      ) : (
+                        <Box mb="m" />
+                      )}
+
+                      <TouchableOpacity
+                        activeOpacity={0.8}
+                        onPress={() => submit()}
+                        disabled={isSubmitting}
+                        style={{ marginTop: 'auto' }}
+                      >
+                        <Box
+                          height={64}
+                          backgroundColor={isSubmitting ? 'btnDisabled' : 'primary700'}
+                          borderRadius={32}
+                          justifyContent="center"
+                          alignItems="center"
+                        >
+                          {isSubmitting ? (
+                            <ActivityIndicator color={theme.colors.gray600} />
+                          ) : (
+                            <Text
+                              variant="h10"
+                              color="black"
+                              fontWeight="700"
+                            >
+                              {backupExists ? 'Update Backup' : 'Back Up Now'}
+                            </Text>
+                          )}
+                        </Box>
+                      </TouchableOpacity>
                     </Box>
-                  </TouchableOpacity>
-                </Box>
-              )}
+                  )}
                 </Formik>
               </>
             )}

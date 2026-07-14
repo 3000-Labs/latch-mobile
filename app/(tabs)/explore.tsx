@@ -2,6 +2,7 @@ import Box from '@/src/components/shared/Box';
 import Input from '@/src/components/shared/Input';
 import Text from '@/src/components/shared/Text';
 import { WELL_KNOWN_TOKENS } from '@/src/constants/known-tokens';
+import { useTabBarScroll } from '@/src/context/tab-bar-scroll';
 import { usePrices } from '@/src/hooks/use-prices';
 import { useTokenIcon } from '@/src/hooks/use-token-list';
 import { Theme } from '@/src/theme/theme';
@@ -127,6 +128,7 @@ const Explore = () => {
   const theme = useTheme<Theme>();
   const { isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
+  const tabBarScroll = useTabBarScroll();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [bannerIndex, setBannerIndex] = useState(0);
@@ -194,6 +196,7 @@ const Explore = () => {
       </Box>
 
       <ScrollView
+        {...tabBarScroll}
         style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
         bounces={false}
