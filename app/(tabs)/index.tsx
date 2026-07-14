@@ -8,6 +8,7 @@ import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
 import TokenIcon from '@/src/components/shared/TokenIcon';
 import { useDrawer } from '@/src/context/drawer-context';
+import { useTabBarScroll } from '@/src/context/tab-bar-scroll';
 import { usePortfolio, type TokenBalance } from '@/src/hooks/use-portfolio';
 import { usePrices } from '@/src/hooks/use-prices';
 import { StellarPayment, useStellarTransactions } from '@/src/hooks/use-stellar-transactions';
@@ -128,6 +129,7 @@ const Home = () => {
   const { isDark } = useAppTheme();
   const statusBarStyle = useStatusBarStyle();
   const insets = useSafeAreaInsets();
+  const tabBarScroll = useTabBarScroll();
 
   const { smartAccountAddress, accounts, activeAccountIndex, mnemonic, avatars } = useWalletStore();
   const [showBalance, setShowBalance] = useState(false);
@@ -290,6 +292,7 @@ const Home = () => {
       </Box>
 
       <ScrollView
+        {...tabBarScroll}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl

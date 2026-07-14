@@ -1,5 +1,6 @@
 import { checkBackupExists, clearEmailSession, LatchAPIError, uploadBackup } from '@/src/api/latch-auth';
 import BottomSheetHandle from '@/src/components/shared/BottomSheetHandle';
+import { useDrawer } from '@/src/context/drawer-context';
 import Box from '@/src/components/shared/Box';
 import Input from '@/src/components/shared/Input';
 import Text from '@/src/components/shared/Text';
@@ -47,6 +48,7 @@ const BackupSheet = ({ visible, onClose }: Props) => {
   const insets = useSafeAreaInsets();
   const theme = useTheme<Theme>();
   const { isDark } = useAppTheme();
+  const { closeDrawer } = useDrawer();
   const router = useRouter();
   const [backupExists, setBackupExists] = useState<boolean | null>(null);
   // undefined = not yet checked, null = checked and no email registered.
@@ -132,8 +134,15 @@ const BackupSheet = ({ visible, onClose }: Props) => {
   };
 
   const handleRegisterEmail = () => {
+    // Close the sheet AND the profile drawer first, then navigate once their
+    // slide animations (≤300ms) settle. Pushing the next screen in the same tick
+    // as a Modal dismissing leaves the new screen rendering under a still-present
+    // modal host on iOS — and both the sheet and drawer are native Modals.
     onClose();
-    router.push({ pathname: '/(onboarding)/collect-email', params: { flow: 're-anchor' } });
+    closeDrawer();
+    setTimeout(() => {
+      router.push({ pathname: '/(onboarding)/collect-email', params: { flow: 're-anchor' } });
+    }, 300);
   };
 
   return (
