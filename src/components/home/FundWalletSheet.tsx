@@ -63,11 +63,12 @@ function deriveStatusProps(jobs: DepositJob[]) {
 interface Props {
   visible: boolean;
   onClose: () => void;
-  address: string;
+  cAddress: string;
+  proxyAddress?: string;
   memo?: string;
 }
 
-const FundWalletSheet = ({ visible, onClose, address, memo }: Props) => {
+const FundWalletSheet = ({ visible, onClose, cAddress, proxyAddress, memo }: Props) => {
   const theme = useTheme<Theme>();
   const { isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
@@ -117,10 +118,10 @@ const FundWalletSheet = ({ visible, onClose, address, memo }: Props) => {
         </Box>
 
         <Box paddingHorizontal="m" mt="s">
-          {/* Proxy G-Address */}
+          {/* Wallet Address (C-Address) */}
           <Box mb="l">
             <Text variant="p7" color="textPrimary" fontWeight="700" mb="s">
-              Proxy G-Address
+              Wallet Address
             </Text>
             <Box
               backgroundColor={isDark ? 'gray900' : 'btnDisabled'}
@@ -133,39 +134,14 @@ const FundWalletSheet = ({ visible, onClose, address, memo }: Props) => {
             >
               <Box flex={1} marginRight="s">
                 <Text variant="p7" color="textSecondary" numberOfLines={2}>
-                  {address}
+                  {cAddress}
                 </Text>
               </Box>
-              <TouchableOpacity onPress={() => copyToClipboard(address)}>
+              <TouchableOpacity onPress={() => copyToClipboard(cAddress)}>
                 <Ionicons name="copy-outline" size={20} color={theme.colors.textSecondary} />
               </TouchableOpacity>
             </Box>
           </Box>
-
-          {/* Memo */}
-          {!!memo && (
-            <Box mb="l">
-              <Text variant="p7" color="textPrimary" fontWeight="700" mb="s">
-                Memo (Required)
-              </Text>
-              <Box
-                backgroundColor={isDark ? 'gray900' : 'btnDisabled'}
-                borderRadius={12}
-                padding="m"
-                flexDirection="row"
-                alignItems="center"
-                justifyContent="space-between"
-                minHeight={56}
-              >
-                <Text variant="p7" color="textSecondary">
-                  {memo}
-                </Text>
-                <TouchableOpacity onPress={() => copyToClipboard(memo)}>
-                  <Ionicons name="copy-outline" size={20} color={theme.colors.textSecondary} />
-                </TouchableOpacity>
-              </Box>
-            </Box>
-          )}
 
           {/* Divider */}
           <Box flexDirection="row" alignItems="center" mb="l">
@@ -190,7 +166,7 @@ const FundWalletSheet = ({ visible, onClose, address, memo }: Props) => {
               }}
             >
               <QRCode
-                value={address || ' '}
+                value={cAddress || ' '}
                 size={160}
                 logo={require('@/src/assets/token/stellar.png')}
                 logoSize={40}
@@ -208,9 +184,70 @@ const FundWalletSheet = ({ visible, onClose, address, memo }: Props) => {
             </Text>
           </Box>
 
+          {/* Proxy G-Address (alternate funding path via relayer) */}
+          {!!proxyAddress && (
+            <>
+              <Box flexDirection="row" alignItems="center" mb="l">
+                <Box flex={1} height={1} backgroundColor="gray800" />
+                <Text variant="p7" color="textSecondary" mx="m">
+                  OR
+                </Text>
+                <Box flex={1} height={1} backgroundColor="gray800" />
+              </Box>
+
+              <Box mb="l">
+                <Text variant="p7" color="textPrimary" fontWeight="700" mb="s">
+                  Proxy G-Address
+                </Text>
+                <Box
+                  backgroundColor={isDark ? 'gray900' : 'btnDisabled'}
+                  borderRadius={12}
+                  padding="m"
+                  flexDirection="row"
+                  alignItems="center"
+                  justifyContent="space-between"
+                  minHeight={64}
+                >
+                  <Box flex={1} marginRight="s">
+                    <Text variant="p7" color="textSecondary" numberOfLines={2}>
+                      {proxyAddress}
+                    </Text>
+                  </Box>
+                  <TouchableOpacity onPress={() => copyToClipboard(proxyAddress)}>
+                    <Ionicons name="copy-outline" size={20} color={theme.colors.textSecondary} />
+                  </TouchableOpacity>
+                </Box>
+              </Box>
+
+              {!!memo && (
+                <Box mb="l">
+                  <Text variant="p7" color="textPrimary" fontWeight="700" mb="s">
+                    Memo (Required)
+                  </Text>
+                  <Box
+                    backgroundColor={isDark ? 'gray900' : 'btnDisabled'}
+                    borderRadius={12}
+                    padding="m"
+                    flexDirection="row"
+                    alignItems="center"
+                    justifyContent="space-between"
+                    minHeight={56}
+                  >
+                    <Text variant="p7" color="textSecondary">
+                      {memo}
+                    </Text>
+                    <TouchableOpacity onPress={() => copyToClipboard(memo)}>
+                      <Ionicons name="copy-outline" size={20} color={theme.colors.textSecondary} />
+                    </TouchableOpacity>
+                  </Box>
+                </Box>
+              )}
+            </>
+          )}
+
           {/* Actions */}
           <Box gap="m">
-            <TouchableOpacity activeOpacity={0.8} onPress={() => copyToClipboard(address)}>
+            <TouchableOpacity activeOpacity={0.8} onPress={() => copyToClipboard(cAddress)}>
               <Box
                 height={56}
                 backgroundColor="primary"

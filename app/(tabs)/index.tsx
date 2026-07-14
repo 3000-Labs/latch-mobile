@@ -566,7 +566,8 @@ const Home = () => {
       <FundWalletSheet
         visible={receiveVisible}
         onClose={() => setReceiveVisible(false)}
-        address={depositInfo?.pool_address ?? ''}
+        cAddress={smartAccountAddress ?? ''}
+        proxyAddress={depositInfo?.pool_address}
         memo={depositInfo?.memo}
       />
     </Box>
