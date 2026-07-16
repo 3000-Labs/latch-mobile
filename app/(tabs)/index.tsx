@@ -2,7 +2,7 @@ import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import HistoryItem from '@/src/components/history/HistoryItem';
 import BuyXLMSheet from '@/src/components/home/BuyXLMSheet';
 import FundWalletSheet from '@/src/components/home/FundWalletSheet';
-import { useDepositInfo } from '@/src/hooks/use-deposit';
+import { useCreateDepositIntent } from '@/src/hooks/use-deposit';
 import PendingApprovalBanner from '@/src/components/home/PendingApprovalBanner';
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
@@ -137,7 +137,7 @@ const Home = () => {
   const [fundVisible, setFundVisible] = useState(false);
   const [receiveVisible, setReceiveVisible] = useState(false);
 
-  const { data: depositInfo } = useDepositInfo();
+  const createDepositIntent = useCreateDepositIntent();
 
   const activeAccount = accounts[activeAccountIndex];
   const activeAccountName = activeAccount?.name ?? 'Account 1';
@@ -379,6 +379,7 @@ const Home = () => {
                 onPress={() => {
                   if (item.label === 'Fund') {
                     setFundVisible(true);
+                    if (smartAccountAddress) createDepositIntent.mutate(smartAccountAddress);
                   } else if ('route' in item && item.route) {
                     router.push(item.route as any);
                   }
@@ -563,15 +564,15 @@ const Home = () => {
           setFundVisible(false);
           setReceiveVisible(true);
         }}
-        poolAddress={depositInfo?.pool_address ?? ''}
-        memo={depositInfo?.memo}
+        poolAddress={createDepositIntent.data?.pool_address ?? ''}
+        memo={createDepositIntent.data?.memo_id}
       />
       <FundWalletSheet
         visible={receiveVisible}
         onClose={() => setReceiveVisible(false)}
         cAddress={smartAccountAddress ?? ''}
-        proxyAddress={depositInfo?.pool_address}
-        memo={depositInfo?.memo}
+        proxyAddress={createDepositIntent.data?.pool_address}
+        memo={createDepositIntent.data?.memo_id}
       />
     </Box>
   );

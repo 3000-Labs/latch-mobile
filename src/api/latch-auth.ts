@@ -477,29 +477,53 @@ export async function getPrices(tokens: string[]): Promise<Record<string, PriceD
 
 // ─── Deposit ─────────────────────────────────────────────────────────────────
 
-export interface DepositInfo {
+export interface DepositIntent {
+  intent_id: string;
+  memo_id: string;
   pool_address: string;
-  memo: string;
+  expires_at: string;
 }
 
-export interface DepositJob {
-  id: number;
-  stellar_op_id: string;
-  amount_stroops: number;
+export interface DepositForward {
+  tx_hash: string;
+  amount: string;
+  asset: string;
   status: string;
-  error?: string;
+  forward_tx?: string;
   created_at: string;
-  processed_at?: string;
 }
 
-export async function fetchDepositInfo(): Promise<DepositInfo> {
+export interface DepositStatus {
+  intent_id: string;
+  memo_id: string;
+  c_address: string;
+  pool_address: string;
+  status: 'pending' | 'completed' | 'expired' | 'failed';
+  expires_at: string;
+  forwards: DepositForward[];
+}
+
+/**
+ * Mints a fresh, TTL-bound funding intent for smartAccountAddress. Call this
+ * when the user opens the Fund flow — not cached across sessions, since
+ * latch-relayer intents are one-per-funding-session (default 1hr expiry),
+ * not permanent per-account registrations.
+ */
+export async function createDepositIntent(smartAccountAddress: string): Promise<DepositIntent> {
   const accessToken = await SecureStore.getItemAsync(SECURE_KEYS.ACCESS_TOKEN);
   if (!accessToken) throw new Error('Not authenticated');
-  return latchFetch('/deposit', {}, accessToken);
+  return latchFetch(
+    '/accounts/deposit-intent',
+    { method: 'POST', body: JSON.stringify({ smart_account_address: smartAccountAddress }) },
+    accessToken,
+  );
 }
 
-export async function fetchDepositStatus(): Promise<{ jobs: DepositJob[] }> {
+/**
+ * Polls the status of a previously-created funding intent by memo_id.
+ */
+export async function fetchDepositIntentStatus(memoId: string): Promise<DepositStatus> {
   const accessToken = await SecureStore.getItemAsync(SECURE_KEYS.ACCESS_TOKEN);
-  if (!accessToken) return { jobs: [] };
-  return latchFetch('/deposit/status', {}, accessToken);
+  if (!accessToken) throw new Error('Not authenticated');
+  return latchFetch(`/accounts/deposit/status/${encodeURIComponent(memoId)}`, {}, accessToken);
 }

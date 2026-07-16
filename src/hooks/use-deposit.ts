@@ -1,19 +1,28 @@
-import { useQuery } from '@tanstack/react-query';
-import { fetchDepositInfo, fetchDepositStatus } from '../api/latch-auth';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { createDepositIntent, fetchDepositIntentStatus } from '../api/latch-auth';
 
-export function useDepositInfo() {
-  return useQuery({
-    queryKey: ['deposit-info'],
-    queryFn: fetchDepositInfo,
-    staleTime: Infinity, // pool address + memo are permanent per user
+/**
+ * Mints a fresh funding intent (memo_id + pool_address) for the given smart
+ * account. Call this when the user opens the Fund flow, not on Home mount —
+ * intents are TTL-bound funding sessions, not permanent registrations.
+ */
+export function useCreateDepositIntent() {
+  return useMutation({
+    mutationFn: (smartAccountAddress: string) => createDepositIntent(smartAccountAddress),
   });
 }
 
-export function useDepositStatus(enabled: boolean) {
+/**
+ * Polls a funding intent's status every 15s while enabled, mirroring
+ * useFonbnkOrderStatus's polling convention.
+ */
+export function useDepositIntentStatus(memoId: string | null, enabled: boolean) {
   return useQuery({
-    queryKey: ['deposit-status'],
-    queryFn: fetchDepositStatus,
-    enabled,
-    refetchInterval: enabled ? 15_000 : false,
+    queryKey: ['deposit-intent-status', memoId],
+    queryFn: () => fetchDepositIntentStatus(memoId as string),
+    enabled: enabled && !!memoId,
+    refetchInterval: 15_000,
+    retry: 3,
+    staleTime: 0,
   });
 }

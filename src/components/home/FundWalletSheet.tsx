@@ -6,11 +6,11 @@ import { TouchableOpacity } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import type { DepositJob } from '@/src/api/latch-auth';
+import type { DepositForward } from '@/src/api/latch-auth';
 import BottomSheet from '@/src/components/shared/BottomSheet';
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
-import { useDepositStatus } from '@/src/hooks/use-deposit';
+import { useDepositIntentStatus } from '@/src/hooks/use-deposit';
 import { Theme } from '@/src/theme/theme';
 import { useAppTheme } from '@/src/theme/ThemeContext';
 import FundInfoSheet from './FundInfoSheet';
@@ -33,11 +33,12 @@ function formatDate(iso: string): string {
   return `${mm}-${dd} ${hh}:${min}:${ss}`;
 }
 
-function deriveStatusProps(jobs: DepositJob[]) {
-  const latest = jobs[0];
+function deriveStatusProps(forwards: DepositForward[]) {
+  const latest = forwards[0];
   if (!latest) return null;
 
-  const xlm = (latest.amount_stroops / 10_000_000).toFixed(2);
+  const amount = parseFloat(latest.amount).toFixed(2);
+  const unit = latest.asset === 'native' ? 'XLM' : latest.asset;
   const steps: FundingStep[] = [
     { label: 'Deposit\nInitiated', status: 'success', time: formatDate(latest.created_at) },
     { label: 'Deposit\nDetected', status: 'success' },
@@ -48,15 +49,15 @@ function deriveStatusProps(jobs: DepositJob[]) {
     {
       label: 'Deposit\nCompleted',
       status: latest.status === 'done' ? 'success' : 'inactive',
-      time: latest.processed_at ? formatDate(latest.processed_at) : undefined,
+      time: latest.status === 'done' ? formatDate(latest.created_at) : undefined,
     },
   ];
 
   return {
-    amount: `+${xlm} XLM`,
+    amount: `+${amount} ${unit}`,
     statusLabel: latest.status === 'done' ? 'Completed' : latest.status === 'failed' ? 'Failed' : 'Pending',
     steps,
-    txHash: latest.stellar_op_id,
+    txHash: latest.tx_hash,
   };
 }
 
@@ -75,8 +76,8 @@ const FundWalletSheet = ({ visible, onClose, cAddress, proxyAddress, memo }: Pro
   const [infoVisible, setInfoVisible] = useState(false);
   const [statusVisible, setStatusVisible] = useState(false);
 
-  const { data: depositStatusData } = useDepositStatus(statusVisible);
-  const statusProps = depositStatusData?.jobs ? deriveStatusProps(depositStatusData.jobs) : null;
+  const { data: depositStatusData } = useDepositIntentStatus(memo ?? null, statusVisible);
+  const statusProps = depositStatusData?.forwards ? deriveStatusProps(depositStatusData.forwards) : null;
 
   const copyToClipboard = async (text: string) => {
     await Clipboard.setStringAsync(text);
