@@ -1,6 +1,6 @@
 {
   "name": "latch",
-  "main": "expo-router/entry",
+  "main": "./index.js",
   "version": "1.0.0",
   "scripts": {
     "postinstall": "rn-nodeify --install \"url,events,https,http,util,stream,crypto,buffer,assert,os,path,querystring\" --hack && patch-package && npx install-skia",
