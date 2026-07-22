@@ -18,13 +18,16 @@ import { txToBase64 } from '@/src/api/smart-account';
 import { ACTIVE_NETWORK, HORIZON_URL, STELLAR_NETWORK_PASSPHRASE } from '@/src/constants/config';
 import { deriveWalletAtIndex } from '@/src/lib/seed-wallet';
 
-export const WC_CHAIN =
-  ACTIVE_NETWORK.network === 'TESTNET' ? 'stellar:testnet' : 'stellar:pubnet';
+// A function, not a frozen const — a live network switch (network-switch.ts)
+// must be reflected on the next call, not just after a fresh app launch.
+export function getWcChain(): string {
+  return ACTIVE_NETWORK.network === 'TESTNET' ? 'stellar:testnet' : 'stellar:pubnet';
+}
 
 const WC_METHODS = ['stellar_signXDR', 'stellar_signAndSubmitXDR'];
 const WC_EVENTS = ['accountsChanged'];
 
-const PROJECT_ID = process.env.EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID ?? '';
+const PROJECT_ID = process.env.EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID ?? '5f9dfc3d26a8876949217421446ed931';
 
 const METADATA = {
   name: 'Latch',
@@ -36,14 +39,69 @@ const METADATA = {
 
 export let walletKit: IWalletKit | null = null;
 
-export async function initWalletKit(): Promise<void> {
-  if (walletKit) return;
-  const core = new Core({ projectId: PROJECT_ID });
-  walletKit = await WalletKit.init({ core, metadata: METADATA });
+// Tracked as a promise (not just the walletKit null-check) so concurrent callers
+// share one in-flight init instead of racing separate Core/WalletKit instances,
+// and a failed attempt (e.g. WalletKit.init's AsyncStorage read/write failing
+// under low device storage) is retried on the next call rather than wedging
+// walletKit as permanently null for the rest of the app session.
+let initPromise: Promise<void> | null = null;
+
+export function initWalletKit(): Promise<void> {
+  if (walletKit) return Promise.resolve();
+  if (!initPromise) {
+    initPromise = (async () => {
+      const core = new Core({ projectId: PROJECT_ID });
+      walletKit = await WalletKit.init({ core, metadata: METADATA });
+
+      // Relay subscribe failures ("Subscribing to X failed") are opaque on their own —
+      // these events tell us whether the relay socket ever connected at all vs.
+      // connected fine but the subscribe RPC itself stalled.
+      const relayer = walletKit.core.relayer;
+      relayer.on('relayer_connect', () => console.log('[WalletConnect] relayer connected'));
+      relayer.on('relayer_disconnect', () => console.warn('[WalletConnect] relayer disconnected'));
+      relayer.on('relayer_error', (err: unknown) =>
+        console.warn('[WalletConnect] relayer error', err),
+      );
+      relayer.on('relayer_connection_stalled', () =>
+        console.warn('[WalletConnect] relayer connection stalled'),
+      );
+
+      // One-time cleanup for duplicate sessions created before approveProposal
+      // started disconnecting the old one on reconnect (see approveProposal).
+      await dedupeSessions();
+    })().catch((err) => {
+      initPromise = null;
+      throw err;
+    });
+  }
+  return initPromise;
 }
 
-export function pairWithUri(uri: string): Promise<void> {
+// Collapses multiple live sessions for the same dApp (same peer url) down to
+// the most recently established one. Guards against duplicate rows in the
+// Connected Apps list left over from before approveProposal disconnected the
+// old session on reconnect.
+async function dedupeSessions(): Promise<void> {
+  if (!walletKit) return;
+  const sessions = Object.values(walletKit.getActiveSessions());
+  const byUrl = new Map<string, typeof sessions>();
+  for (const session of sessions) {
+    const url = session.peer.metadata.url;
+    byUrl.set(url, [...(byUrl.get(url) ?? []), session]);
+  }
+
+  const staleTopics = [...byUrl.values()]
+    .filter((group) => group.length > 1)
+    .flatMap((group) => group.sort((a, b) => b.expiry - a.expiry).slice(1))
+    .map((session) => session.topic);
+
+  await Promise.all(staleTopics.map((topic) => disconnectSession(topic).catch(() => {})));
+}
+
+export async function pairWithUri(uri: string): Promise<void> {
+  if (!walletKit) await initWalletKit();
   if (!walletKit) throw new Error('WalletKit not initialised');
+  console.log('[WalletConnect] pairing, relayer.connected =', walletKit.core.relayer.connected);
   return walletKit.pair({ uri });
 }
 
@@ -53,12 +111,25 @@ export async function approveProposal(
 ): Promise<void> {
   if (!walletKit) throw new Error('WalletKit not initialised');
   const { id, params } = proposal;
+
+  // Prevent duplicate rows in the Connected Apps list: without this, scanning
+  // the same dApp's QR twice creates two live sessions with different topics
+  // but identical peer metadata, since WalletConnect itself doesn't dedupe.
+  const proposerUrl = params.proposer.metadata.url;
+  const existingSessions = Object.values(walletKit.getActiveSessions());
+  await Promise.all(
+    existingSessions
+      .filter((session) => session.peer.metadata.url === proposerUrl)
+      .map((session) => disconnectSession(session.topic).catch(() => {})),
+  );
+
+  const chain = getWcChain();
   const namespaces = buildApprovedNamespaces({
     proposal: params,
     supportedNamespaces: {
       stellar: {
-        chains: [WC_CHAIN],
-        accounts: [`${WC_CHAIN}:${gAddress}`],
+        chains: [chain],
+        accounts: [`${chain}:${gAddress}`],
         methods: WC_METHODS,
         events: WC_EVENTS,
       },
@@ -84,7 +155,7 @@ export async function approveSignRequest(
     chainId,
   } = params;
 
-  if (chainId !== WC_CHAIN) {
+  if (chainId !== getWcChain()) {
     await walletKit.respondSessionRequest({
       topic,
       response: { id, jsonrpc: '2.0', error: getSdkError('UNSUPPORTED_CHAINS') },
@@ -166,4 +237,19 @@ export function getActiveSessions() {
 export async function disconnectSession(topic: string): Promise<void> {
   if (!walletKit) return;
   await walletKit.disconnectSession({ topic, reason: getSdkError('USER_DISCONNECTED') });
+}
+
+// A session approved under one chain (e.g. stellar:testnet:G...) is invalid
+// once the active network changes — used by network-switch.ts so a dApp can't
+// keep sending requests against a chain the wallet no longer has active.
+export async function disconnectAllSessions(): Promise<void> {
+  if (!walletKit) return;
+  const sessions = walletKit.getActiveSessions();
+  await Promise.all(
+    Object.keys(sessions).map((topic) =>
+      disconnectSession(topic).catch(() => {
+        /* best-effort — a session already gone counts as disconnected */
+      }),
+    ),
+  );
 }

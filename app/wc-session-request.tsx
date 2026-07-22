@@ -9,7 +9,7 @@ import { confirmAuth } from '@/src/utils/confirm-auth';
 import * as SecureStore from 'expo-secure-store';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Alert, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -19,8 +19,16 @@ export default function WCSessionRequestScreen() {
   const { activeAccountIndex } = useWalletStore();
   const [loading, setLoading] = useState(false);
 
+  // router.back() updates NavigationContainer's state — doing it inline during
+  // render (instead of an effect) trips React's "Cannot update a component
+  // while rendering a different component" warning.
+  useEffect(() => {
+    if (!pendingRequest || !walletKit) {
+      router.back();
+    }
+  }, [pendingRequest]);
+
   if (!pendingRequest || !walletKit) {
-    router.back();
     return null;
   }
 
@@ -39,8 +47,11 @@ export default function WCSessionRequestScreen() {
       const mnemonic = await SecureStore.getItemAsync(SECURE_KEYS.MNEMONIC);
       if (!mnemonic) throw new Error('No mnemonic found');
       await approveSignRequest(pendingRequest, mnemonic, activeAccountIndex);
+      // Don't also call router.back() here — the effect above does it when
+      // pendingRequest flips to null. Calling it in both places double-pops
+      // the modal (second pop races the first mid-transition — the "presenting
+      // a screen whose view is not in the window hierarchy" freeze).
       setPendingRequest(null);
-      router.back();
     } catch (e: any) {
       Alert.alert('Signing failed', e?.message ?? 'Unknown error');
     } finally {
@@ -55,7 +66,6 @@ export default function WCSessionRequestScreen() {
       // best-effort
     }
     setPendingRequest(null);
-    router.back();
   };
 
   return (

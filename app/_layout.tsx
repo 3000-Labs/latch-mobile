@@ -11,20 +11,18 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { LogBox } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import 'react-native-get-random-values';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import 'react-native-reanimated';
 import Toast from 'react-native-toast-message';
 import '../shim';
-// Now you can import libraries that need crypto
 import { Buffer } from 'buffer';
 import { Stack } from 'expo-router';
-import { install } from 'react-native-quick-crypto';
 import { queryClient } from '../src/api/client';
 import { toastConfig } from '../src/components/toast/toastConfig';
 import { useNetworkStatus } from '../src/hooks/use-network-status';
 import { useOtaUpdate } from '../src/hooks/use-ota-update';
 import { useWalletConnect } from '../src/hooks/use-walletconnect';
+import { useWalletConnectDeepLink } from '../src/hooks/use-walletconnect-deeplink';
 import { AppThemeProvider, useAppTheme } from '../src/theme/ThemeContext';
 
 // Wire React Query's online/offline state to the device's actual connectivity.
@@ -35,7 +33,6 @@ onlineManager.setEventListener((setOnline) =>
   ),
 );
 
-install();
 global.Buffer = Buffer;
 
 if (process.env.EXPO_PUBLIC_SENTRY_DSN) {
@@ -58,6 +55,7 @@ function RootLayoutContent() {
   const { isDark } = useAppTheme();
   useOtaUpdate();
   useWalletConnect();
+  useWalletConnectDeepLink();
   useNetworkStatus();
 
   return (

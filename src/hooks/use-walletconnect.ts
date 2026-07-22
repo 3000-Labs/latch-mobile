@@ -17,9 +17,17 @@ export function useWalletConnect() {
 
   useEffect(() => {
     let mounted = true;
+    let retryTimeout: ReturnType<typeof setTimeout> | undefined;
 
     const init = async () => {
-      await initWalletKit();
+      try {
+        await initWalletKit();
+      } catch (err) {
+        console.error('[WalletConnect] init failed, retrying in 5s', err);
+        if (mounted) retryTimeout = setTimeout(init, 5000);
+        return;
+      }
+
       if (!mounted || !walletKit) return;
 
       storeRef.current.setActiveSessions(getActiveSessions());
@@ -39,9 +47,10 @@ export function useWalletConnect() {
       });
     };
 
-    init().catch(console.error);
+    init();
     return () => {
       mounted = false;
+      clearTimeout(retryTimeout);
     };
   }, []);
 }
