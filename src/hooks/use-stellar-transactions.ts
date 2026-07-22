@@ -244,7 +244,7 @@
 import { Address, Asset, Keypair, scValToNative, xdr } from '@stellar/stellar-sdk';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { HORIZON_URL, STELLAR_NETWORK_PASSPHRASE, STELLAR_RPC_URL } from '../constants/config';
-import { WELL_KNOWN_TOKENS } from '../constants/known-tokens';
+import { getWellKnownTokens } from '../constants/known-tokens';
 import { useWalletStore } from '../store/wallet';
 
 // Derived once at module load — safe since the secret is EXPO_PUBLIC_* (client-visible)
@@ -531,21 +531,35 @@ async function fetchBundlerOps(cAddress: string): Promise<StellarPayment[]> {
 // previous 14+ batched requests.
 // Coverage limited to the RPC retention window (~7 days / ~17,000 ledgers).
 
-const SAC_CONTRACT_INFO = new Map<string, { code: string; assetType: string }>();
+let sacContractInfoCache: Map<string, { code: string; assetType: string }> | null = null;
 
-try {
-  SAC_CONTRACT_INFO.set(Asset.native().contractId(STELLAR_NETWORK_PASSPHRASE), {
-    code: 'XLM',
-    assetType: 'native',
-  });
-} catch {}
+// Contract ids are network-specific — a switch (src/lib/network-switch.ts)
+// must drop this memoized cache or it keeps resolving the old network's ids.
+export function resetSacContractInfoCache(): void {
+  sacContractInfoCache = null;
+}
 
-for (const t of WELL_KNOWN_TOKENS) {
+function getSacContractInfo(): Map<string, { code: string; assetType: string }> {
+  if (sacContractInfoCache) return sacContractInfoCache;
+
+  const map = new Map<string, { code: string; assetType: string }>();
   try {
-    const id =
-      t.sacContractId ?? new Asset(t.code, t.issuer!).contractId(STELLAR_NETWORK_PASSPHRASE);
-    SAC_CONTRACT_INFO.set(id, { code: t.code, assetType: 'credit_alphanum4' });
+    map.set(Asset.native().contractId(STELLAR_NETWORK_PASSPHRASE), {
+      code: 'XLM',
+      assetType: 'native',
+    });
   } catch {}
+
+  for (const t of getWellKnownTokens()) {
+    try {
+      const id =
+        t.sacContractId ?? new Asset(t.code, t.issuer!).contractId(STELLAR_NETWORK_PASSPHRASE);
+      map.set(id, { code: t.code, assetType: 'credit_alphanum4' });
+    } catch {}
+  }
+
+  sacContractInfoCache = map;
+  return map;
 }
 
 async function fetchSacTransferEvents(cAddress: string): Promise<StellarPayment[]> {
@@ -613,7 +627,7 @@ async function fetchSacTransferEvents(cAddress: string): Promise<StellarPayment[
       const amountRaw = scValToNative(xdr.ScVal.fromXDR(event.value, 'base64'));
       const rawValue = typeof amountRaw === 'bigint' ? amountRaw : BigInt(amountRaw ?? 0);
 
-      const assetInfo = SAC_CONTRACT_INFO.get(event.contractId) ?? {
+      const assetInfo = getSacContractInfo().get(event.contractId) ?? {
         code: 'XLM',
         assetType: 'native',
       };

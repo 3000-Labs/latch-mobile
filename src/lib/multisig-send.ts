@@ -28,7 +28,7 @@
  */
 
 import { parseSimResult, sorobanCall, toBase64, txToBase64 } from '@/src/api/smart-account';
-import { ACTIVE_NETWORK, STELLAR_NETWORK_PASSPHRASE, STELLAR_RPC_URL } from '@/src/constants/config';
+import { getNetworkId, STELLAR_NETWORK_PASSPHRASE, STELLAR_RPC_URL } from '@/src/constants/config';
 import { deriveWalletAtIndex } from '@/src/lib/seed-wallet';
 import { aggregateAuthEntries } from '@/src/lib/soroban-auth-payload';
 import {
@@ -51,8 +51,6 @@ import {
   TransactionBuilder,
   xdr,
 } from '@stellar/stellar-sdk';
-
-const NETWORK: 'testnet' | 'mainnet' = ACTIVE_NETWORK.network === 'TESTNET' ? 'testnet' : 'mainnet';
 
 // ─── Logging ───────────────────────────────────────────────────────────────
 // Dev-gated under [multisig-send] so the full transfer process is filterable
@@ -152,7 +150,13 @@ export interface CollectedEntry {
  */
 export async function buildAssembledTransfer(p: BuildTransferParams): Promise<AssembledTransfer> {
   const { multisigAddress, sacContractId, destinationAddress, amount } = p;
-  log('build ▶', { multisigAddress, sacContractId, destinationAddress, amount, network: NETWORK });
+  log('build ▶', {
+    multisigAddress,
+    sacContractId,
+    destinationAddress,
+    amount,
+    network: getNetworkId(),
+  });
 
   const bundler = Keypair.fromSecret(bundlerSecret());
   const account = await loadAccount(bundler.publicKey());
@@ -225,7 +229,7 @@ export interface BuildOperationParams {
  */
 export async function buildAssembledOperation(p: BuildOperationParams): Promise<AssembledTransfer> {
   const { multisigAddress, operation } = p;
-  log('buildOp ▶', { multisigAddress, network: NETWORK });
+  log('buildOp ▶', { multisigAddress, network: getNetworkId() });
 
   const bundler = Keypair.fromSecret(bundlerSecret());
   const account = await loadAccount(bundler.publicKey());

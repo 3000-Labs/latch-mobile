@@ -1,4 +1,9 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Networks } from '@stellar/stellar-sdk';
+
+import { ACTIVE_NETWORK_STORAGE_KEY } from './network-storage-key';
+
+export { ACTIVE_NETWORK_STORAGE_KEY };
 
 // ─── Stellar / Soroban ────────────────────────────────────────────────────────
 const STELLAR_AUTH_PREFIX = 'Stellar Smart Account Auth:\n';
@@ -30,13 +35,26 @@ export const MAINNET_NETWORK: NetworkDetails = {
   sorobanRpcUrl: 'https://mainnet.sorobanrpc.com',
 };
 
-// Active network — switch this one constant to move the whole app between networks.
-export const ACTIVE_NETWORK: NetworkDetails = TESTNET_NETWORK;
+// Persisted network choice, read synchronously off `global` — set by index.js's
+// bootstrap (an AsyncStorage read) *before* anything else in the app is required.
+// Every module that derives a value from ACTIVE_NETWORK at its own top level
+// (e.g. known-tokens.ts, swap/registry.ts) depends on this being resolved
+// before it is ever imported, not just before it renders — see index.js.
+declare global {
+  var __LATCH_NETWORK_OVERRIDE__: string | null | undefined;
+}
+
+// `let`, not `const` — switchActiveNetwork() (src/lib/network-switch.ts) reassigns
+// these live, without an app restart. Every reader is inside a function body
+// (hook, event handler, render), never a module-top-level computation, so the
+// live binding is picked up on the next call/render — see network-switch.ts.
+export let ACTIVE_NETWORK: NetworkDetails =
+  global.__LATCH_NETWORK_OVERRIDE__ === 'mainnet' ? MAINNET_NETWORK : TESTNET_NETWORK;
 
 // Convenience shortcuts derived from the active network
-const HORIZON_URL = ACTIVE_NETWORK.horizonUrl;
-const STELLAR_NETWORK_PASSPHRASE = ACTIVE_NETWORK.networkPassphrase;
-const STELLAR_RPC_URL = ACTIVE_NETWORK.sorobanRpcUrl;
+let HORIZON_URL = ACTIVE_NETWORK.horizonUrl;
+let STELLAR_NETWORK_PASSPHRASE = ACTIVE_NETWORK.networkPassphrase;
+let STELLAR_RPC_URL = ACTIVE_NETWORK.sorobanRpcUrl;
 const STELLAR_VERIFIER_ADDRESS =
   process.env.EXPO_PUBLIC_VERIFIER_ADDRESS ??
   'CCRB63MFFBYXBZCRLRGLJVTHC7O4SUGAYTO5ZZEUNVY5W5DVGKHETI67';
@@ -58,7 +76,29 @@ const SOROSWAP_API_URL = (
 ).replace(/\/+$/, '');
 const SOROSWAP_API_KEY = process.env.EXPO_PUBLIC_SOROSWAP_API_KEY ?? '';
 // Soroswap expects the network as a lowercase query param (?network=testnet|mainnet).
-const SOROSWAP_NETWORK = ACTIVE_NETWORK.network === 'TESTNET' ? 'testnet' : 'mainnet';
+let SOROSWAP_NETWORK = getNetworkId();
+
+/** `'testnet' | 'mainnet'` form of ACTIVE_NETWORK, used across cosign/multisig/swap code. */
+export function getNetworkId(): 'testnet' | 'mainnet' {
+  return ACTIVE_NETWORK.network === 'TESTNET' ? 'testnet' : 'mainnet';
+}
+
+/**
+ * Live network switch — no app restart. Reassigns every derived config value
+ * in place (live ES-module bindings, so every importer sees the update on its
+ * next read) and persists the choice so a later cold start also honors it.
+ * Callers are responsible for the side effects this doesn't own: disconnecting
+ * WalletConnect sessions and clearing React Query's cache — see
+ * src/lib/network-switch.ts.
+ */
+export async function setActiveNetworkDetails(details: NetworkDetails): Promise<void> {
+  ACTIVE_NETWORK = details;
+  HORIZON_URL = details.horizonUrl;
+  STELLAR_NETWORK_PASSPHRASE = details.networkPassphrase;
+  STELLAR_RPC_URL = details.sorobanRpcUrl;
+  SOROSWAP_NETWORK = getNetworkId();
+  await AsyncStorage.setItem(ACTIVE_NETWORK_STORAGE_KEY, getNetworkId());
+}
 
 // ─── Aquarius AMM (testnet swap liquidity) ────────────────────────────────────
 // Soroswap has no testnet pools, but Aquarius does. These are TESTNET values —

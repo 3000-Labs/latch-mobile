@@ -5,7 +5,7 @@ import SwapCard from '@/src/components/swap/SwapCard';
 import SwapTokenPickerSheet from '@/src/components/swap/SwapTokenPickerSheet';
 import { swapTokenImage } from '@/src/components/swap/token-image';
 import { STELLAR_NETWORK_PASSPHRASE } from '@/src/constants/config';
-import { WELL_KNOWN_TOKENS } from '@/src/constants/known-tokens';
+import { getWellKnownTokens } from '@/src/constants/known-tokens';
 import { usePortfolio } from '@/src/hooks/use-portfolio';
 import { usePrices } from '@/src/hooks/use-prices';
 import { useSwapQuote } from '@/src/hooks/use-swap-quote';
@@ -81,8 +81,8 @@ const Swap = () => {
       }
     };
     addConfig('XLM', undefined, Asset.native().contractId(STELLAR_NETWORK_PASSPHRASE));
-    // for (const t of [...WELL_KNOWN_TOKENS, ...trackedTokens]) {
-    for (const t of [...WELL_KNOWN_TOKENS]) {
+    // for (const t of [...getWellKnownTokens(), ...trackedTokens]) {
+    for (const t of getWellKnownTokens()) {
       try {
         const sac =
           t.sacContractId ?? new Asset(t.code, t.issuer!).contractId(STELLAR_NETWORK_PASSPHRASE);

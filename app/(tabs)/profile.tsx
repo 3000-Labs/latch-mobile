@@ -31,6 +31,7 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import { ScrollView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ACTIVE_NETWORK } from '@/src/constants/config';
 import { BIOMETRIC_ENABLED_KEY } from '../(auth)/biometric';
 
 const Profile = () => {
@@ -49,6 +50,7 @@ const Profile = () => {
   // const [policiesVisible, setPoliciesVisible] = useState(false);
   const [addressBookVisible, setAddressBookVisible] = useState(false);
   const [networkVisible, setNetworkVisible] = useState(false);
+  const [, forceNetworkLabelRefresh] = useState(0);
   const [notificationsVisible, setNotificationsVisible] = useState(false);
   const [helpSupportVisible, setHelpSupportVisible] = useState(false);
   const [aboutVisible, setAboutVisible] = useState(false);
@@ -132,7 +134,11 @@ const Profile = () => {
           visible={addressBookVisible}
           onClose={() => setAddressBookVisible(false)}
         />
-        <NetworkSheet visible={networkVisible} onClose={() => setNetworkVisible(false)} />
+        <NetworkSheet
+          visible={networkVisible}
+          onClose={() => setNetworkVisible(false)}
+          onNetworkChanged={() => forceNetworkLabelRefresh((n) => n + 1)}
+        />
         <NotificationSheet
           visible={notificationsVisible}
           onClose={() => setNotificationsVisible(false)}
@@ -257,7 +263,7 @@ const Profile = () => {
             <SettingItem
               icon="globe-outline"
               label="Network"
-              value={'Testnet'}
+              value={ACTIVE_NETWORK.network === 'TESTNET' ? 'Testnet' : 'Public Network'}
               onPress={() => setNetworkVisible(true)}
             />
             <SettingItem

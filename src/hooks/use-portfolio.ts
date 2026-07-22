@@ -23,7 +23,7 @@
 import { Address, Asset, scValToNative, xdr } from '@stellar/stellar-sdk';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { HORIZON_URL, STELLAR_NETWORK_PASSPHRASE, STELLAR_RPC_URL } from '../constants/config';
-import { WELL_KNOWN_TOKENS, type TokenConfig } from '../constants/known-tokens';
+import { getWellKnownTokens, type TokenConfig } from '../constants/known-tokens';
 import { fetchAccountBalances, GraphQLError } from '../api/wallet-backend';
 import { ensureWalletSession, reSignInWallet } from '../lib/wallet-auth';
 import { useWalletStore } from '../store/wallet';
@@ -186,7 +186,7 @@ async function fetchPortfolio(
   const tokenMap = new Map<string, TokenConfig>();
 
   // 1. Well-known tokens — auto-detected; zero-balance ones are filtered out below
-  for (const t of WELL_KNOWN_TOKENS) {
+  for (const t of getWellKnownTokens()) {
     const key = t.sacContractId ?? `${t.code}:${t.issuer}`;
     tokenMap.set(key, t);
   }
