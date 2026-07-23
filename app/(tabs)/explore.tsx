@@ -47,6 +47,13 @@ const RECOMMENDED_DAPPS = [
     url: 'https://stellar.expert',
     icon: require('@/src/assets/token/stellar.png'),
   },
+  {
+    id: '4',
+    name: 'Blend Capital',
+    description: 'Lending & borrowing',
+    url: 'https://mainnet.blend.capital',
+    icon: require('@/src/assets/token/stellar.png'),
+  },
 ];
 
 // Tokens to feature in the trending section — XLM first, then well-known tokens.
