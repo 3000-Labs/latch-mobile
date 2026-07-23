@@ -35,21 +35,15 @@ export const MAINNET_NETWORK: NetworkDetails = {
   sorobanRpcUrl: 'https://mainnet.sorobanrpc.com',
 };
 
-// Persisted network choice, read synchronously off `global` — set by index.js's
-// bootstrap (an AsyncStorage read) *before* anything else in the app is required.
-// Every module that derives a value from ACTIVE_NETWORK at its own top level
-// (e.g. known-tokens.ts, swap/registry.ts) depends on this being resolved
-// before it is ever imported, not just before it renders — see index.js.
-declare global {
-  var __LATCH_NETWORK_OVERRIDE__: string | null | undefined;
-}
-
 // `let`, not `const` — switchActiveNetwork() (src/lib/network-switch.ts) reassigns
 // these live, without an app restart. Every reader is inside a function body
 // (hook, event handler, render), never a module-top-level computation, so the
 // live binding is picked up on the next call/render — see network-switch.ts.
-export let ACTIVE_NETWORK: NetworkDetails =
-  global.__LATCH_NETWORK_OVERRIDE__ === 'mainnet' ? MAINNET_NETWORK : TESTNET_NETWORK;
+//
+// Starts on testnet and is corrected by hydrateActiveNetwork() during startup.
+// The app root gates rendering on that hydration, so nothing reads a network
+// value before the persisted choice has been applied.
+export let ACTIVE_NETWORK: NetworkDetails = TESTNET_NETWORK;
 
 // Convenience shortcuts derived from the active network
 let HORIZON_URL = ACTIVE_NETWORK.horizonUrl;
@@ -92,12 +86,31 @@ export function getNetworkId(): 'testnet' | 'mainnet' {
  * src/lib/network-switch.ts.
  */
 export async function setActiveNetworkDetails(details: NetworkDetails): Promise<void> {
+  applyNetworkDetails(details);
+  await AsyncStorage.setItem(ACTIVE_NETWORK_STORAGE_KEY, getNetworkId());
+}
+
+function applyNetworkDetails(details: NetworkDetails): void {
   ACTIVE_NETWORK = details;
   HORIZON_URL = details.horizonUrl;
   STELLAR_NETWORK_PASSPHRASE = details.networkPassphrase;
   STELLAR_RPC_URL = details.sorobanRpcUrl;
   SOROSWAP_NETWORK = getNetworkId();
-  await AsyncStorage.setItem(ACTIVE_NETWORK_STORAGE_KEY, getNetworkId());
+}
+
+/**
+ * Applies the persisted network choice on cold start. Must resolve before the
+ * app renders anything that reads a network value — the root layout gates on it.
+ * Unlike setActiveNetworkDetails it doesn't write back to storage, since it's
+ * applying what storage already said.
+ */
+export async function hydrateActiveNetwork(): Promise<void> {
+  try {
+    const stored = await AsyncStorage.getItem(ACTIVE_NETWORK_STORAGE_KEY);
+    if (stored === 'mainnet') applyNetworkDetails(MAINNET_NETWORK);
+  } catch {
+    // Storage unavailable — keep the testnet default rather than blocking launch.
+  }
 }
 
 // ─── Aquarius AMM (testnet swap liquidity) ────────────────────────────────────

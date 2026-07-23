@@ -8,7 +8,7 @@ import '@walletconnect/react-native-compat';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { LogBox } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
@@ -18,6 +18,7 @@ import '../shim';
 import { Buffer } from 'buffer';
 import { Stack } from 'expo-router';
 import { queryClient } from '../src/api/client';
+import { hydrateActiveNetwork } from '../src/constants/config';
 import { toastConfig } from '../src/components/toast/toastConfig';
 import { useNetworkStatus } from '../src/hooks/use-network-status';
 import { useOtaUpdate } from '../src/hooks/use-ota-update';
@@ -87,6 +88,14 @@ function RootLayoutContent() {
 }
 
 export default function RootLayout() {
+  // Gates rendering until the persisted network choice is applied, so no query
+  // or screen reads a network-derived value while it's still the default.
+  const [networkReady, setNetworkReady] = useState(false);
+
+  useEffect(() => {
+    hydrateActiveNetwork().finally(() => setNetworkReady(true));
+  }, []);
+
   const [fontsLoaded] = useFonts({
     SFproThin: require('../assets/fonts/SFPRO-Thin.ttf'),
     SFproRegular: require('../assets/fonts/SFPRO-Regular.ttf'),
@@ -101,14 +110,14 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    if (fontsLoaded) {
+    if (fontsLoaded && networkReady) {
       setTimeout(() => {
         SplashScreen.hideAsync().catch(() => {});
       }, 500);
     }
-  }, [fontsLoaded]);
+  }, [fontsLoaded, networkReady]);
 
-  if (!fontsLoaded) {
+  if (!fontsLoaded || !networkReady) {
     return null;
   }
 
