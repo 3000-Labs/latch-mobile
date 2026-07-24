@@ -5,7 +5,9 @@ import { onlineManager, QueryClientProvider } from '@tanstack/react-query';
 import { IconRegistry } from '@ui-kitten/components';
 import { EvaIconsPack } from '@ui-kitten/eva-icons';
 import '@walletconnect/react-native-compat';
+import { Buffer } from 'buffer';
 import { useFonts } from 'expo-font';
+import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
@@ -15,11 +17,9 @@ import { KeyboardProvider } from 'react-native-keyboard-controller';
 import 'react-native-reanimated';
 import Toast from 'react-native-toast-message';
 import '../shim';
-import { Buffer } from 'buffer';
-import { Stack } from 'expo-router';
 import { queryClient } from '../src/api/client';
-import { hydrateActiveNetwork } from '../src/constants/config';
 import { toastConfig } from '../src/components/toast/toastConfig';
+import { hydrateActiveNetwork } from '../src/constants/config';
 import { useNetworkStatus } from '../src/hooks/use-network-status';
 import { useOtaUpdate } from '../src/hooks/use-ota-update';
 import { useWalletConnect } from '../src/hooks/use-walletconnect';
@@ -40,7 +40,11 @@ if (process.env.EXPO_PUBLIC_SENTRY_DSN) {
   Sentry.init({
     dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
     environment: process.env.EXPO_PUBLIC_APP_ENV ?? 'development',
-    enabled: process.env.EXPO_PUBLIC_APP_ENV === 'production',
+    // Any non-dev build, not just production: a TestFlight/preview build is
+    // precisely the case that can't be debugged locally, and console.* is
+    // stripped there (metro.config.js drop_console), so Sentry is the only
+    // channel left. `environment` still separates staging from production.
+    enabled: !__DEV__,
   });
 }
 

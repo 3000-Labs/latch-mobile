@@ -1,8 +1,9 @@
 import NetInfo from '@react-native-community/netinfo';
+import * as Sentry from '@sentry/react-native';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 
-import { pairWithUri, walletKit } from '@/src/lib/walletconnect';
+import { getRelayAppId, pairWithUri, walletKit } from '@/src/lib/walletconnect';
 import { useWalletConnectStore } from '@/src/store/walletconnect';
 
 const PAIRING_TIMEOUT_MS = 15_000;
@@ -45,8 +46,14 @@ export function useWalletConnectPairing() {
         return;
       }
 
+      // Both flags are `boolean | null` — null means "not determined yet", which
+      // is the normal state for the first second or so after launch (and the
+      // whole time the reachability probe is blocked). Only an explicit `false`
+      // is evidence of being offline; treating null as offline aborted pairing
+      // before it started on cold launches from a wc: deep link and on cellular,
+      // neither of which reproduce on a simulator sharing the Mac's connection.
       const net = await NetInfo.fetch();
-      if (!net.isConnected || !net.isInternetReachable) {
+      if (net.isConnected === false || net.isInternetReachable === false) {
         Alert.alert('No internet', 'Connect to the internet before pairing with WalletConnect.');
         return;
       }
@@ -60,6 +67,18 @@ export function useWalletConnectPairing() {
         console.warn(
           `[WalletConnect] pairing timed out after ${PAIRING_TIMEOUT_MS}ms — relayer.connected=${relayConnected}`,
         );
+        Sentry.captureMessage('[WalletConnect] pairing timed out', {
+          level: 'error',
+          extra: {
+            timeoutMs: PAIRING_TIMEOUT_MS,
+            relayConnected,
+            walletKitInitialised: walletKit !== null,
+            // The relay rejects app ids that aren't on the Reown allowlist, and
+            // a release build's id differs from the dev one — so this field is
+            // what distinguishes an allowlist rejection from a network failure.
+            appId: getRelayAppId(),
+          },
+        });
         Alert.alert(
           'Connection failed',
           relayConnected

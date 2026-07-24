@@ -10,6 +10,7 @@
  */
 
 import { WalletKit, type IWalletKit, type WalletKitTypes } from '@reown/walletkit';
+import * as Sentry from '@sentry/react-native';
 import { Core } from '@walletconnect/core';
 import { buildApprovedNamespaces, getSdkError } from '@walletconnect/utils';
 import { FeeBumpTransaction, Transaction, TransactionBuilder } from '@stellar/stellar-sdk';
@@ -39,6 +40,33 @@ const METADATA = {
 
 export let walletKit: IWalletKit | null = null;
 
+// The relay identifies the app by the bundle id (iOS) / package name (Android)
+// that @walletconnect/react-native-compat reads from expo-application, and
+// rejects the socket when it isn't on the Reown project's allowlist. Reporting
+// what the relay actually saw is the only way to tell that apart from a plain
+// network failure — a release build's bundle id differs from the dev one
+// (app.config.js switches on APP_NAME), so this fails on TestFlight only.
+export function getRelayAppId(): string | undefined {
+  const relayer = walletKit?.core.relayer as
+    | { bundleId?: string; packageName?: string }
+    | undefined;
+  return relayer?.bundleId ?? relayer?.packageName;
+}
+
+// console.* is stripped from release bundles (metro.config.js drop_console), so
+// anything logged here is invisible in TestFlight. Sentry is the only channel
+// that survives; it's a no-op when Sentry.init was skipped (see app/_layout.tsx).
+function reportRelay(
+  message: string,
+  level: Sentry.SeverityLevel,
+  extra?: Record<string, unknown>,
+): void {
+  Sentry.captureMessage(`[WalletConnect] ${message}`, {
+    level,
+    extra: { appId: getRelayAppId(), projectId: PROJECT_ID, ...extra },
+  });
+}
+
 // Tracked as a promise (not just the walletKit null-check) so concurrent callers
 // share one in-flight init instead of racing separate Core/WalletKit instances,
 // and a failed attempt (e.g. WalletKit.init's AsyncStorage read/write failing
@@ -57,14 +85,33 @@ export function initWalletKit(): Promise<void> {
       // these events tell us whether the relay socket ever connected at all vs.
       // connected fine but the subscribe RPC itself stalled.
       const relayer = walletKit.core.relayer;
-      relayer.on('relayer_connect', () => console.log('[WalletConnect] relayer connected'));
-      relayer.on('relayer_disconnect', () => console.warn('[WalletConnect] relayer disconnected'));
-      relayer.on('relayer_error', (err: unknown) =>
-        console.warn('[WalletConnect] relayer error', err),
-      );
-      relayer.on('relayer_connection_stalled', () =>
-        console.warn('[WalletConnect] relayer connection stalled'),
-      );
+      relayer.on('relayer_connect', () => {
+        console.log('[WalletConnect] relayer connected');
+        Sentry.addBreadcrumb({
+          category: 'walletconnect',
+          message: 'relayer connected',
+          level: 'info',
+          data: { appId: getRelayAppId() },
+        });
+      });
+      relayer.on('relayer_disconnect', () => {
+        console.warn('[WalletConnect] relayer disconnected');
+        Sentry.addBreadcrumb({
+          category: 'walletconnect',
+          message: 'relayer disconnected',
+          level: 'warning',
+        });
+      });
+      relayer.on('relayer_error', (err: unknown) => {
+        console.warn('[WalletConnect] relayer error', err);
+        reportRelay('relayer error', 'error', {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+      relayer.on('relayer_connection_stalled', () => {
+        console.warn('[WalletConnect] relayer connection stalled');
+        reportRelay('relayer connection stalled', 'warning');
+      });
 
       // One-time cleanup for duplicate sessions created before approveProposal
       // started disconnecting the old one on reconnect (see approveProposal).
