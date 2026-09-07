@@ -66,10 +66,59 @@ export interface ProvisionPasskeyOptions {
   displayName?: string;
 }
 
+export type ProvisionedPlatformPasskey = Omit<
+  ProvisionedPasskey,
+  'kind' | 'deviceOnlyReason' | 'biometricGate'
+> & {
+  kind: 'platform';
+};
+
+/**
+ * Stable error used when the native passkey API is unavailable. Callers may
+ * use the code to show an unsupported-device message without parsing text.
+ */
+export class PlatformPasskeyUnsupportedError extends Error {
+  readonly code = 'PLATFORM_PASSKEY_UNSUPPORTED';
+
+  constructor() {
+    super('This device does not support platform passkeys.');
+    this.name = 'PlatformPasskeyUnsupportedError';
+  }
+}
+
 // Moved to ./passkey-failure so the signing path can share it without closing
 // an import cycle through this module. Re-exported because this has been its
 // import site since it was written.
 export { describePasskeyFailure };
+
+/**
+ * Create and store a real OS-managed platform passkey, with no local-key
+ * fallback. This is the provisioning boundary for new-wallet onboarding.
+ *
+ * A rejected system ceremony is deliberately allowed to propagate. In
+ * particular, user cancellation, missing providers, and RP configuration
+ * errors must never be converted into a different wallet signer.
+ */
+export async function provisionPlatformPasskeyAtIndex(
+  listIndex: number,
+  options: Pick<ProvisionPasskeyOptions, 'displayName'> = {},
+): Promise<ProvisionedPlatformPasskey> {
+  if (!isPlatformPasskeySupported()) {
+    throw new PlatformPasskeyUnsupportedError();
+  }
+
+  const credential = await createPlatformPasskeyCredential({
+    rpId: PASSKEY_RP_ID,
+    rpName: 'Latch',
+    userId: new Uint8Array(QuickCrypto.randomBytes(16)),
+    userName: 'latch-wallet',
+    userDisplayName: options.displayName || 'Latch Wallet',
+    challenge: new Uint8Array(QuickCrypto.randomBytes(32)),
+  });
+
+  await storePlatformPasskeyCredentialAtIndex(credential, listIndex, PASSKEY_RP_ID);
+  return { ...credential, kind: 'platform' };
+}
 
 /**
  * Whether the OS can bind a stored key to a biometric.

@@ -13,7 +13,9 @@ import {
   describePasskeyFailure,
   notifyIfDeviceOnly,
   notifyIfWeakBiometricGate,
+  PlatformPasskeyUnsupportedError,
   provisionPasskeyAtIndex,
+  provisionPlatformPasskeyAtIndex,
 } from '../provision-passkey';
 
 jest.mock('react-native', () => ({ Alert: { alert: jest.fn() } }));
@@ -46,12 +48,12 @@ jest.mock('@/src/constants/config', () => ({ PASSKEY_RP_ID: 'latch.finance' }));
 
 const stored: Record<string, unknown> = {};
 jest.mock('../passkey-webauthn', () => ({
-  createPasskeyCredential: () => ({
+  createPasskeyCredential: jest.fn(() => ({
     credentialId: 'aabb',
     publicKeyHex: '04' + '11'.repeat(64),
     privateKeyHex: '22'.repeat(32),
     keyDataHex: '04' + '11'.repeat(64) + 'aabb',
-  }),
+  })),
   storePasskeyCredentialAtIndex: jest.fn((credential, index, requireBiometric) => {
     stored.local = { credential, index, requireBiometric };
     return Promise.resolve();
@@ -75,6 +77,113 @@ jest.mock('../platform-passkey', () => ({
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const platformModule = require('../platform-passkey');
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const passkeyStorage = require('../passkey-webauthn');
+
+describe('provisionPlatformPasskeyAtIndex', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    delete stored.local;
+    delete stored.platform;
+    (platformModule.isPlatformPasskeySupported as jest.Mock).mockReturnValue(true);
+  });
+
+  it('stores and returns only the OS-managed platform credential', async () => {
+    (platformModule.createPlatformPasskeyCredential as jest.Mock).mockResolvedValue(
+      platformCredential,
+    );
+
+    const result = await provisionPlatformPasskeyAtIndex(3, {
+      displayName: 'Primary wallet',
+    });
+
+    expect(result).toEqual({ ...platformCredential, kind: 'platform' });
+    expect(platformModule.createPlatformPasskeyCredential).toHaveBeenCalledWith(
+      expect.objectContaining({
+        rpId: 'latch.finance',
+        rpName: 'Latch',
+        userName: 'latch-wallet',
+        userDisplayName: 'Primary wallet',
+      }),
+    );
+    expect(passkeyStorage.storePlatformPasskeyCredentialAtIndex).toHaveBeenCalledWith(
+      platformCredential,
+      3,
+      'latch.finance',
+    );
+    expect(passkeyStorage.createPasskeyCredential).not.toHaveBeenCalled();
+    expect(passkeyStorage.storePasskeyCredentialAtIndex).not.toHaveBeenCalled();
+  });
+
+  it('rejects unsupported devices without starting a ceremony or creating a local key', async () => {
+    (platformModule.isPlatformPasskeySupported as jest.Mock).mockReturnValue(false);
+
+    await expect(provisionPlatformPasskeyAtIndex(0)).rejects.toMatchObject({
+      name: 'PlatformPasskeyUnsupportedError',
+      code: 'PLATFORM_PASSKEY_UNSUPPORTED',
+    });
+
+    expect(platformModule.createPlatformPasskeyCredential).not.toHaveBeenCalled();
+    expect(passkeyStorage.createPasskeyCredential).not.toHaveBeenCalled();
+    expect(passkeyStorage.storePasskeyCredentialAtIndex).not.toHaveBeenCalled();
+    expect(passkeyStorage.storePlatformPasskeyCredentialAtIndex).not.toHaveBeenCalled();
+  });
+
+  it('exports a recognizable unsupported-platform error', () => {
+    const error = new PlatformPasskeyUnsupportedError();
+
+    expect(error).toBeInstanceOf(Error);
+    expect(error.code).toBe('PLATFORM_PASSKEY_UNSUPPORTED');
+  });
+
+  it.each([
+    [
+      'user cancellation',
+      { error: 'UserCancelled', message: 'The user cancelled the request.' },
+    ],
+    ['provider failure', { error: 'NoCreateOption', message: 'No provider is available.' }],
+    [
+      'RP configuration failure',
+      { error: 'BadConfiguration', message: 'The relying party cannot be validated.' },
+    ],
+  ])('propagates %s without creating or storing a local key', async (_label, nativeError) => {
+    (platformModule.createPlatformPasskeyCredential as jest.Mock).mockRejectedValue(nativeError);
+
+    await expect(provisionPlatformPasskeyAtIndex(0)).rejects.toBe(nativeError);
+
+    expect(passkeyStorage.createPasskeyCredential).not.toHaveBeenCalled();
+    expect(passkeyStorage.storePasskeyCredentialAtIndex).not.toHaveBeenCalled();
+    expect(passkeyStorage.storePlatformPasskeyCredentialAtIndex).not.toHaveBeenCalled();
+  });
+
+  it('rejects a storage failure instead of reporting provisioning success', async () => {
+    const storageError = new Error('secure storage unavailable');
+    (platformModule.createPlatformPasskeyCredential as jest.Mock).mockResolvedValue(
+      platformCredential,
+    );
+    (passkeyStorage.storePlatformPasskeyCredentialAtIndex as jest.Mock).mockRejectedValueOnce(
+      storageError,
+    );
+
+    await expect(provisionPlatformPasskeyAtIndex(0)).rejects.toBe(storageError);
+
+    expect(passkeyStorage.createPasskeyCredential).not.toHaveBeenCalled();
+    expect(passkeyStorage.storePasskeyCredentialAtIndex).not.toHaveBeenCalled();
+  });
+
+  it('does not log credential material when provisioning fails', async () => {
+    const nativeError = { error: 'NoCreateOption', message: 'No provider is available.' };
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const error = jest.spyOn(console, 'error').mockImplementation(() => {});
+    (platformModule.createPlatformPasskeyCredential as jest.Mock).mockRejectedValue(nativeError);
+
+    await expect(provisionPlatformPasskeyAtIndex(0)).rejects.toBe(nativeError);
+
+    expect(warn).not.toHaveBeenCalled();
+    expect(error).not.toHaveBeenCalled();
+  });
+});
 
 describe('provisionPasskeyAtIndex', () => {
   beforeEach(() => {
