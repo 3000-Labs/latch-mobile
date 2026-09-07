@@ -85,6 +85,11 @@ export default {
         'android.permission.USE_FINGERPRINT',
         'android.permission.CAMERA',
         'android.permission.POST_NOTIFICATIONS',
+        'android.permission.READ_EXTERNAL_STORAGE',
+        'android.permission.WRITE_EXTERNAL_STORAGE',
+        'android.permission.RECORD_AUDIO',
+        'android.permission.READ_MEDIA_IMAGES',
+        'android.permission.READ_MEDIA_VIDEO',
       ],
       // expo-image-picker adds the legacy storage permissions by default, which
       // put the app under Google Play's Photo and Video Permissions policy —
@@ -111,13 +116,13 @@ export default {
       // permission, so leaving it merges it into the AAB from the AAR at Gradle
       // time and Play rejects the submission — which is precisely what happened
       // after the first pass here blocked only the storage permissions.
-      blockedPermissions: [
-        'android.permission.READ_EXTERNAL_STORAGE',
-        'android.permission.WRITE_EXTERNAL_STORAGE',
-        'android.permission.RECORD_AUDIO',
-        'android.permission.READ_MEDIA_IMAGES',
-        'android.permission.READ_MEDIA_VIDEO',
-      ],
+      // blockedPermissions: [
+      //      'android.permission.READ_EXTERNAL_STORAGE',
+      //   'android.permission.WRITE_EXTERNAL_STORAGE',
+      //   'android.permission.RECORD_AUDIO',
+      //   'android.permission.READ_MEDIA_IMAGES',
+      //   'android.permission.READ_MEDIA_VIDEO',
+      // ],
     },
     web: {
       output: 'static',

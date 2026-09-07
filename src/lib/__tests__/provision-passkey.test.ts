@@ -1,9 +1,9 @@
 /**
  * provision-passkey.test.ts
  *
- * The fallback from a platform passkey to a device-only key is the difference
- * between a wallet that can be signed into on a second device and one that
- * cannot, so what it returns — and whether the user is told — is worth pinning.
+ * The local-key fallback is disabled: a synced platform passkey is the only
+ * supported way to back a wallet, so a failed or unavailable OS ceremony must
+ * surface as a rejection carrying the reason — never a silent device-only key.
  */
 
 import { Alert } from 'react-native';
@@ -33,6 +33,31 @@ jest.mock('react-native-quick-crypto', () => ({
 }));
 
 jest.mock('@sentry/react-native', () => ({ captureException: jest.fn() }));
+
+// provision-passkey.ts reads/bumps a monotonic counter (PASSKEY_SEQ) to number
+// passkeys in the OS credential manager. expo-secure-store is a native module
+// that throws under plain Node, and @/src/store/wallet pulls it in transitively,
+// so both are mocked here — same reason platform-passkey / passkey-webauthn are.
+const mockSecureStore = new Map<string, string>();
+jest.mock('expo-secure-store', () => ({
+  getItemAsync: jest.fn((key: string) => Promise.resolve(mockSecureStore.get(key) ?? null)),
+  setItemAsync: jest.fn((key: string, value: string) => {
+    mockSecureStore.set(key, value);
+    return Promise.resolve();
+  }),
+}));
+
+jest.mock('@/src/store/wallet', () => ({
+  SECURE_KEYS: {
+    PASSKEY_SEQ: 'latch_passkey_seq',
+    PASSKEY_LABEL: 'latch_passkey_label',
+    PASSKEY_LABEL_SEQ: 'latch_passkey_label_seq',
+  },
+  getPasskeyStorageKeys: (listIndex: number) => ({
+    label: `latch_passkey_label_${listIndex}`,
+    labelSeq: `latch_passkey_label_seq_${listIndex}`,
+  }),
+}));
 
 // Class 3 by default; individual tests drop it to Class 2 to exercise the
 // Android path where Keystore cannot bind a key to a weak biometric.
@@ -111,7 +136,7 @@ describe('provisionPlatformPasskeyAtIndex', () => {
 
     const result = await provisionPlatformPasskeyAtIndex(0);
 
-    expect(result).toEqual({ ...credential, kind: 'platform' });
+    expect(result).toMatchObject({ ...credential, kind: 'platform' });
     expect(passkeyStorage.storePlatformPasskeyCredentialAtIndex).toHaveBeenCalledWith(
       credential, 0, 'latch.finance',
     );
@@ -129,13 +154,13 @@ describe('provisionPlatformPasskeyAtIndex', () => {
       displayName: 'Primary wallet',
     });
 
-    expect(result).toEqual({ ...platformCredential, kind: 'platform' });
+    expect(result).toMatchObject({ ...platformCredential, kind: 'platform' });
     expect(platformModule.createPlatformPasskeyCredential).toHaveBeenCalledWith(
       expect.objectContaining({
         rpId: 'latch.finance',
         rpName: 'Latch',
-        userName: 'latch-wallet',
-        userDisplayName: 'Primary wallet',
+        userName: expect.stringMatching(/^Primary wallet \(Latch \d+\)$/),
+        userDisplayName: expect.stringMatching(/^Primary wallet \(Latch \d+\)$/),
       }),
     );
     expect(passkeyStorage.storePlatformPasskeyCredentialAtIndex).toHaveBeenCalledWith(
@@ -221,6 +246,7 @@ describe('provisionPasskeyAtIndex', () => {
     jest.clearAllMocks();
     delete stored.local;
     delete stored.platform;
+    mockSecureStore.clear();
     (platformModule.isPlatformPasskeySupported as jest.Mock).mockReturnValue(true);
     (localAuth.getEnrolledLevelAsync as jest.Mock).mockResolvedValue(localAuth.SecurityLevel.BIOMETRIC_STRONG);
     jest.spyOn(console, 'warn').mockImplementation(() => {});
@@ -233,33 +259,71 @@ describe('provisionPasskeyAtIndex', () => {
 
     const result = await provisionPasskeyAtIndex(0, { requireBiometric: true });
 
-    expect(result).toEqual({ ...platformCredential, kind: 'platform' });
+    expect(result).toEqual({
+      ...platformCredential,
+      kind: 'platform',
+      passkeyName: 'Latch Wallet 1',
+      seq: 1,
+    });
     expect(stored.platform).toEqual({ credential: platformCredential, index: 0 });
     expect(stored.local).toBeUndefined();
   });
 
-  it('falls back to a device-only key and names the reason when the sheet is dismissed', async () => {
+  it('numbers passkeys with a monotonic counter, not the list index', async () => {
+    (platformModule.createPlatformPasskeyCredential as jest.Mock).mockResolvedValue(
+      platformCredential,
+    );
+
+    await provisionPasskeyAtIndex(0, { requireBiometric: true });
+    await provisionPasskeyAtIndex(0, { requireBiometric: true, accountLabel: 'Savings' });
+
+    const [first, second] = (platformModule.createPlatformPasskeyCredential as jest.Mock).mock.calls;
+    // Both fields carry the readable name — iOS shows user.name (not
+    // displayName) in the iCloud Keychain entry.
+    expect(first[0]).toMatchObject({ userName: 'Latch Wallet 1', userDisplayName: 'Latch Wallet 1' });
+    // Second create at the same index still gets 2, and folds in the label.
+    expect(second[0]).toMatchObject({
+      userName: 'Savings (Latch 2)',
+      userDisplayName: 'Savings (Latch 2)',
+    });
+  });
+
+  it('still names the passkey when the seq counter cannot be read', async () => {
+    (platformModule.createPlatformPasskeyCredential as jest.Mock).mockResolvedValue(
+      platformCredential,
+    );
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    (require('expo-secure-store').getItemAsync as jest.Mock).mockRejectedValueOnce(
+      new Error('keychain unavailable'),
+    );
+
+    await provisionPasskeyAtIndex(3, { requireBiometric: true });
+
+    const [call] = (platformModule.createPlatformPasskeyCredential as jest.Mock).mock.calls;
+    expect(call[0]).toMatchObject({ userName: 'Latch Wallet 1' });
+  });
+
+  it('rejects with the reason instead of falling back when the sheet is dismissed', async () => {
     (platformModule.createPlatformPasskeyCredential as jest.Mock).mockRejectedValue({
       error: 'UserCancelled',
       message: 'The user cancelled the request.',
     });
 
-    const result = await provisionPasskeyAtIndex(2, { requireBiometric: false });
-
-    expect(result.kind).toBe('local');
-    expect(result.deviceOnlyReason).toBe('the system passkey sheet was dismissed');
-    expect(result.keyDataHex).toBe(result.publicKeyHex + result.credentialId);
-    expect(stored.local).toMatchObject({ index: 2, requireBiometric: false });
+    await expect(provisionPasskeyAtIndex(2, { requireBiometric: false })).rejects.toThrow(
+      'the system passkey sheet was dismissed',
+    );
+    expect(stored.local).toBeUndefined();
   });
 
-  it('does not run the ceremony when the OS cannot', async () => {
+  it('rejects without a device-only key when the OS cannot run the ceremony', async () => {
     (platformModule.isPlatformPasskeySupported as jest.Mock).mockReturnValue(false);
 
-    const result = await provisionPasskeyAtIndex(0, { requireBiometric: true });
-
+    await expect(provisionPasskeyAtIndex(0, { requireBiometric: true })).rejects.toThrow(
+      /passkey provider/,
+    );
     expect(platformModule.createPlatformPasskeyCredential).not.toHaveBeenCalled();
-    expect(result.kind).toBe('local');
     expect(Passkey.create).not.toHaveBeenCalled();
+    expect(stored.local).toBeUndefined();
   });
 });
 
@@ -278,7 +342,12 @@ describe('notifyIfDeviceOnly', () => {
   beforeEach(() => jest.clearAllMocks());
 
   it('says nothing for a platform passkey', () => {
-    notifyIfDeviceOnly({ ...platformCredential, kind: 'platform' });
+    notifyIfDeviceOnly({
+      ...platformCredential,
+      kind: 'platform',
+      passkeyName: 'Latch Wallet 1',
+      seq: 1,
+    });
     expect(Alert.alert).not.toHaveBeenCalled();
   });
 
@@ -289,6 +358,8 @@ describe('notifyIfDeviceOnly', () => {
       keyDataHex: '04aabb',
       kind: 'local',
       deviceOnlyReason: 'the system passkey sheet was dismissed',
+      passkeyName: 'Latch Wallet 1',
+      seq: 1,
     });
 
     const [, body] = (Alert.alert as jest.Mock).mock.calls[0];
@@ -299,15 +370,11 @@ describe('notifyIfDeviceOnly', () => {
 });
 
 /**
- * Class 2 (weak) biometrics — the Android-only case that made setup dead-end.
- *
- * expo-secure-store gates requireAuthentication on BIOMETRIC_STRONG, so asking
- * for it on a device whose only biometric is Class 2 throws ERROR_NO_HARDWARE
- * instead of degrading. The fallback that was supposed to rescue a failed
- * platform ceremony was itself the thing that threw, and the caller reported a
- * bare "Setup Failed" with the cause discarded.
+ * With the local-key fallback disabled, a failed OS ceremony rejects no matter
+ * what biometric the caller asked for — there is no device-only key left to
+ * gate, and none of the expo-secure-store / Class 2 machinery is reached.
  */
-describe('biometric gate selection', () => {
+describe('failed ceremony never yields a device-only key', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     delete stored.local;
@@ -319,44 +386,11 @@ describe('biometric gate selection', () => {
     jest.spyOn(console, 'warn').mockImplementation(() => {});
   });
 
-  it('binds the key to the Keystore when a Class 3 biometric is enrolled', async () => {
-    (localAuth.getEnrolledLevelAsync as jest.Mock).mockResolvedValue(
-      localAuth.SecurityLevel.BIOMETRIC_STRONG,
+  it.each([true, false])('rejects with requireBiometric=%s', async (requireBiometric) => {
+    await expect(provisionPasskeyAtIndex(0, { requireBiometric })).rejects.toThrow(
+      "Couldn't create a passkey",
     );
-
-    const result = await provisionPasskeyAtIndex(0, { requireBiometric: true });
-
-    expect(result.biometricGate).toBe('keystore');
-    expect(stored.local).toMatchObject({ requireBiometric: true });
-  });
-
-  it('stores without the Keystore gate on a Class 2-only device instead of throwing', async () => {
-    (localAuth.getEnrolledLevelAsync as jest.Mock).mockResolvedValue(
-      localAuth.SecurityLevel.BIOMETRIC_WEAK,
-    );
-
-    const result = await provisionPasskeyAtIndex(0, { requireBiometric: true });
-
-    expect(result.biometricGate).toBe('app');
-    // The regression: requireBiometric must NOT reach expo-secure-store here,
-    // or it throws ERROR_NO_HARDWARE and provisioning dead-ends.
-    expect(stored.local).toMatchObject({ requireBiometric: false });
-  });
-
-  it('reports gate=none when the caller never asked for a biometric', async () => {
-    const result = await provisionPasskeyAtIndex(0, { requireBiometric: false });
-
-    expect(result.biometricGate).toBe('none');
-    expect(stored.local).toMatchObject({ requireBiometric: false });
-  });
-
-  it('survives a capability probe that throws, without gating on Keystore', async () => {
-    (localAuth.getEnrolledLevelAsync as jest.Mock).mockRejectedValue(new Error('probe blew up'));
-
-    const result = await provisionPasskeyAtIndex(0, { requireBiometric: true });
-
-    expect(result.biometricGate).toBe('app');
-    expect(stored.local).toMatchObject({ requireBiometric: false });
+    expect(stored.local).toBeUndefined();
   });
 });
 
@@ -370,6 +404,8 @@ describe('notifyIfWeakBiometricGate', () => {
       keyDataHex: 'ab',
       kind: 'local',
       biometricGate: 'app',
+      passkeyName: 'Latch Wallet 1',
+      seq: 1,
     });
     expect(Alert.alert).toHaveBeenCalledTimes(1);
   });
@@ -381,6 +417,8 @@ describe('notifyIfWeakBiometricGate', () => {
       keyDataHex: 'ab',
       kind: 'local',
       biometricGate: 'keystore',
+      passkeyName: 'Latch Wallet 1',
+      seq: 1,
     });
     expect(Alert.alert).not.toHaveBeenCalled();
   });

@@ -22,6 +22,8 @@ import Button from '@/src/components/shared/Button';
 import Text from '@/src/components/shared/Text';
 import DeployTimeline, { type DeployStep, type StepStatus } from '@/src/components/deploy/DeployTimeline';
 import { requireOnboardingPasskey } from '@/src/lib/onboarding-passkey';
+import { getStoredPasskeyLabel } from '@/src/lib/provision-passkey';
+
 import { getNetworkId } from '@/src/constants/config';
 import { restoreStellarWallet } from '@/src/lib/seed-wallet';
 import { ASYNC_KEYS, SECURE_KEYS, useWalletStore, type WalletAccount } from '@/src/store/wallet';
@@ -40,7 +42,6 @@ type Stage =
   | 'deploying' // waiting on Soroban RPC
   | 'success' // all done
   | 'error'; // deployment failed
-
 
 const DeployAccount = () => {
   const theme = useTheme<Theme>();
@@ -123,6 +124,7 @@ const DeployAccount = () => {
               { name: 'passkey.read', op: 'passkey.storage' },
               () => requireOnboardingPasskey(),
             );
+            const label = await getStoredPasskeyLabel(0);
             span.setAttribute(
               'passkeyKind',
               (await SecureStore.getItemAsync(SECURE_KEYS.PASSKEY_KIND)) ?? 'local',
@@ -131,7 +133,13 @@ const DeployAccount = () => {
             // a callback now, so a bare `return` would only end the span.
             if (cancelled) return null;
             setStage('deploying');
-            const result = await deploySmartAccountPasskey(credentialId, keyDataHex);
+            const result = await deploySmartAccountPasskey(
+              credentialId,
+              keyDataHex,
+              false,
+              label?.passkeyName,
+              label?.seq,
+            );
             if (result.error) throw new Error(result.error);
             return result.smartAccountAddress;
           },
