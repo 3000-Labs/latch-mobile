@@ -89,10 +89,87 @@ export interface ProvisionPasskeyOptions {
   accountLabel?: string;
 }
 
+export type ProvisionedPlatformPasskey = Omit<
+  ProvisionedPasskey,
+  'kind' | 'deviceOnlyReason' | 'biometricGate'
+> & {
+  kind: 'platform';
+  /** Provider report retained for non-blocking backup guidance in the caller. */
+  backupStatus: { eligible: boolean; backedUp: boolean };
+};
+
+/**
+ * Stable error used when the native passkey API is unavailable. Callers may
+ * use the code to show an unsupported-device message without parsing text.
+ */
+export class PlatformPasskeyUnsupportedError extends Error {
+  readonly code = 'PLATFORM_PASSKEY_UNSUPPORTED';
+
+  constructor() {
+    super('This device does not support platform passkeys.');
+    this.name = 'PlatformPasskeyUnsupportedError';
+  }
+}
+
+export class PlatformPasskeyBackupError extends Error {
+  constructor(
+    readonly code: 'PASSKEY_BACKUP_UNKNOWN' | 'PASSKEY_DEVICE_BOUND',
+  ) {
+    super({
+      PASSKEY_BACKUP_UNKNOWN: 'The passkey backup status could not be verified.',
+      PASSKEY_DEVICE_BOUND: 'This passkey cannot be backed up across devices.',
+    }[code]);
+    this.name = 'PlatformPasskeyBackupError';
+  }
+}
+
 // Moved to ./passkey-failure so the signing path can share it without closing
 // an import cycle through this module. Re-exported because this has been its
 // import site since it was written.
 export { describePasskeyFailure };
+
+/**
+ * Create and store a real OS-managed platform passkey, with no local-key
+ * fallback. This is the provisioning boundary for new-wallet onboarding.
+ *
+ * A rejected system ceremony is deliberately allowed to propagate. In
+ * particular, user cancellation, missing providers, and RP configuration
+ * errors must never be converted into a different wallet signer.
+ */
+export async function provisionPlatformPasskeyAtIndex(
+  listIndex: number,
+  options: { displayName?: string } = {},
+): Promise<ProvisionedPlatformPasskey> {
+  if (!isPlatformPasskeySupported()) {
+    throw new PlatformPasskeyUnsupportedError();
+  }
+
+  const seq = await nextPasskeySeq();
+  const passkeyName = buildPasskeyName(seq, options.displayName);
+
+  const credential = await createPlatformPasskeyCredential({
+    rpId: PASSKEY_RP_ID,
+    rpName: 'Latch',
+    userId: new Uint8Array(QuickCrypto.randomBytes(16)),
+    userName: passkeyName,
+    userDisplayName: passkeyName,
+    challenge: new Uint8Array(QuickCrypto.randomBytes(32)),
+  });
+
+  if (!credential.backupStatus) {
+    throw new PlatformPasskeyBackupError('PASSKEY_BACKUP_UNKNOWN');
+  }
+  if (!credential.backupStatus.eligible) {
+    throw new PlatformPasskeyBackupError('PASSKEY_DEVICE_BOUND');
+  }
+  // Backup eligibility is required; completion may lag registration. Return
+  // the current backup state so callers can explain pending backup without
+  // blocking enrollment or generating another credential.
+
+  await storePlatformPasskeyCredentialAtIndex(credential, listIndex, PASSKEY_RP_ID);
+  await storePasskeyLabel(getPasskeyStorageKeys(listIndex), passkeyName, seq);
+  return { ...credential, backupStatus: credential.backupStatus, kind: 'platform', passkeyName, seq };
+}
 
 /**
  * Whether the OS can bind a stored key to a biometric.

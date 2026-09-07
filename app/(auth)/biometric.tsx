@@ -3,11 +3,9 @@ import Box from '@/src/components/shared/Box';
 import Button from '@/src/components/shared/Button';
 import Text from '@/src/components/shared/Text';
 import {
-  notifyIfDeviceOnly,
-  notifyIfWeakBiometricGate,
-  provisionPasskeyAtIndex,
+  provisionPlatformPasskeyAtIndex,
 } from '@/src/lib/provision-passkey';
-import { SECURE_KEYS } from '@/src/store/wallet';
+import { readOnboardingPasskey } from '@/src/lib/onboarding-passkey';
 import { Theme } from '@/src/theme/theme';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -35,15 +33,15 @@ import { hashPin } from '@/src/lib/hash-pin';
 /**
  * Provision the primary passkey credential (account list index 0).
  *
- * Prefers a real platform passkey — synced via Google Password Manager
- * (Android) or iCloud Keychain (iOS), whichever the OS's own passkey sheet
- * offers — over a SecureStore-only key, and tells the user when it had to
- * settle for the latter. See provision-passkey.ts.
+ * Require a backup-eligible OS credential. Never replace an existing signer
+ * or generate a device-only fallback when the OS ceremony fails.
  */
-async function provisionPrimaryPasskey(requireBiometric: boolean): Promise<void> {
-  const provisioned = await provisionPasskeyAtIndex(0, { requireBiometric });
-  notifyIfDeviceOnly(provisioned);
-  notifyIfWeakBiometricGate(provisioned);
+async function provisionPrimaryPasskey(): Promise<void> {
+  if (await readOnboardingPasskey()) return;
+  const provisioned = await provisionPlatformPasskeyAtIndex(0);
+  if (!provisioned.backupStatus.backedUp) {
+    Alert.alert('Passkey backup pending', 'Your passkey can sync across devices, but your password manager has not reported a completed backup yet. Check your provider’s backup settings.');
+  }
 }
 
 const MAX_ATTEMPTS = 5;
@@ -261,9 +259,8 @@ const Biometrics = () => {
   // ─── Setup helpers ────────────────────────────────────────────────────────
 
   const proceedToPin = async () => {
-    // Block setup on devices with no lock screen at all. Without a device passcode
-    // the private key cannot be stored with WHEN_PASSCODE_SET_THIS_DEVICE_ONLY on
-    // iOS, and there is no hardware-backed auth boundary on either platform.
+    // Keep the existing device-lock requirement for wallet setup. Platform
+    // passkey user verification is handled separately by the OS ceremony.
     const securityLevel = await LocalAuthentication.getEnrolledLevelAsync();
     if (securityLevel === LocalAuthentication.SecurityLevel.NONE) {
       Alert.alert(
@@ -279,15 +276,12 @@ const Biometrics = () => {
 
     setIsProcessing(true);
     try {
-      const existingCredId = await SecureStore.getItemAsync(SECURE_KEYS.CREDENTIAL_ID);
-      if (!existingCredId) {
-        await provisionPrimaryPasskey(false);
-      }
+      if (from !== 'import-phrase') await provisionPrimaryPasskey();
       router.replace(
         from ? { pathname: '/(onboarding)/set-pin', params: { from } } : '/(onboarding)/set-pin',
       );
-    } catch {
-      Alert.alert('Setup Failed', 'Could not save your secure credential. Please try again.', [
+    } catch (err) {
+      Alert.alert('Setup Failed', err instanceof Error ? err.message : 'Passkey setup did not complete. Please try again.', [
         { text: 'OK' },
       ]);
     } finally {
@@ -322,17 +316,13 @@ const Biometrics = () => {
 
     setIsProcessing(true);
     try {
-      // Generate credential first — only write the biometric flag after it's
-      // safely stored. If storePasskeyCredential throws, the flag stays unset
-      // and the user is not left in a broken state on next launch.
-      const existingCredId = await SecureStore.getItemAsync(SECURE_KEYS.CREDENTIAL_ID);
-      if (!existingCredId) {
-        await provisionPrimaryPasskey(true);
-      }
+      // Complete passkey enrollment before enabling biometric app unlock.
+      // Mnemonic imports use their existing Ed25519 signer instead.
+      if (from !== 'import-phrase') await provisionPrimaryPasskey();
       await AsyncStorage.setItem(BIOMETRIC_ENABLED_KEY, 'true');
 
       // Navigate to PIN setup so biometric users have a PIN as emergency fallback.
-      // set-pin will forward to deploy-account once the PIN is confirmed.
+      // set-pin continues the remaining onboarding steps after confirmation.
       router.replace(
         from ? { pathname: '/(onboarding)/set-pin', params: { from } } : '/(onboarding)/set-pin',
       );
