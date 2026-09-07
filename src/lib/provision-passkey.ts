@@ -16,14 +16,17 @@
  *
  * The OS ceremony fails for reasons the user cannot see — a dismissed sheet, a
  * device with no passkey provider, an app whose associated domain was never
- * registered. Falling back to a local key keeps setup from dead-ending, but
- * doing it silently hands someone a wallet they believe is synced and is not;
- * they find out on the device where they cannot sign in. So the fallback is
- * kept, and `notifyIfDeviceOnly` says plainly that it happened.
+ * registered. This module used to fall back to a local key so setup never
+ * dead-ended, but that silently handed someone a wallet they believed was
+ * synced and was not; they found out on the device where they could not sign
+ * in. The fallback is now disabled: a synced platform passkey is the only
+ * supported way to back a wallet, and a failed ceremony surfaces as an error.
+ * The `local` path and its helpers are kept commented out below for reference.
  */
 
 import * as Sentry from '@sentry/react-native';
-import * as LocalAuthentication from 'expo-local-authentication';
+// Local-key fallback disabled — see provisionPasskeyAtIndex.
+// import * as LocalAuthentication from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
 import { Alert } from 'react-native';
 import QuickCrypto from 'react-native-quick-crypto';
@@ -33,8 +36,9 @@ import { getPasskeyStorageKeys, SECURE_KEYS } from '@/src/store/wallet';
 
 import { describePasskeyFailure } from './passkey-failure';
 import {
-  createPasskeyCredential,
-  storePasskeyCredentialAtIndex,
+  // Local-key fallback disabled — see provisionPasskeyAtIndex.
+  // createPasskeyCredential,
+  // storePasskeyCredentialAtIndex,
   storePlatformPasskeyCredentialAtIndex,
 } from './passkey-webauthn';
 import { createPlatformPasskeyCredential, isPlatformPasskeySupported } from './platform-passkey';
@@ -109,25 +113,29 @@ export { describePasskeyFailure };
  * `biometricGate` and said out loud by notifyIfWeakBiometricGate, never
  * silently downgraded.
  */
-async function hasStrongBiometrics(): Promise<boolean> {
-  try {
-    return (
-      (await LocalAuthentication.getEnrolledLevelAsync()) ===
-      LocalAuthentication.SecurityLevel.BIOMETRIC_STRONG
-    );
-  } catch {
-    // Never let a capability probe be the thing that fails provisioning.
-    return false;
-  }
-}
-
-/** Which protection a local key can actually get on this device. */
-async function resolveBiometricGate(
-  requireBiometric: boolean,
-): Promise<'keystore' | 'app' | 'none'> {
-  if (!requireBiometric) return 'none';
-  return (await hasStrongBiometrics()) ? 'keystore' : 'app';
-}
+// Local-key fallback disabled — see provisionPasskeyAtIndex. These probes only
+// ever mattered for how a SecureStore-backed local key was gated; a platform
+// passkey's user verification is owned by the OS ceremony.
+//
+// async function hasStrongBiometrics(): Promise<boolean> {
+//   try {
+//     return (
+//       (await LocalAuthentication.getEnrolledLevelAsync()) ===
+//       LocalAuthentication.SecurityLevel.BIOMETRIC_STRONG
+//     );
+//   } catch {
+//     // Never let a capability probe be the thing that fails provisioning.
+//     return false;
+//   }
+// }
+//
+// /** Which protection a local key can actually get on this device. */
+// async function resolveBiometricGate(
+//   requireBiometric: boolean,
+// ): Promise<'keystore' | 'app' | 'none'> {
+//   if (!requireBiometric) return 'none';
+//   return (await hasStrongBiometrics()) ? 'keystore' : 'app';
+// }
 
 /**
  * Next value of the passkey number shown in the OS credential manager.
@@ -209,10 +217,8 @@ export async function provisionPasskeyAtIndex(
   listIndex: number,
   options: ProvisionPasskeyOptions,
 ): Promise<ProvisionedPasskey> {
-  // Computed once regardless of how provisioning ends up going: a local-key
-  // fallback still gets a name and seq, both so the SecureStore record stays
-  // consistent across every slot and so a caller need not branch on `kind`
-  // just to decide whether it has a label to send.
+  // Computed before the ceremony so storePasskeyLabel can persist it alongside
+  // the credential the moment the OS returns one.
   const seq = await nextPasskeySeq();
   const passkeyName = buildPasskeyName(seq, options.accountLabel);
   const keys = getPasskeyStorageKeys(listIndex);
@@ -234,10 +240,7 @@ export async function provisionPasskeyAtIndex(
       const deviceOnlyReason = describePasskeyFailure(err, PASSKEY_RP_ID);
       // Warn, not log-in-__DEV__-only: on a real build this line is the only
       // way to tell a dismissed sheet from a misconfigured associated domain.
-      console.warn(
-        '[passkey] platform ceremony failed, using a device-only key:',
-        deviceOnlyReason,
-      );
+      console.warn('[passkey] platform ceremony failed, no fallback:', deviceOnlyReason);
       // react-native-passkey rejects with a plain `{ error, message }` object, not
       // an Error — passing that straight to captureException logs it as "Object
       // captured as exception with keys: error, message" and buries the reason.
@@ -257,37 +260,49 @@ export async function provisionPasskeyAtIndex(
         },
       );
 
-      const local = createPasskeyCredential();
-      const gate = await resolveBiometricGate(options.requireBiometric);
-      await storePasskeyCredentialAtIndex(local, listIndex, gate === 'keystore');
-      await storePasskeyLabel(keys, passkeyName, seq);
-      return {
-        credentialId: local.credentialId,
-        publicKeyHex: local.publicKeyHex,
-        keyDataHex: local.publicKeyHex + local.credentialId,
-        kind: 'local',
-        deviceOnlyReason,
-        biometricGate: gate,
-        passkeyName,
-        seq,
-      };
+      // Local-key fallback disabled: a synced platform passkey (iCloud Keychain
+      // / Google Password Manager) is the only supported way to back a wallet,
+      // so a failed OS ceremony surfaces as an error instead of silently
+      // handing the user a device-only key. Kept here for reference.
+      //
+      // const local = createPasskeyCredential();
+      // const gate = await resolveBiometricGate(options.requireBiometric);
+      // await storePasskeyCredentialAtIndex(local, listIndex, gate === 'keystore');
+      // await storePasskeyLabel(keys, passkeyName, seq);
+      // return {
+      //   credentialId: local.credentialId,
+      //   publicKeyHex: local.publicKeyHex,
+      //   keyDataHex: local.publicKeyHex + local.credentialId,
+      //   kind: 'local',
+      //   deviceOnlyReason,
+      //   biometricGate: gate,
+      //   passkeyName,
+      //   seq,
+      // };
+      throw new Error(`Couldn't create a passkey: ${deviceOnlyReason}`);
     }
   }
 
-  const local = createPasskeyCredential();
-  const gate = await resolveBiometricGate(options.requireBiometric);
-  await storePasskeyCredentialAtIndex(local, listIndex, gate === 'keystore');
-  await storePasskeyLabel(keys, passkeyName, seq);
-  return {
-    credentialId: local.credentialId,
-    publicKeyHex: local.publicKeyHex,
-    keyDataHex: local.publicKeyHex + local.credentialId,
-    kind: 'local',
-    deviceOnlyReason: 'this device does not support passkeys',
-    biometricGate: gate,
-    passkeyName,
-    seq,
-  };
+  // Local-key fallback disabled — see the catch block above. A device with no
+  // passkey provider can no longer provision a wallet.
+  //
+  // const local = createPasskeyCredential();
+  // const gate = await resolveBiometricGate(options.requireBiometric);
+  // await storePasskeyCredentialAtIndex(local, listIndex, gate === 'keystore');
+  // await storePasskeyLabel(keys, passkeyName, seq);
+  // return {
+  //   credentialId: local.credentialId,
+  //   publicKeyHex: local.publicKeyHex,
+  //   keyDataHex: local.publicKeyHex + local.credentialId,
+  //   kind: 'local',
+  //   deviceOnlyReason: 'this device does not support passkeys',
+  //   biometricGate: gate,
+  //   passkeyName,
+  //   seq,
+  // };
+  throw new Error(
+    "Couldn't create a passkey: this device has no passkey provider (iCloud Keychain or Google Password Manager).",
+  );
 }
 
 /**

@@ -1,9 +1,9 @@
 /**
  * provision-passkey.test.ts
  *
- * The fallback from a platform passkey to a device-only key is the difference
- * between a wallet that can be signed into on a second device and one that
- * cannot, so what it returns — and whether the user is told — is worth pinning.
+ * The local-key fallback is disabled: a synced platform passkey is the only
+ * supported way to back a wallet, so a failed or unavailable OS ceremony must
+ * surface as a rejection carrying the reason — never a silent device-only key.
  */
 
 import { Alert } from 'react-native';
@@ -163,28 +163,27 @@ describe('provisionPasskeyAtIndex', () => {
     expect(call[0]).toMatchObject({ userName: 'Latch Wallet 1' });
   });
 
-  it('falls back to a device-only key and names the reason when the sheet is dismissed', async () => {
+  it('rejects with the reason instead of falling back when the sheet is dismissed', async () => {
     (platformModule.createPlatformPasskeyCredential as jest.Mock).mockRejectedValue({
       error: 'UserCancelled',
       message: 'The user cancelled the request.',
     });
 
-    const result = await provisionPasskeyAtIndex(2, { requireBiometric: false });
-
-    expect(result.kind).toBe('local');
-    expect(result.deviceOnlyReason).toBe('the system passkey sheet was dismissed');
-    expect(result.keyDataHex).toBe(result.publicKeyHex + result.credentialId);
-    expect(stored.local).toMatchObject({ index: 2, requireBiometric: false });
+    await expect(provisionPasskeyAtIndex(2, { requireBiometric: false })).rejects.toThrow(
+      'the system passkey sheet was dismissed',
+    );
+    expect(stored.local).toBeUndefined();
   });
 
-  it('does not run the ceremony when the OS cannot', async () => {
+  it('rejects without a device-only key when the OS cannot run the ceremony', async () => {
     (platformModule.isPlatformPasskeySupported as jest.Mock).mockReturnValue(false);
 
-    const result = await provisionPasskeyAtIndex(0, { requireBiometric: true });
-
+    await expect(provisionPasskeyAtIndex(0, { requireBiometric: true })).rejects.toThrow(
+      /passkey provider/,
+    );
     expect(platformModule.createPlatformPasskeyCredential).not.toHaveBeenCalled();
-    expect(result.kind).toBe('local');
     expect(Passkey.create).not.toHaveBeenCalled();
+    expect(stored.local).toBeUndefined();
   });
 });
 
@@ -231,15 +230,11 @@ describe('notifyIfDeviceOnly', () => {
 });
 
 /**
- * Class 2 (weak) biometrics — the Android-only case that made setup dead-end.
- *
- * expo-secure-store gates requireAuthentication on BIOMETRIC_STRONG, so asking
- * for it on a device whose only biometric is Class 2 throws ERROR_NO_HARDWARE
- * instead of degrading. The fallback that was supposed to rescue a failed
- * platform ceremony was itself the thing that threw, and the caller reported a
- * bare "Setup Failed" with the cause discarded.
+ * With the local-key fallback disabled, a failed OS ceremony rejects no matter
+ * what biometric the caller asked for — there is no device-only key left to
+ * gate, and none of the expo-secure-store / Class 2 machinery is reached.
  */
-describe('biometric gate selection', () => {
+describe('failed ceremony never yields a device-only key', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     delete stored.local;
@@ -251,44 +246,11 @@ describe('biometric gate selection', () => {
     jest.spyOn(console, 'warn').mockImplementation(() => {});
   });
 
-  it('binds the key to the Keystore when a Class 3 biometric is enrolled', async () => {
-    (localAuth.getEnrolledLevelAsync as jest.Mock).mockResolvedValue(
-      localAuth.SecurityLevel.BIOMETRIC_STRONG,
+  it.each([true, false])('rejects with requireBiometric=%s', async (requireBiometric) => {
+    await expect(provisionPasskeyAtIndex(0, { requireBiometric })).rejects.toThrow(
+      "Couldn't create a passkey",
     );
-
-    const result = await provisionPasskeyAtIndex(0, { requireBiometric: true });
-
-    expect(result.biometricGate).toBe('keystore');
-    expect(stored.local).toMatchObject({ requireBiometric: true });
-  });
-
-  it('stores without the Keystore gate on a Class 2-only device instead of throwing', async () => {
-    (localAuth.getEnrolledLevelAsync as jest.Mock).mockResolvedValue(
-      localAuth.SecurityLevel.BIOMETRIC_WEAK,
-    );
-
-    const result = await provisionPasskeyAtIndex(0, { requireBiometric: true });
-
-    expect(result.biometricGate).toBe('app');
-    // The regression: requireBiometric must NOT reach expo-secure-store here,
-    // or it throws ERROR_NO_HARDWARE and provisioning dead-ends.
-    expect(stored.local).toMatchObject({ requireBiometric: false });
-  });
-
-  it('reports gate=none when the caller never asked for a biometric', async () => {
-    const result = await provisionPasskeyAtIndex(0, { requireBiometric: false });
-
-    expect(result.biometricGate).toBe('none');
-    expect(stored.local).toMatchObject({ requireBiometric: false });
-  });
-
-  it('survives a capability probe that throws, without gating on Keystore', async () => {
-    (localAuth.getEnrolledLevelAsync as jest.Mock).mockRejectedValue(new Error('probe blew up'));
-
-    const result = await provisionPasskeyAtIndex(0, { requireBiometric: true });
-
-    expect(result.biometricGate).toBe('app');
-    expect(stored.local).toMatchObject({ requireBiometric: false });
+    expect(stored.local).toBeUndefined();
   });
 });
 
