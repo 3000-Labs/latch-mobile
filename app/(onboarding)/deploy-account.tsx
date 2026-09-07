@@ -21,18 +21,13 @@ import Box from '@/src/components/shared/Box';
 import Button from '@/src/components/shared/Button';
 import Text from '@/src/components/shared/Text';
 import DeployTimeline, { type DeployStep, type StepStatus } from '@/src/components/deploy/DeployTimeline';
-import {
-  notifyIfDeviceOnly,
-  notifyIfWeakBiometricGate,
-  provisionPasskeyAtIndex,
-} from '@/src/lib/provision-passkey';
+import { requireOnboardingPasskey } from '@/src/lib/onboarding-passkey';
 import { getNetworkId } from '@/src/constants/config';
 import { restoreStellarWallet } from '@/src/lib/seed-wallet';
 import { ASYNC_KEYS, SECURE_KEYS, useWalletStore, type WalletAccount } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
 import { useTheme } from '@shopify/restyle';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as LocalAuthentication from 'expo-local-authentication';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { StatusBar } from 'expo-status-bar';
@@ -46,68 +41,6 @@ type Stage =
   | 'success' // all done
   | 'error'; // deployment failed
 
-/**
- * Attempt biometric authentication. Returns true if successful, false if unavailable or declined.
- * Never throws — PIN (already verified at unlock) is the fallback.
- */
-async function tryBiometricAuth(promptMessage: string): Promise<boolean> {
-  const hasHardware = await LocalAuthentication.hasHardwareAsync();
-  const isEnrolled = await LocalAuthentication.isEnrolledAsync();
-
-  if (!hasHardware || !isEnrolled) {
-    return false;
-  }
-
-  const result = await LocalAuthentication.authenticateAsync({
-    promptMessage,
-    disableDeviceFallback: false,
-    cancelLabel: 'Use PIN',
-  });
-
-  return result.success;
-}
-
-/**
- * Return passkey credentials from SecureStore.
- * Credentials are created on the biometric setup screen, so by the time we reach
- * this screen they should always exist.
- * If for some reason they are missing (e.g. direct deep-link or retry after wipe),
- * we re-create them with the appropriate auth gate for this device:
- *   - Biometric devices  → require Face ID / Touch ID before re-creating
- *   - PIN-only devices   → no extra prompt (device passcode is the boundary;
- *                          the user's app PIN was already verified at unlock)
- * keyDataHex = uncompressed P-256 pubkey (65 bytes, 130 hex) + credentialId (16 bytes, 32 hex)
- */
-async function getOrCreatePasskeyCredentials(): Promise<{
-  credentialId: string;
-  keyDataHex: string;
-}> {
-  const existingCredId = await SecureStore.getItemAsync(SECURE_KEYS.CREDENTIAL_ID);
-  const existingKeyData = await SecureStore.getItemAsync(SECURE_KEYS.KEY_DATA_HEX);
-
-  if (existingCredId && existingKeyData) {
-    return { credentialId: existingCredId, keyDataHex: existingKeyData };
-  }
-
-  // Credentials missing — re-create, preferring biometrics if the device supports them.
-  const hasHardware = await LocalAuthentication.hasHardwareAsync();
-  const isEnrolled = await LocalAuthentication.isEnrolledAsync();
-  const useBiometric = hasHardware && isEnrolled;
-
-  if (useBiometric) {
-    await tryBiometricAuth('Authenticate to create your secure passkey');
-  }
-
-  // Prefer a real platform passkey (synced via Google Password Manager /
-  // iCloud Keychain), same as the biometric setup screen — this path only runs
-  // as a fallback for credentials missing at deploy time (direct deep-link,
-  // retry after wipe). See provision-passkey.ts.
-  const provisioned = await provisionPasskeyAtIndex(0, { requireBiometric: useBiometric });
-  notifyIfDeviceOnly(provisioned);
-  notifyIfWeakBiometricGate(provisioned);
-
-  return { credentialId: provisioned.credentialId, keyDataHex: provisioned.keyDataHex };
-}
 
 const DeployAccount = () => {
   const theme = useTheme<Theme>();
@@ -187,8 +120,8 @@ const DeployAccount = () => {
             span.setAttribute('signer', 'passkey');
             setStage('auth');
             const { credentialId, keyDataHex } = await Sentry.startSpan(
-              { name: 'passkey.provision', op: 'passkey.ceremony' },
-              () => getOrCreatePasskeyCredentials(),
+              { name: 'passkey.read', op: 'passkey.storage' },
+              () => requireOnboardingPasskey(),
             );
             span.setAttribute(
               'passkeyKind',

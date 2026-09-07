@@ -65,6 +65,7 @@ jest.mock('../passkey-webauthn', () => ({
 }));
 
 const platformCredential = {
+  backupStatus: { eligible: true, backedUp: true },
   credentialId: 'ccdd',
   publicKeyHex: '04' + '33'.repeat(64),
   keyDataHex: '04' + '33'.repeat(64) + 'ccdd',
@@ -82,11 +83,41 @@ const platformModule = require('../platform-passkey');
 const passkeyStorage = require('../passkey-webauthn');
 
 describe('provisionPlatformPasskeyAtIndex', () => {
+  it.each([
+    [undefined, 'PASSKEY_BACKUP_UNKNOWN'],
+    [{ eligible: false, backedUp: false }, 'PASSKEY_DEVICE_BOUND'],
+  ])('rejects unacceptable backup status %p before storing', async (backupStatus, code) => {
+    platformModule.createPlatformPasskeyCredential.mockResolvedValue({
+      ...platformCredential, backupStatus,
+    });
+    await expect(provisionPlatformPasskeyAtIndex(0)).rejects.toMatchObject({ code });
+    expect(passkeyStorage.storePlatformPasskeyCredentialAtIndex).not.toHaveBeenCalled();
+    expect(passkeyStorage.createPasskeyCredential).not.toHaveBeenCalled();
+    expect(passkeyStorage.storePasskeyCredentialAtIndex).not.toHaveBeenCalled();
+  });
   beforeEach(() => {
     jest.clearAllMocks();
     delete stored.local;
     delete stored.platform;
     (platformModule.isPlatformPasskeySupported as jest.Mock).mockReturnValue(true);
+  });
+
+  it('accepts pending backup and preserves its status for caller guidance', async () => {
+    const credential = {
+      ...platformCredential,
+      backupStatus: { eligible: true, backedUp: false },
+    };
+    platformModule.createPlatformPasskeyCredential.mockResolvedValue(credential);
+
+    const result = await provisionPlatformPasskeyAtIndex(0);
+
+    expect(result).toEqual({ ...credential, kind: 'platform' });
+    expect(passkeyStorage.storePlatformPasskeyCredentialAtIndex).toHaveBeenCalledWith(
+      credential, 0, 'latch.finance',
+    );
+    expect(platformModule.createPlatformPasskeyCredential).toHaveBeenCalledTimes(1);
+    expect(passkeyStorage.createPasskeyCredential).not.toHaveBeenCalled();
+    expect(passkeyStorage.storePasskeyCredentialAtIndex).not.toHaveBeenCalled();
   });
 
   it('stores and returns only the OS-managed platform credential', async () => {

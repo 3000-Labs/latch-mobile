@@ -132,6 +132,31 @@ describe('createPlatformPasskeyCredential', () => {
 
   afterEach(() => jest.clearAllMocks());
 
+  describe.each(['ios', 'android'])('backup flags (%s response)', (platform) => {
+    it.each([
+      [0x45, { eligible: false, backedUp: false }],
+      [0x4d, { eligible: true, backedUp: false }],
+      [0x5d, { eligible: true, backedUp: true }],
+      [0x55, undefined], // BS without BE is invalid under WebAuthn.
+    ])('reads flags %i without confusing discoverability with backup', async (flags, expected) => {
+      const { xBytes, yBytes, spkiDer } = generateP256KeyPair();
+      const authData = buildAuthData(credentialId, buildCoseEC2Key(xBytes, yBytes));
+      authData[32] = flags;
+      (Passkey.create as jest.Mock).mockResolvedValue({
+        id: b64uEncode(credentialId),
+        response: {
+          attestationObject: b64uEncode(buildAttestationObject(authData)),
+          ...(platform === 'android' ? { publicKey: b64uEncode(new Uint8Array(spkiDer)) } : {}),
+        },
+      });
+      const result = await createPlatformPasskeyCredential({
+        rpId: 'latch.finance', rpName: 'Latch', userId: new Uint8Array([9]),
+        userName: 'user', userDisplayName: 'User', challenge: new Uint8Array(32),
+      });
+      expect(result.backupStatus).toEqual(expected);
+    });
+  });
+
   it('extracts the public key from attestationObject when response.publicKey is absent (iOS path)', async () => {
     const { xBytes, yBytes, expectedUncompressedHex } = generateP256KeyPair();
     const coseKey = buildCoseEC2Key(xBytes, yBytes);

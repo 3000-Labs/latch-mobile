@@ -71,6 +71,8 @@ export type ProvisionedPlatformPasskey = Omit<
   'kind' | 'deviceOnlyReason' | 'biometricGate'
 > & {
   kind: 'platform';
+  /** Provider report retained for non-blocking backup guidance in the caller. */
+  backupStatus: { eligible: boolean; backedUp: boolean };
 };
 
 /**
@@ -83,6 +85,18 @@ export class PlatformPasskeyUnsupportedError extends Error {
   constructor() {
     super('This device does not support platform passkeys.');
     this.name = 'PlatformPasskeyUnsupportedError';
+  }
+}
+
+export class PlatformPasskeyBackupError extends Error {
+  constructor(
+    readonly code: 'PASSKEY_BACKUP_UNKNOWN' | 'PASSKEY_DEVICE_BOUND',
+  ) {
+    super({
+      PASSKEY_BACKUP_UNKNOWN: 'The passkey backup status could not be verified.',
+      PASSKEY_DEVICE_BOUND: 'This passkey cannot be backed up across devices.',
+    }[code]);
+    this.name = 'PlatformPasskeyBackupError';
   }
 }
 
@@ -116,8 +130,18 @@ export async function provisionPlatformPasskeyAtIndex(
     challenge: new Uint8Array(QuickCrypto.randomBytes(32)),
   });
 
+  if (!credential.backupStatus) {
+    throw new PlatformPasskeyBackupError('PASSKEY_BACKUP_UNKNOWN');
+  }
+  if (!credential.backupStatus.eligible) {
+    throw new PlatformPasskeyBackupError('PASSKEY_DEVICE_BOUND');
+  }
+  // Backup eligibility is required; completion may lag registration. Return
+  // the current backup state so callers can explain pending backup without
+  // blocking enrollment or generating another credential.
+
   await storePlatformPasskeyCredentialAtIndex(credential, listIndex, PASSKEY_RP_ID);
-  return { ...credential, kind: 'platform' };
+  return { ...credential, backupStatus: credential.backupStatus, kind: 'platform' };
 }
 
 /**

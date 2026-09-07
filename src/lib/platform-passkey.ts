@@ -149,6 +149,8 @@ function derSignatureToCompactHex(der: Uint8Array): string {
 // ─── Public API ───────────────────────────────────────────────────────────
 
 export interface PlatformPasskeyCredential {
+  /** Provider-reported backup flags; absent when registration data is unreadable. */
+  backupStatus?: { eligible: boolean; backedUp: boolean };
   /** hex-encoded credential ID, as returned by the OS ceremony (variable length). */
   credentialId: string;
   /** uncompressed P-256 pubkey hex (130 hex chars) + credentialId hex, matching passkey-webauthn.ts's convention. */
@@ -170,7 +172,7 @@ export interface CreatePlatformPasskeyParams {
 
 /**
  * Run the real OS passkey creation ceremony. Deliberately does not set
- * `authenticatorSelection` or `excludeCredentials` transports, and calls
+ * an attachment restriction or `excludeCredentials` transports, and calls
  * `Passkey.create` (not `createPlatformKey`) so the system chooser can offer
  * every available provider — see the module doc comment.
  */
@@ -185,8 +187,8 @@ export async function createPlatformPasskeyCredential(
       name: params.userName,
       displayName: params.userDisplayName,
     },
-    // Request a discoverable (resident) credential so the OS stores it and syncs
-    // via Google Password Manager / iCloud Keychain (WebAuthn §5.4.4). This is
+    // Request a discoverable (resident) credential so the provider can find it
+    // without a locally stored credential ID. This does not guarantee backup. This is
     // what makes sign-in on a second device possible at all: that flow runs
     // Passkey.get with no allowCredentials, so the provider has to be able to
     // find the credential from the RP ID alone. requireResidentKey is the
@@ -215,7 +217,25 @@ export async function createPlatformPasskeyCredential(
 
   const credentialIdHex = Buffer.from(b64uDecode(result.rawId ?? result.id)).toString('hex');
 
+  // Always read flags from attestation authData, including when Android supplies
+  // the public key separately. Preserve legacy callers' behavior on unreadable
+  // data; the strict provisioning boundary rejects a missing backup status.
+  let backupStatus: PlatformPasskeyCredential['backupStatus'];
+  try {
+    const authData = parseAttestationObjectAuthData(
+      b64uDecode(result.response.attestationObject),
+    );
+    if (authData.length >= 37) {
+      const eligible = (authData[32] & 0x08) !== 0;
+      const backedUp = (authData[32] & 0x10) !== 0;
+      if (eligible || !backedUp) backupStatus = { eligible, backedUp };
+    }
+  } catch {
+    // Unknown is distinct from a provider reporting that backup is disabled.
+  }
+
   return {
+    backupStatus,
     credentialId: credentialIdHex,
     keyDataHex: publicKeyHex + credentialIdHex,
     publicKeyHex,

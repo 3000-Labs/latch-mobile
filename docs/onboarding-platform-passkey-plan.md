@@ -293,9 +293,30 @@ are removed—not changed to pass under a new meaning.
 
 ## Implementation sequence
 
+### Backup-status boundary added
+
+Registration now exposes provider-reported backup eligibility (BE) and backup
+state (BS), read from attestation authenticator data on both native response
+paths. The provisioning API requires BE=true before storing the credential.
+BS=false is accepted: backup completion can lag creation and must not block
+enrollment. Unknown/malformed status and device-bound credentials are rejected.
+The legacy API retains its behavior.
+
+Verification: 127 tests passed, typecheck passed, lint passed with 211 warnings
+and zero errors. Added 11 tests covering all flag combinations on both response
+paths, rejection, and acceptance of pending backup. Physical devices and testnet remain
+unverified. These flags are the provider's report, not independent proof of
+successful sign-in on a second device.
+
+Before wiring this into onboarding, use the returned backup status to give
+non-blocking guidance when backup is pending. The return type exposes the status;
+persisting it for later guidance and refreshing it during subsequent assertions
+are not implemented yet. Do not recreate a credential just because backup is
+pending. Backup eligibility alone does not establish completed recovery coverage.
+
 - [x] Slice 1: Add platform-only provisioning API and unit tests.
 - [ ] Slice 2: Add complete stored-platform-credential validator and tests.
-- [ ] Slice 3: Make deployment validation-only; remove signer reprovisioning.
+- [x] Slice 3: Make deployment validation-only; remove signer reprovisioning.
 - [ ] Slice 4: Refactor setup screen around platform-passkey enrollment.
 - [ ] Slice 5: Separate and correctly honor biometric app-unlock preference.
 - [ ] Slice 6: Audit signing call sites to prove PIN/biometric app unlock cannot
@@ -306,6 +327,25 @@ are removed—not changed to pass under a new meaning.
 - [ ] Slice 10: Update copy, comments, recovery affordances, and documentation.
 - [ ] Slice 11: Run full verification and perform physical iOS/Android passkey
       tests on testnet with published/non-secret fixtures only.
+
+### Focused onboarding integration
+
+The biometric setup route now calls the platform-only provisioning function.
+Existing records are reused only when kind is platform and both credential ID
+and public-key data are present. Local, unknown-kind, and partial records stop
+setup without being overwritten. Deployment uses the same read-only check and
+cannot provision any signer. This is a minimal type/presence check, not the
+broader RP/public-key validator proposed in slice 2; that extra hardening is
+deferred per the scope discussion.
+
+Mnemonic import skips unrelated passkey enrollment and retains its Ed25519
+deployment path. Newly created backup-eligible passkeys with pending backup
+receive a non-blocking alert. Reused platform records do not have a persisted
+backup-status check yet. Wallet chooser and email-backup routing are unchanged.
+
+Added six tests for empty, local, unknown-kind, partial, and reusable platform
+records. All 133 tests and typecheck pass. Native ceremonies, screen navigation,
+and on-chain deployment still require physical-device/testnet verification.
 
 ## Verification matrix
 
