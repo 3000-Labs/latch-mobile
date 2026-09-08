@@ -858,6 +858,8 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
           SecureStore.deleteItemAsync(keys.requiresBiometric),
           SecureStore.deleteItemAsync(keys.kind),
           SecureStore.deleteItemAsync(keys.rpId),
+          SecureStore.deleteItemAsync(keys.label),
+          SecureStore.deleteItemAsync(keys.labelSeq),
         ];
       });
 
@@ -877,6 +879,16 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
       SecureStore.deleteItemAsync(SECURE_KEYS.KEY_DATA_HEX),
       SecureStore.deleteItemAsync(SECURE_KEYS.PASSKEY_PRIVATE_KEY),
       SecureStore.deleteItemAsync(SECURE_KEYS.PASSKEY_KIND),
+      // Slot-0 credential metadata that used to be left behind on a full reset,
+      // so the next wallet inherited a stale RP, biometric flag, OS-sheet name,
+      // and deploy fingerprint. PASSKEY_SEQ is deliberately NOT cleared: it is a
+      // monotonic counter whose whole job is to keep OS credential names unique
+      // even across a wipe, since a synced passkey outlives local storage.
+      SecureStore.deleteItemAsync(SECURE_KEYS.PASSKEY_RP_ID),
+      SecureStore.deleteItemAsync(SECURE_KEYS.PASSKEY_REQUIRES_BIOMETRIC),
+      SecureStore.deleteItemAsync(SECURE_KEYS.PASSKEY_LABEL),
+      SecureStore.deleteItemAsync(SECURE_KEYS.PASSKEY_LABEL_SEQ),
+      SecureStore.deleteItemAsync(SECURE_KEYS.DEPLOYED_KEY_DATA),
       AsyncStorage.removeItem(ASYNC_KEYS.AVATARS),
       AsyncStorage.removeItem(ASYNC_KEYS.BACKUP_PENDING),
       clearSacTransferCache(),
