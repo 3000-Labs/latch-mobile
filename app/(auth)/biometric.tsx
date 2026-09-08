@@ -145,9 +145,7 @@ const Biometrics = () => {
       // builds and EXPO_PUBLIC_SENTRY_DSN is unset, so Sentry.init is a no-op.
       // The message is the diagnosis.
       const reason = err instanceof Error ? err.message : String(err);
-      Alert.alert('Setup Failed', `Could not create your wallet passkey.\n\n${reason}`, [
-        { text: 'OK' },
-      ]);
+      Alert.alert('Setup Failed', `${reason}`, [{ text: 'OK' }]);
     } finally {
       setIsProcessing(false);
     }
