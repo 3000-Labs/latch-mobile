@@ -93,7 +93,6 @@ const Profile = () => {
     await AsyncStorage.multiRemove([BIOMETRIC_ENABLED_KEY, 'latch_onboarding_complete']);
     router.replace('/onboarding');
   };
-  console.log(ACTIVE_NETWORK.network);
 
   return (
     <Box flex={1} backgroundColor="cardbg" style={{ paddingTop: insets.top }}>
