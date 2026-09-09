@@ -12,6 +12,7 @@ import Box from '@/src/components/shared/Box';
 import LoadingBlur from '@/src/components/shared/LoadingBlur';
 import Text from '@/src/components/shared/Text';
 import TxAuthModal from '@/src/components/shared/TxAuthModal';
+import { getNetworkId } from '@/src/constants/config';
 import { useAddressBook } from '@/src/hooks/use-address-book';
 import { usePortfolio } from '@/src/hooks/use-portfolio';
 import { usePrices } from '@/src/hooks/use-prices';
@@ -27,6 +28,7 @@ import { Theme } from '@/src/theme/theme';
 import { useAppTheme } from '@/src/theme/ThemeContext';
 import { maskAddress } from '@/src/utils';
 import { Ionicons } from '@expo/vector-icons';
+import * as Sentry from '@sentry/react-native';
 import { useTheme } from '@shopify/restyle';
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -248,6 +250,45 @@ const SendToken = () => {
           ? await SecureStore.getItemAsync(getPasskeyStorageKeys(activeAccountIndex).keyDataHex)
           : (activeAccount?.publicKeyHex ?? null);
         const diag = await diagnoseAuthFailure(smartAccountAddress, presentedKeyDataHex);
+
+        // The on-chain __check_auth rejected a locally-valid signature. This is
+        // the failure that only reproduces on a shipped build, so capture the
+        // full picture: which verdict diagnoseAuthFailure reached, whether the
+        // device's key is even on the rule, the registered signer shapes and
+        // their verifiers, and — for a passkey account — whether it's a synced
+        // platform credential or a device-local key. No key material: signer
+        // kinds, verifier contract addresses and booleans only.
+        const passkeyKind = isPasskeyAccount
+          ? ((await SecureStore.getItemAsync(
+              getPasskeyStorageKeys(activeAccountIndex).kind,
+            )) ?? 'unset')
+          : 'n/a';
+        Sentry.captureException(err instanceof Error ? err : new Error(msg), {
+          tags: {
+            scope: 'send-token-auth-rejected',
+            network: getNetworkId(),
+            accountKind: isPasskeyAccount ? 'passkey' : 'mnemonic',
+            passkeyKind,
+            diagKind: diag.kind,
+            presentedKeyRegistered: String(diag.presentedKeyRegistered),
+          },
+          extra: {
+            smartAccountAddress,
+            activeAccountIndex,
+            sacContractId: selectedToken.sacContractId,
+            ruleId: diag.ruleId ?? null,
+            ruleReadError: diag.ruleReadError ?? null,
+            registeredSigners: diag.registered.map((s) => ({
+              kind: s.kind,
+              verifierAddress: s.verifierAddress ?? null,
+              foreignVerifier: Boolean(s.foreignVerifier),
+              hasKeyData: Boolean(s.keyDataHex),
+              delegatedAddress: s.address ?? null,
+            })),
+            rawError: msg,
+          },
+        });
+
         if (diag.kind === 'key-drift') {
           // The account expects a key this device no longer has — same remedy
           // as a passkey mismatch, so surface the "Re-initialize" CTA.
