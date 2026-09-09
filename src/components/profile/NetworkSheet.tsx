@@ -45,24 +45,32 @@ const NetworkSheet = ({ visible, onClose, onNetworkChanged }: Props) => {
   const theme = useTheme<Theme>();
   const insets = useSafeAreaInsets();
   const { isDark } = useAppTheme();
-  const [selectedNetwork, setSelectedNetwork] = useState<NetworkId>(
-    ACTIVE_NETWORK.network === 'TESTNET' ? 'testnet' : 'mainnet',
-  );
   const [switching, setSwitching] = useState(false);
+  // The optimistic pick while a switch is in flight. Null the rest of the time,
+  // when the selection is read straight off ACTIVE_NETWORK — re-read on every
+  // render, so a switch made elsewhere is reflected the next time the sheet
+  // opens (opening re-renders this component) with no effect-based syncing.
+  const [pendingNetwork, setPendingNetwork] = useState<NetworkId | null>(null);
+  const currentNetwork: NetworkId = ACTIVE_NETWORK.network === 'TESTNET' ? 'testnet' : 'mainnet';
+  const selectedNetwork = pendingNetwork ?? currentNetwork;
 
   const applyNetwork = async (network: NetworkId) => {
     setSwitching(true);
     try {
       await switchActiveNetwork(network === 'testnet' ? TESTNET_NETWORK : MAINNET_NETWORK);
-      onNetworkChanged?.();
     } finally {
+      // In finally, not after the await: setActiveNetworkDetails runs first
+      // inside switchActiveNetwork, so ACTIVE_NETWORK is already updated even if
+      // a later step throws — the parent's label must re-read it regardless.
+      onNetworkChanged?.();
+      setPendingNetwork(null);
       setSwitching(false);
     }
   };
 
   const handleSelect = (network: NetworkId) => {
     if (network === selectedNetwork || switching) return;
-    setSelectedNetwork(network);
+    setPendingNetwork(network);
     void applyNetwork(network);
   };
 

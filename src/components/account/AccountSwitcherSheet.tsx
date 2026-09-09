@@ -585,9 +585,9 @@ const AccountSwitcherSheet = ({ visible, onClose, onNeedsBackup }: Props) => {
    * in-app equivalent of the onboarding sign-in-passkey screen. One discovery
    * ceremony (no address, no allowCredentials) resolves whichever synced Latch
    * passkey answers to its wallet via latch-api's passkey-credentials index;
-   * a second ceremony scoped to that credential proves control and reads the
-   * account's on-chain webauthn signer. The account is only ever trusted from
-   * the chain — never from anything this device claims locally.
+   * a second ceremony proves control and reads the account's on-chain webauthn
+   * signer. The account is only ever trusted from the chain — never from
+   * anything this device claims locally.
    *
    * Mirrors completeSignIn in app/(onboarding)/sign-in-passkey.tsx, minus the
    * onboarding-complete flag and the router.replace: here the wallet already
@@ -615,12 +615,7 @@ const AccountSwitcherSheet = ({ visible, onClose, onNeedsBackup }: Props) => {
         return;
       }
 
-      const result = await signInToExistingWalletWithPlatformPasskey(
-        found.smartAccountAddress,
-        // The user already picked a passkey in the discovery ceremony — scope
-        // this one to it so the OS skips the chooser and goes to verification.
-        found.credentialIdHex,
-      );
+      const result = await signInToExistingWalletWithPlatformPasskey(found.smartAccountAddress);
 
       const listIndex = accounts.length;
       // signInToExistingWalletWithPlatformPasskey ran under PASSKEY_RP_ID, so

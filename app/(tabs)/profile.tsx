@@ -4,11 +4,11 @@ import AboutSheet from '@/src/components/profile/AboutSheet';
 import AccountInfoSheet from '@/src/components/profile/AccountInfoSheet';
 import AddressBookSheet from '@/src/components/profile/AddressBookSheet';
 import BackupSheet from '@/src/components/profile/BackupSheet';
+import CurrencySheet from '@/src/components/profile/CurrencySheet';
 import DrawerProfileHeader from '@/src/components/profile/DrawerProfileHeader';
 import HelpSupportSheet from '@/src/components/profile/HelpSupportSheet';
 import LogoutItem from '@/src/components/profile/LogoutItem';
 import LogoutPromptSheet from '@/src/components/profile/LogoutPromptSheet';
-import CurrencySheet from '@/src/components/profile/CurrencySheet';
 import NetworkSheet from '@/src/components/profile/NetworkSheet';
 import NotificationSheet from '@/src/components/profile/NotificationSheet';
 import PermissionsSheet from '@/src/components/profile/PermissionsSheet';
@@ -21,8 +21,8 @@ import SignersSheet from '@/src/components/profile/SignersSheet';
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
 import { ACTIVE_NETWORK } from '@/src/constants/config';
-import { useDisplayFiat } from '@/src/hooks/use-display-fiat';
 import { useDrawer } from '@/src/context/drawer-context';
+import { useDisplayFiat } from '@/src/hooks/use-display-fiat';
 import { ASYNC_KEYS, useWalletStore } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
 import { copyToClipboard } from '@/src/utils/copy-to-clipboard';
@@ -31,7 +31,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '@shopify/restyle';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ScrollView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BIOMETRIC_ENABLED_KEY } from '../(auth)/biometric';
@@ -54,7 +54,14 @@ const Profile = () => {
   const [networkVisible, setNetworkVisible] = useState(false);
   const [currencyVisible, setCurrencyVisible] = useState(false);
   const { selectedCurrency } = useDisplayFiat();
-  const [, forceNetworkLabelRefresh] = useState(0);
+  // Held as state, not read straight off the ACTIVE_NETWORK module binding in
+  // render: the binding is only reliably live at call time (event handlers, API
+  // calls), and a bare re-render was not reliably picking up the reassignment.
+  // The NetworkSheet calls onNetworkChanged after the switch has applied, and
+  // that callback reads the fresh value.
+  const [networkLabel, setNetworkLabel] = useState(
+    ACTIVE_NETWORK.network === 'TESTNET' ? 'Testnet' : 'Public Network',
+  );
   const [notificationsVisible, setNotificationsVisible] = useState(false);
   const [helpSupportVisible, setHelpSupportVisible] = useState(false);
   const [aboutVisible, setAboutVisible] = useState(false);
@@ -86,6 +93,7 @@ const Profile = () => {
     await AsyncStorage.multiRemove([BIOMETRIC_ENABLED_KEY, 'latch_onboarding_complete']);
     router.replace('/onboarding');
   };
+  console.log(ACTIVE_NETWORK.network);
 
   return (
     <Box flex={1} backgroundColor="cardbg" style={{ paddingTop: insets.top }}>
@@ -142,7 +150,9 @@ const Profile = () => {
         <NetworkSheet
           visible={networkVisible}
           onClose={() => setNetworkVisible(false)}
-          onNetworkChanged={() => forceNetworkLabelRefresh((n) => n + 1)}
+          onNetworkChanged={() =>
+            setNetworkLabel(ACTIVE_NETWORK.network === 'TESTNET' ? 'Testnet' : 'Public Network')
+          }
         />
         <CurrencySheet visible={currencyVisible} onClose={() => setCurrencyVisible(false)} />
         <NotificationSheet
@@ -191,7 +201,7 @@ const Profile = () => {
               label="Multisig Wallets"
               onPress={() => setSharedWalletVisible(true)}
             />
-            {activeAccount.isMultisig && (
+            {/* {activeAccount.isMultisig && (
               <SettingItem
                 icon="checkmark-done-outline"
                 label="Approve a Request"
@@ -202,7 +212,7 @@ const Profile = () => {
                   }
                 }}
               />
-            )}
+            )} */}
             <SettingItem
               icon="book-outline"
               label="Address Book"
@@ -236,12 +246,12 @@ const Profile = () => {
               label="Wallet Backup"
               onPress={() => setBackupVisible(true)}
             />
-            <SettingItem
+            {/* <SettingItem
               icon="keypad-outline"
               label="Signers"
               onPress={() => setSignersVisible(true)}
               image={require('@/src/assets/icon/monitor-ipad-mobile.png')}
-            />
+            /> */}
             <SettingItem
               icon="document-text-outline"
               label="Permissions"
@@ -269,7 +279,7 @@ const Profile = () => {
             <SettingItem
               icon="globe-outline"
               label="Network"
-              value={ACTIVE_NETWORK.network === 'TESTNET' ? 'Testnet' : 'Public Network'}
+              value={networkLabel}
               onPress={() => setNetworkVisible(true)}
             />
             <SettingItem
