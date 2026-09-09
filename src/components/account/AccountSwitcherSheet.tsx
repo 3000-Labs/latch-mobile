@@ -5,6 +5,7 @@ import {
   type ChainSigner,
 } from '@/src/api/account-admin';
 import { deploySmartAccount as deploySmartAccountPasskey } from '@/src/api/passkey';
+import { lookupWalletByPasskey } from '@/src/api/passkey-credential';
 import {
   deployMultiSigSmartAccount,
   deploySmartAccount as deploySmartAccountEd25519,
@@ -29,6 +30,8 @@ import AppToast from '@/src/components/toast/AppToast';
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
 import {
+  getNetworkId,
+  PASSKEY_RP_ID,
   STELLAR_FACTORY_ADDRESS,
   STELLAR_NETWORK_PASSPHRASE,
   STELLAR_RPC_URL,
@@ -38,13 +41,18 @@ import { AccountSigner, computeMajorityThreshold } from '@/src/lib/account-signe
 import { addSharedWalletByAddress } from '@/src/lib/add-shared-wallet';
 import { announceMembership } from '@/src/lib/membership';
 import { multisigMembershipHash } from '@/src/lib/multisig-address';
+import { storePlatformPasskeyCredentialAtIndex } from '@/src/lib/passkey-webauthn';
+import { isPlatformPasskeySupported } from '@/src/lib/platform-passkey';
 import {
   getStoredPasskeyLabel,
   notifyIfDeviceOnly,
   notifyIfWeakBiometricGate,
   provisionPasskeyAtIndex,
+  storePasskeyLabel,
 } from '@/src/lib/provision-passkey';
+import { signInToExistingWalletWithPlatformPasskey } from '@/src/lib/wallet-auth';
 import { ensureWalletCosignKey, publishWckBundle } from '@/src/lib/wallet-cosign-key';
+import * as Sentry from '@sentry/react-native';
 import {
   getPasskeyStorageKeys,
   SECURE_KEYS,
@@ -77,6 +85,7 @@ import AccountSectionHeader from './AccountSectionHeader';
 import AccountSheetHeader from './AccountSheetHeader';
 import AddAccountInfo from './AddAccountInfo';
 import AddAccountPrompt from './AddAccountPrompt';
+import AddPasskeyAccount from './AddPasskeyAccount';
 import AddSharedWalletForm from './AddSharedWalletForm';
 import MultisigSignersSection from './MultisigSignersSection';
 import SharedWalletResultModal from './SharedWalletResultModal';
@@ -98,6 +107,7 @@ type SheetStep =
   | 'add-prompt'
   | 'add-info'
   | 'add-shared'
+  | 'add-passkey'
   | 'signers'
   | 'multisig-name'
   | 'multisig-members'
@@ -156,7 +166,11 @@ const AccountSwitcherSheet = ({ visible, onClose, onNeedsBackup }: Props) => {
   const [isAddingAccount, setIsAddingAccount] = useState(false);
   const [createAccountError, setCreateAccountError] = useState<string | null>(null);
   const [isAddingShared, setIsAddingShared] = useState(false);
+  const [isAddingPasskey, setIsAddingPasskey] = useState(false);
+  const [addPasskeyError, setAddPasskeyError] = useState<string | null>(null);
   const [signersFor, setSignersFor] = useState<{ name: string; address: string } | null>(null);
+
+  const platformPasskeySupported = isPlatformPasskeySupported();
 
   // Multisig wizard state
   const [walletName, setWalletName] = useState('');
@@ -210,6 +224,7 @@ const AccountSwitcherSheet = ({ visible, onClose, onNeedsBackup }: Props) => {
       }).start();
       setTimeout(() => {
         setStep('list');
+        setAddPasskeyError(null);
         resetMultisigState();
       }, 300);
     }
@@ -565,6 +580,94 @@ const AccountSwitcherSheet = ({ visible, onClose, onNeedsBackup }: Props) => {
     }
   };
 
+  /**
+   * Add a Latch account this user already has a synced passkey for — the
+   * in-app equivalent of the onboarding sign-in-passkey screen. One discovery
+   * ceremony (no address, no allowCredentials) resolves whichever synced Latch
+   * passkey answers to its wallet via latch-api's passkey-credentials index;
+   * a second ceremony scoped to that credential proves control and reads the
+   * account's on-chain webauthn signer. The account is only ever trusted from
+   * the chain — never from anything this device claims locally.
+   *
+   * Mirrors completeSignIn in app/(onboarding)/sign-in-passkey.tsx, minus the
+   * onboarding-complete flag and the router.replace: here the wallet already
+   * exists on the device and this just appends another account to the list.
+   */
+  const handleAddPasskeyAccount = async () => {
+    if (isAddingPasskey) return;
+    setIsAddingPasskey(true);
+    setAddPasskeyError(null);
+    try {
+      const found = await lookupWalletByPasskey();
+
+      // Already in the list — switch to it instead of running a second
+      // ceremony and letting appendAccount's dedupe silently no-op.
+      const existingIndex = accounts.findIndex(
+        (a) => a.smartAccountAddress === found.smartAccountAddress,
+      );
+      if (existingIndex >= 0) {
+        Toast.show({
+          type: 'info',
+          text1: 'Already added',
+          text2: accounts[existingIndex].name,
+        });
+        handleSwitch(existingIndex);
+        return;
+      }
+
+      const result = await signInToExistingWalletWithPlatformPasskey(
+        found.smartAccountAddress,
+        // The user already picked a passkey in the discovery ceremony — scope
+        // this one to it so the OS skips the chooser and goes to verification.
+        found.credentialIdHex,
+      );
+
+      const listIndex = accounts.length;
+      // signInToExistingWalletWithPlatformPasskey ran under PASSKEY_RP_ID, so
+      // that is the RP this credential answers to.
+      await storePlatformPasskeyCredentialAtIndex(
+        { credentialId: result.credentialId, keyDataHex: result.keyDataHex },
+        listIndex,
+        PASSKEY_RP_ID,
+      );
+      if (found.label) {
+        await storePasskeyLabel(getPasskeyStorageKeys(listIndex), found.label, found.seq);
+      }
+
+      const appended = await useWalletStore.getState().appendAccount(
+        {
+          index: -1,
+          name: found.label || `Account ${listIndex + 1}`,
+          gAddress: '',
+          publicKeyHex: '',
+          smartAccountAddress: found.smartAccountAddress,
+          image: null,
+          credentialId: result.credentialId,
+          network: result.network,
+        },
+        true,
+      );
+
+      Toast.show({ type: 'success', text1: 'Account added', text2: appended.name });
+      setStep('list');
+      onClose();
+    } catch (e: any) {
+      // Every discovery/sign-in failure — no synced credential, expired nonce,
+      // bad signature — is reported identically by latch-api on purpose, so the
+      // message here stays generic. The C-address is a public identifier and is
+      // what makes a Sentry report actionable.
+      Sentry.captureException(e instanceof Error ? e : new Error(String(e?.message ?? e)), {
+        tags: { scope: 'account-switcher-add-passkey', network: getNetworkId() },
+      });
+      setAddPasskeyError(
+        e?.message ??
+          "Couldn't add that account. Make sure you're signed in to the same Google or iCloud account.",
+      );
+    } finally {
+      setIsAddingPasskey(false);
+    }
+  };
+
   const handleDeploy = async (account: WalletAccount, listIndex: number) => {
     setDeployingIndex(listIndex);
     try {
@@ -738,6 +841,11 @@ const AccountSwitcherSheet = ({ visible, onClose, onNeedsBackup }: Props) => {
             onCreatePress={() => setStep('add-info')}
             onAddSharedPress={() => setStep('add-shared')}
             onCreateMultisigPress={() => setStep('multisig-name')}
+            onAddPasskeyPress={() => {
+              setAddPasskeyError(null);
+              setStep('add-passkey');
+            }}
+            platformPasskeySupported={platformPasskeySupported}
           />
         );
       case 'add-shared':
@@ -746,6 +854,19 @@ const AccountSwitcherSheet = ({ visible, onClose, onNeedsBackup }: Props) => {
             onBack={() => setStep('add-prompt')}
             onSubmit={handleAddSharedWallet}
             isSubmitting={isAddingShared}
+          />
+        );
+      case 'add-passkey':
+        return (
+          <AddPasskeyAccount
+            onBack={() => {
+              setAddPasskeyError(null);
+              setStep('add-prompt');
+            }}
+            onFind={handleAddPasskeyAccount}
+            isSubmitting={isAddingPasskey}
+            errorMessage={addPasskeyError}
+            platformSupported={platformPasskeySupported}
           />
         );
       case 'signers':
@@ -904,6 +1025,7 @@ const AccountSwitcherSheet = ({ visible, onClose, onNeedsBackup }: Props) => {
               text="Creating Account..."
               subText="Deploying your new Smart Account to the Stellar network. This only takes a moment."
             />
+            <LoadingBlur visible={isAddingPasskey} text="Adding your account…" />
           </Animated.View>
         </View>
 
