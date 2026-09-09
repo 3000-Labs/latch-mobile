@@ -22,6 +22,17 @@ const passkeyRpId = (env.EXPO_PUBLIC_PASSKEY_RP_ID || 'uselatch.app')
   .replace(/^[a-z][a-z0-9+.-]*:\/\//i, '')
   .replace(/\/.*$/, '');
 
+// iOS verifies an associated domain through Apple's CDN, which a Simulator or
+// a locally-signed debug build never completes — swcd does not even attempt the
+// fetch, so every passkey ceremony fails with "Unable to verify webcredentials
+// association of <team>.<bundle> with domain <rp>". Developer mode makes iOS
+// read https://<rp>/.well-known/apple-app-site-association directly instead.
+//
+// Requires Settings › Developer › Associated Domains Development on a physical
+// device; the Simulator honours it without the toggle. Never applied to an EAS
+// or CI artifact, which must verify through the CDN like a shipped app does.
+const associatedDomainMode = env.isShippingBuild ? '' : '?mode=developer';
+
 export default {
   expo: {
     owner: 'frankiepower',
@@ -43,7 +54,7 @@ export default {
       supportsTablet: true,
       bundleIdentifier: 'co.getlatch.latchapp',
       appleTeamId: 'P5QF5H77W5',
-      associatedDomains: [`webcredentials:${passkeyRpId}`],
+      associatedDomains: [`webcredentials:${passkeyRpId}${associatedDomainMode}`],
       ...(process.env.GOOGLE_SERVICES_IOS || existsSync('./GoogleService-Info.plist')
         ? { googleServicesFile: process.env.GOOGLE_SERVICES_IOS ?? './GoogleService-Info.plist' }
         : {}),
