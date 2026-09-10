@@ -31,16 +31,19 @@ import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
 import {
   getNetworkId,
+  MAINNET_NETWORK,
   PASSKEY_RP_ID,
   STELLAR_FACTORY_ADDRESS,
   STELLAR_NETWORK_PASSPHRASE,
   STELLAR_RPC_URL,
+  TESTNET_NETWORK,
 } from '@/src/constants/config';
 import { SHEET_HEIGHT } from '@/src/constants/constants';
 import { AccountSigner, computeMajorityThreshold } from '@/src/lib/account-signers';
 import { addSharedWalletByAddress } from '@/src/lib/add-shared-wallet';
 import { announceMembership } from '@/src/lib/membership';
 import { multisigMembershipHash } from '@/src/lib/multisig-address';
+import { switchActiveNetwork } from '@/src/lib/network-switch';
 import { storePlatformPasskeyCredentialAtIndex } from '@/src/lib/passkey-webauthn';
 import { isPlatformPasskeySupported } from '@/src/lib/platform-passkey';
 import {
@@ -54,6 +57,7 @@ import { signInToExistingWalletWithPlatformPasskey } from '@/src/lib/wallet-auth
 import { ensureWalletCosignKey, publishWckBundle } from '@/src/lib/wallet-cosign-key';
 import * as Sentry from '@sentry/react-native';
 import {
+  accountUsableOnNetwork,
   getPasskeyStorageKeys,
   SECURE_KEYS,
   useWalletStore,
@@ -150,6 +154,7 @@ const AccountSwitcherSheet = ({ visible, onClose, onNeedsBackup }: Props) => {
   const {
     accounts,
     activeAccountIndex,
+    activeNetwork,
     avatars,
     mnemonic,
     switchAccount,
@@ -159,6 +164,7 @@ const AccountSwitcherSheet = ({ visible, onClose, onNeedsBackup }: Props) => {
     removeAccount,
     renameAccount,
     setAccountImage,
+    resolveUnknownAccountNetworks,
   } = useWalletStore();
 
   const [step, setStep] = useState<SheetStep>('list');
@@ -169,6 +175,7 @@ const AccountSwitcherSheet = ({ visible, onClose, onNeedsBackup }: Props) => {
   const [isAddingPasskey, setIsAddingPasskey] = useState(false);
   const [addPasskeyError, setAddPasskeyError] = useState<string | null>(null);
   const [signersFor, setSignersFor] = useState<{ name: string; address: string } | null>(null);
+  const [switchingNetwork, setSwitchingNetwork] = useState(false);
 
   const platformPasskeySupported = isPlatformPasskeySupported();
 
@@ -216,6 +223,9 @@ const AccountSwitcherSheet = ({ visible, onClose, onNeedsBackup }: Props) => {
       SecureStore.getItemAsync(SECURE_KEYS.USER_EMAIL)
         .then(setSelfEmail)
         .catch(() => setSelfEmail(null));
+      // Stamp the network on any older account records so they fall into the
+      // right (this-network / other-network) bucket below.
+      void resolveUnknownAccountNetworks();
     } else {
       Animated.timing(translateY, {
         toValue: SCREEN_HEIGHT,
@@ -228,7 +238,7 @@ const AccountSwitcherSheet = ({ visible, onClose, onNeedsBackup }: Props) => {
         resetMultisigState();
       }, 300);
     }
-  }, [visible, translateY]);
+  }, [visible, translateY, resolveUnknownAccountNetworks]);
 
   const resetMultisigState = () => {
     setWalletName('');
@@ -491,6 +501,23 @@ const AccountSwitcherSheet = ({ visible, onClose, onNeedsBackup }: Props) => {
     });
   };
 
+  // Jump to the network the hidden accounts live on. reconcileActiveAccountForNetwork
+  // (fired inside switchActiveNetwork) re-points the active account and updates
+  // activeNetwork, so this sheet re-renders with the other network's list.
+  const handleSwitchToOtherNetwork = async () => {
+    if (switchingNetwork) return;
+    setSwitchingNetwork(true);
+    try {
+      await switchActiveNetwork(
+        activeNetwork === 'testnet' ? MAINNET_NETWORK : TESTNET_NETWORK,
+      );
+    } catch (err) {
+      if (__DEV__) console.error('[account] network switch failed:', err);
+    } finally {
+      setSwitchingNetwork(false);
+    }
+  };
+
   const handleCreateAccount = async (name: string, image: string | null) => {
     if (isAddingAccount) return;
     const currentLength = accounts.length;
@@ -643,7 +670,18 @@ const AccountSwitcherSheet = ({ visible, onClose, onNeedsBackup }: Props) => {
         true,
       );
 
-      Toast.show({ type: 'success', text1: 'Account added', text2: appended.name });
+      // The account is added stamped with the network it's actually deployed
+      // on (result.network). If that isn't the network the app is on, it won't
+      // show in the list until the user switches — say so rather than leaving
+      // them looking for it.
+      const addedOnOtherNetwork = result.network && result.network !== activeNetwork;
+      Toast.show({
+        type: 'success',
+        text1: 'Account added',
+        text2: addedOnOtherNetwork
+          ? `${appended.name} is on ${result.network === 'testnet' ? 'Testnet' : 'Public Network'} — switch networks to view it`
+          : appended.name,
+      });
       setStep('list');
       onClose();
     } catch (e: any) {
@@ -916,14 +954,25 @@ const AccountSwitcherSheet = ({ visible, onClose, onNeedsBackup }: Props) => {
         );
 
       default: {
-        // Split into regular and multisig groups while preserving each
-        // account's ORIGINAL array position — handleSwitch/handleDeploy/isActive
-        // all key off listIndex, so the index must survive the grouping.
+        // Only show accounts that live on the network the app is pointed at —
+        // a smart account on the other network can't be read or spent from
+        // here. Unknown-network (older records, probe pending) and not-yet-
+        // deployed accounts stay visible on both. Split into regular and
+        // multisig groups while preserving each account's ORIGINAL array
+        // position — handleSwitch/handleDeploy/isActive all key off listIndex,
+        // so the index must survive the filter + grouping.
         const regular: { account: WalletAccount; listIndex: number }[] = [];
         const multisig: { account: WalletAccount; listIndex: number }[] = [];
         accounts.forEach((account, listIndex) => {
+          if (!accountUsableOnNetwork(account, activeNetwork)) return;
           (account.isMultisig ? multisig : regular).push({ account, listIndex });
         });
+
+        const offNetworkCount = accounts.filter(
+          (a) => a.smartAccountAddress && a.network && a.network !== activeNetwork,
+        ).length;
+        const thisNetworkLabel = activeNetwork === 'testnet' ? 'Testnet' : 'Public Network';
+        const otherNetworkLabel = activeNetwork === 'testnet' ? 'Public Network' : 'Testnet';
 
         const renderAccount = ({
           account,
@@ -974,6 +1023,47 @@ const AccountSwitcherSheet = ({ visible, onClose, onNeedsBackup }: Props) => {
                   <AccountSectionHeader label="Multisig accounts" count={multisig.length} />
                   {multisig.map(renderAccount)}
                 </>
+              )}
+
+              {regular.length === 0 && multisig.length === 0 && (
+                <Box py="l" alignItems="center">
+                  <Text variant="p7" color="textSecondary" textAlign="center">
+                    No accounts on {thisNetworkLabel}
+                  </Text>
+                </Box>
+              )}
+
+              {offNetworkCount > 0 && (
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  disabled={switchingNetwork}
+                  onPress={handleSwitchToOtherNetwork}
+                >
+                  <Box
+                    flexDirection="row"
+                    alignItems="center"
+                    justifyContent="space-between"
+                    backgroundColor="bg11"
+                    borderRadius={16}
+                    padding="m"
+                    mt="s"
+                  >
+                    <Box flex={1} pr="s">
+                      <Text variant="p7" color="textPrimary" fontWeight="600">
+                        {offNetworkCount} account{offNetworkCount === 1 ? '' : 's'} on{' '}
+                        {otherNetworkLabel}
+                      </Text>
+                      <Text variant="p8" color="textSecondary" mt="xs">
+                        {switchingNetwork ? 'Switching…' : `Tap to switch to ${otherNetworkLabel}`}
+                      </Text>
+                    </Box>
+                    <Ionicons
+                      name="swap-horizontal"
+                      size={18}
+                      color={theme.colors.textSecondary}
+                    />
+                  </Box>
+                </TouchableOpacity>
               )}
             </KeyboardAwareScrollView>
           </>
