@@ -12,21 +12,24 @@ import Box from '@/src/components/shared/Box';
 import LoadingBlur from '@/src/components/shared/LoadingBlur';
 import Text from '@/src/components/shared/Text';
 import TxAuthModal from '@/src/components/shared/TxAuthModal';
+import { getNetworkId } from '@/src/constants/config';
 import { useAddressBook } from '@/src/hooks/use-address-book';
 import { usePortfolio } from '@/src/hooks/use-portfolio';
 import { usePrices } from '@/src/hooks/use-prices';
 import { useDisplayFiat } from '@/src/hooks/use-display-fiat';
 import { useTrackedTokens } from '@/src/hooks/use-tracked-tokens';
+import { findDeployedNetwork } from '@/src/lib/account-network';
 import { signingRaisesBiometricPrompt } from '@/src/lib/cosign-packet-flow';
 import { createTransfer } from '@/src/lib/cosign-transport';
 import { diagnoseAuthFailure, isAuthFailure } from '@/src/lib/tx-diagnostics';
-import { friendlyTxError } from '@/src/lib/tx-errors';
+import { friendlyTxError, isWrongNetworkError } from '@/src/lib/tx-errors';
 import { sendTokenFromPasskeyAccount, sendTokenFromSmartAccount } from '@/src/services/send-token';
 import { getPasskeyStorageKeys, useWalletStore } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
 import { useAppTheme } from '@/src/theme/ThemeContext';
 import { maskAddress } from '@/src/utils';
 import { Ionicons } from '@expo/vector-icons';
+import * as Sentry from '@sentry/react-native';
 import { useTheme } from '@shopify/restyle';
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -169,6 +172,22 @@ const SendToken = () => {
 
     const activeAccount = accounts[activeAccountIndex];
 
+    // A smart account is a contract on one specific network; on the other its
+    // C-address resolves to nothing and the transfer dies deep in
+    // re-simulation with an opaque Error(Auth, InvalidAction). Stop here —
+    // before anything is signed or submitted — with a message that names the
+    // fix. Only blocks on a known mismatch; a missing `network` (older
+    // accounts) falls through and is recovered in the catch below.
+    if (activeAccount?.network && activeAccount.network !== getNetworkId()) {
+      const label = (n: string) => (n === 'testnet' ? 'Testnet' : 'Mainnet');
+      setErrorMessage(
+        `This account is on ${label(activeAccount.network)}, but the app is on ${label(getNetworkId())}. ` +
+          'Switch networks under Profile → Network to use it.',
+      );
+      setStatus('error');
+      return;
+    }
+
     // Shared (multisig) wallets can't be signed from one device — their
     // signers are delegated member accounts with a threshold. Instead of
     // signing inline, open a cosign request that members approve, then any
@@ -239,6 +258,46 @@ const SendToken = () => {
       queryClient.invalidateQueries({ queryKey: ['portfolio'] });
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Transaction failed';
+
+      // The transfer trapped reading the account contract's own storage — the
+      // account isn't deployed on the network the app is pointed at. Distinct
+      // from a signer problem: check the chain for where it actually lives,
+      // stamp that onto the account record so the pre-send guard catches it
+      // next time, and say which way to switch.
+      if (isWrongNetworkError(err)) {
+        const here = getNetworkId();
+        const label = (n: string) => (n === 'testnet' ? 'Testnet' : 'Mainnet');
+        const deployedOn = await findDeployedNetwork(smartAccountAddress).catch(() => null);
+        if (deployedOn) {
+          void useWalletStore
+            .getState()
+            .setAccountNetwork(smartAccountAddress, deployedOn)
+            .catch(() => {});
+        }
+        Sentry.captureMessage('send-token: account on wrong network', {
+          level: 'warning',
+          tags: {
+            scope: 'send-token-wrong-network',
+            appNetwork: here,
+            accountNetwork: deployedOn ?? 'unknown',
+            accountKind: isPasskeyAccount ? 'passkey' : 'mnemonic',
+          },
+          extra: {
+            smartAccountAddress,
+            activeAccountIndex,
+            storedNetwork: activeAccount?.network ?? null,
+          },
+        });
+        setErrorMessage(
+          deployedOn
+            ? `This account is on ${label(deployedOn)}, but the app is on ${label(here)}. ` +
+                'Switch networks under Profile → Network to use it.'
+            : `This account isn't deployed on ${label(here)}. If you created it on the other ` +
+                'network, switch under Profile → Network.',
+        );
+        setStatus('error');
+        return;
+      }
 
       // On-chain auth rejection (Error(Auth, InvalidAction) / #3016) means the
       // device's signer isn't registered on the account. Read the account's
