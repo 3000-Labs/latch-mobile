@@ -26,9 +26,9 @@ import CreateWalletButton from '@/src/components/shared-wallet-review/CreateWall
 import MemberReviewList from '@/src/components/shared-wallet-review/MemberReviewList';
 import WalletNameCard from '@/src/components/shared-wallet-review/WalletNameCard';
 import BottomSheetHandle from '@/src/components/shared/BottomSheetHandle';
-import AppToast from '@/src/components/toast/AppToast';
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
+import AppToast from '@/src/components/toast/AppToast';
 import {
   getNetworkId,
   MAINNET_NETWORK,
@@ -55,7 +55,6 @@ import {
 } from '@/src/lib/provision-passkey';
 import { signInToExistingWalletWithPlatformPasskey } from '@/src/lib/wallet-auth';
 import { ensureWalletCosignKey, publishWckBundle } from '@/src/lib/wallet-cosign-key';
-import * as Sentry from '@sentry/react-native';
 import {
   accountUsableOnNetwork,
   getPasskeyStorageKeys,
@@ -66,10 +65,11 @@ import {
 import { Theme } from '@/src/theme/theme';
 import { useAppTheme } from '@/src/theme/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
+import * as Sentry from '@sentry/react-native';
 import { useTheme } from '@shopify/restyle';
 import { StrKey } from '@stellar/stellar-sdk';
 import * as SecureStore from 'expo-secure-store';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Dimensions,
@@ -508,9 +508,7 @@ const AccountSwitcherSheet = ({ visible, onClose, onNeedsBackup }: Props) => {
     if (switchingNetwork) return;
     setSwitchingNetwork(true);
     try {
-      await switchActiveNetwork(
-        activeNetwork === 'testnet' ? MAINNET_NETWORK : TESTNET_NETWORK,
-      );
+      await switchActiveNetwork(activeNetwork === 'testnet' ? MAINNET_NETWORK : TESTNET_NETWORK);
     } catch (err) {
       if (__DEV__) console.error('[account] network switch failed:', err);
     } finally {
@@ -968,11 +966,11 @@ const AccountSwitcherSheet = ({ visible, onClose, onNeedsBackup }: Props) => {
           (account.isMultisig ? multisig : regular).push({ account, listIndex });
         });
 
-        const offNetworkCount = accounts.filter(
-          (a) => a.smartAccountAddress && a.network && a.network !== activeNetwork,
-        ).length;
+        // const offNetworkCount = accounts.filter(
+        //   (a) => a.smartAccountAddress && a.network && a.network !== activeNetwork,
+        // ).length;
         const thisNetworkLabel = activeNetwork === 'testnet' ? 'Testnet' : 'Public Network';
-        const otherNetworkLabel = activeNetwork === 'testnet' ? 'Public Network' : 'Testnet';
+        // const otherNetworkLabel = activeNetwork === 'testnet' ? 'Public Network' : 'Testnet';
 
         const renderAccount = ({
           account,
@@ -1005,7 +1003,11 @@ const AccountSwitcherSheet = ({ visible, onClose, onNeedsBackup }: Props) => {
 
         return (
           <>
-            <AccountSheetHeader onClose={onClose} onAdd={() => setStep('add-prompt')} />
+            <AccountSheetHeader
+              onClose={onClose}
+              onAdd={() => setStep('add-prompt')}
+              label={activeNetwork === 'testnet' ? 'Testnet' : 'Mainnet '}
+            />
             <KeyboardAwareScrollView
               showsVerticalScrollIndicator={false}
               contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}
@@ -1033,7 +1035,7 @@ const AccountSwitcherSheet = ({ visible, onClose, onNeedsBackup }: Props) => {
                 </Box>
               )}
 
-              {offNetworkCount > 0 && (
+              {/* {offNetworkCount > 0 && (
                 <TouchableOpacity
                   activeOpacity={0.7}
                   disabled={switchingNetwork}
@@ -1064,7 +1066,7 @@ const AccountSwitcherSheet = ({ visible, onClose, onNeedsBackup }: Props) => {
                     />
                   </Box>
                 </TouchableOpacity>
-              )}
+              )} */}
             </KeyboardAwareScrollView>
           </>
         );
