@@ -96,17 +96,7 @@ import SharedWalletResultModal from './SharedWalletResultModal';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-interface Props {
-  visible: boolean;
-  onClose: () => void;
-  /** Called after a new account/multisig wallet is created, once this sheet
-   * has closed, so the caller can prompt for the recovery password and back
-   * it up (e.g. by opening BackupSheet) — uploadBackup() can't do this
-   * itself post-onboarding, since the password session is gone by then. */
-  onNeedsBackup?: () => void;
-}
-
-type SheetStep =
+export type SheetStep =
   | 'list'
   | 'add-prompt'
   | 'add-info'
@@ -117,6 +107,26 @@ type SheetStep =
   | 'multisig-members'
   | 'multisig-threshold'
   | 'multisig-review';
+
+interface Props {
+  visible: boolean;
+  onClose: () => void;
+  /** Called after a new account/multisig wallet is created, once this sheet
+   * has closed, so the caller can prompt for the recovery password and back
+   * it up (e.g. by opening BackupSheet) — uploadBackup() can't do this
+   * itself post-onboarding, since the password session is gone by then. */
+  onNeedsBackup?: () => void;
+  /** Step to land on when the sheet opens. Defaults to the account list; pass
+   * e.g. 'add-info' to open straight into account creation. */
+  initialStep?: SheetStep;
+  /** When true the sheet can't be dismissed — no back chevron, no backdrop tap,
+   * no Android back. The only ways out are creating the account or `onSwitchBack`.
+   * Used when the active network has no usable account. */
+  mandatory?: boolean;
+  /** The escape hatch shown in `mandatory` mode: revert to the previous network. */
+  onSwitchBack?: () => void;
+  switchBackLabel?: string;
+}
 
 interface MultisigResult {
   success: boolean;
@@ -146,7 +156,15 @@ function describeMemberReadError(message: string): string {
   return 'could not read account';
 }
 
-const AccountSwitcherSheet = ({ visible, onClose, onNeedsBackup }: Props) => {
+const AccountSwitcherSheet = ({
+  visible,
+  onClose,
+  onNeedsBackup,
+  initialStep,
+  mandatory = false,
+  onSwitchBack,
+  switchBackLabel,
+}: Props) => {
   const theme = useTheme<Theme>();
   const { isDark } = useAppTheme();
   const insets = useSafeAreaInsets();
@@ -167,7 +185,7 @@ const AccountSwitcherSheet = ({ visible, onClose, onNeedsBackup }: Props) => {
     resolveUnknownAccountNetworks,
   } = useWalletStore();
 
-  const [step, setStep] = useState<SheetStep>('list');
+  const [step, setStep] = useState<SheetStep>(initialStep ?? 'list');
   const [deployingIndex, setDeployingIndex] = useState<number | null>(null);
   const [isAddingAccount, setIsAddingAccount] = useState(false);
   const [createAccountError, setCreateAccountError] = useState<string | null>(null);
@@ -210,9 +228,16 @@ const AccountSwitcherSheet = ({ visible, onClose, onNeedsBackup }: Props) => {
 
   // Slide-up animation
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  // Tracks whether the sheet is currently open, so the close-branch reset only
+  // runs on a real open→close transition — not when `initialStep` changes while
+  // the sheet is still closed, which would schedule a stray setStep('list') that
+  // clobbers the initialStep the sheet then opens with.
+  const wasVisible = useRef(false);
 
   useEffect(() => {
     if (visible) {
+      wasVisible.current = true;
+      setStep(initialStep ?? 'list');
       Animated.spring(translateY, {
         toValue: 0,
         useNativeDriver: true,
@@ -226,7 +251,8 @@ const AccountSwitcherSheet = ({ visible, onClose, onNeedsBackup }: Props) => {
       // Stamp the network on any older account records so they fall into the
       // right (this-network / other-network) bucket below.
       void resolveUnknownAccountNetworks();
-    } else {
+    } else if (wasVisible.current) {
+      wasVisible.current = false;
       Animated.timing(translateY, {
         toValue: SCREEN_HEIGHT,
         duration: 300,
@@ -238,7 +264,7 @@ const AccountSwitcherSheet = ({ visible, onClose, onNeedsBackup }: Props) => {
         resetMultisigState();
       }, 300);
     }
-  }, [visible, translateY, resolveUnknownAccountNetworks]);
+  }, [visible, initialStep, translateY, resolveUnknownAccountNetworks]);
 
   const resetMultisigState = () => {
     setWalletName('');
@@ -912,13 +938,26 @@ const AccountSwitcherSheet = ({ visible, onClose, onNeedsBackup }: Props) => {
         return (
           <AddAccountInfo
             defaultName={`Account ${accounts.length + 1}`}
-            onBack={() => {
-              setCreateAccountError(null);
-              setStep('add-prompt');
-            }}
+            onBack={
+              mandatory
+                ? undefined
+                : () => {
+                    setCreateAccountError(null);
+                    setStep('add-prompt');
+                  }
+            }
             onSubmit={handleCreateAccount}
             isSubmitting={isAddingAccount}
             errorMessage={createAccountError}
+            secondaryAction={
+              mandatory && onSwitchBack
+                ? {
+                    label: switchBackLabel ?? 'Switch back',
+                    onPress: onSwitchBack,
+                    disabled: isAddingAccount,
+                  }
+                : undefined
+            }
           />
         );
 
@@ -966,11 +1005,11 @@ const AccountSwitcherSheet = ({ visible, onClose, onNeedsBackup }: Props) => {
           (account.isMultisig ? multisig : regular).push({ account, listIndex });
         });
 
-        // const offNetworkCount = accounts.filter(
-        //   (a) => a.smartAccountAddress && a.network && a.network !== activeNetwork,
-        // ).length;
+        const offNetworkCount = accounts.filter(
+          (a) => a.smartAccountAddress && a.network && a.network !== activeNetwork,
+        ).length;
         const thisNetworkLabel = activeNetwork === 'testnet' ? 'Testnet' : 'Public Network';
-        // const otherNetworkLabel = activeNetwork === 'testnet' ? 'Public Network' : 'Testnet';
+        const otherNetworkLabel = activeNetwork === 'testnet' ? 'Public Network' : 'Testnet';
 
         const renderAccount = ({
           account,
@@ -1035,7 +1074,7 @@ const AccountSwitcherSheet = ({ visible, onClose, onNeedsBackup }: Props) => {
                 </Box>
               )}
 
-              {/* {offNetworkCount > 0 && (
+              {offNetworkCount > 0 && (
                 <TouchableOpacity
                   activeOpacity={0.7}
                   disabled={switchingNetwork}
@@ -1059,14 +1098,10 @@ const AccountSwitcherSheet = ({ visible, onClose, onNeedsBackup }: Props) => {
                         {switchingNetwork ? 'Switching…' : `Tap to switch to ${otherNetworkLabel}`}
                       </Text>
                     </Box>
-                    <Ionicons
-                      name="swap-horizontal"
-                      size={18}
-                      color={theme.colors.textSecondary}
-                    />
+                    <Ionicons name="swap-horizontal" size={18} color={theme.colors.textSecondary} />
                   </Box>
                 </TouchableOpacity>
-              )} */}
+              )}
             </KeyboardAwareScrollView>
           </>
         );
@@ -1086,9 +1121,12 @@ const AccountSwitcherSheet = ({ visible, onClose, onNeedsBackup }: Props) => {
         transparent
         visible={visible && multisigResult === null}
         animationType="none"
-        onRequestClose={onClose}
+        // In mandatory mode the wallet has no account on this network, so nothing
+        // dismisses the sheet — not the backdrop, not Android back. The only ways
+        // out are creating the account or the explicit "switch back" button.
+        onRequestClose={mandatory ? () => {} : onClose}
       >
-        <TouchableWithoutFeedback onPress={onClose}>
+        <TouchableWithoutFeedback onPress={mandatory ? undefined : onClose} disabled={mandatory}>
           <View style={styles.backdrop} />
         </TouchableWithoutFeedback>
 

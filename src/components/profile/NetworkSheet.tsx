@@ -8,6 +8,7 @@ import BottomSheet from '@/src/components/shared/BottomSheet';
 import Box from '@/src/components/shared/Box';
 import { ACTIVE_NETWORK, MAINNET_NETWORK, TESTNET_NETWORK } from '@/src/constants/config';
 import { switchActiveNetwork } from '@/src/lib/network-switch';
+import { accountUsableOnNetwork, useWalletStore } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
 import { useAppTheme } from '@/src/theme/ThemeContext';
 
@@ -24,9 +25,12 @@ interface Props {
   /** Called after a successful switch so the parent (which reads ACTIVE_NETWORK
    * directly, e.g. the Profile row label) knows to re-render. */
   onNetworkChanged?: () => void;
+  /** Fired after switching to a network the wallet has no usable account on, so
+   * the parent can send the user straight into account creation. */
+  onNeedsAccount?: (network: NetworkId) => void;
 }
 
-const NetworkSheet = ({ visible, onClose, onNetworkChanged }: Props) => {
+const NetworkSheet = ({ visible, onClose, onNetworkChanged, onNeedsAccount }: Props) => {
   const theme = useTheme<Theme>();
   const { isDark } = useAppTheme();
   const [switching, setSwitching] = useState(false);
@@ -42,6 +46,14 @@ const NetworkSheet = ({ visible, onClose, onNetworkChanged }: Props) => {
     setSwitching(true);
     try {
       await switchActiveNetwork(network === 'testnet' ? TESTNET_NETWORK : MAINNET_NETWORK);
+      // switchActiveNetwork re-points the active account to one on `network`, or
+      // leaves the off-network selection in place when there's nothing here. In
+      // that case there's no wallet to use — send the user straight to creating
+      // one for this network rather than stranding them on an empty dashboard.
+      const { accounts } = useWalletStore.getState();
+      if (!accounts.some((a) => accountUsableOnNetwork(a, network))) {
+        onNeedsAccount?.(network);
+      }
     } finally {
       // In finally, not after the await: setActiveNetworkDetails runs first
       // inside switchActiveNetwork, so ACTIVE_NETWORK is already updated even if

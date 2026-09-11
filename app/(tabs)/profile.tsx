@@ -20,10 +20,11 @@ import SettingItem from '@/src/components/profile/SettingItem';
 import SignersSheet from '@/src/components/profile/SignersSheet';
 import Box from '@/src/components/shared/Box';
 import Text from '@/src/components/shared/Text';
-import { ACTIVE_NETWORK } from '@/src/constants/config';
+import { ACTIVE_NETWORK, MAINNET_NETWORK, TESTNET_NETWORK } from '@/src/constants/config';
 import { useDrawer } from '@/src/context/drawer-context';
 import { useDisplayFiat } from '@/src/hooks/use-display-fiat';
-import { ASYNC_KEYS, useWalletStore } from '@/src/store/wallet';
+import { switchActiveNetwork } from '@/src/lib/network-switch';
+import { useWalletStore } from '@/src/store/wallet';
 import { Theme } from '@/src/theme/theme';
 import { copyToClipboard } from '@/src/utils/copy-to-clipboard';
 import { Ionicons } from '@expo/vector-icons';
@@ -31,7 +32,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '@shopify/restyle';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ScrollView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BIOMETRIC_ENABLED_KEY } from '../(auth)/biometric';
@@ -46,6 +47,9 @@ const Profile = () => {
   const [accountInfoVisible, setAccountInfoVisible] = useState(false);
   // const [biometricsEnabled, setBiometricsEnabled] = useState(false);
   const [switcherVisible, setSwitcherVisible] = useState(false);
+  // Non-null when the switcher should open straight into account creation —
+  // set when a network switch lands on a network with no usable account.
+  const [switcherInitialStep, setSwitcherInitialStep] = useState<'list' | 'add-info'>('list');
   const [recoveryVisible, setRecoveryVisible] = useState(false);
   const [signersVisible, setSignersVisible] = useState(false);
   const [permissionsVisible, setPermissionsVisible] = useState(false);
@@ -73,18 +77,6 @@ const Profile = () => {
   const activeAccount = accounts[activeAccountIndex];
   const isPasskeyAccount = !activeAccount?.gAddress;
 
-  // One-shot nudge: if onboarding's backup upload failed, prompt for it here
-  // instead of losing the failure silently — see BACKUP_PENDING and
-  // deploy-account.tsx's Step 5.
-  useEffect(() => {
-    AsyncStorage.getItem(ASYNC_KEYS.BACKUP_PENDING).then((pending) => {
-      if (pending === 'true') {
-        AsyncStorage.removeItem(ASYNC_KEYS.BACKUP_PENDING);
-        setBackupVisible(true);
-      }
-    });
-  }, []);
-
   if (!activeAccount) return null;
 
   const handleLogout = async () => {
@@ -92,6 +84,20 @@ const Profile = () => {
     await clearAll();
     await AsyncStorage.multiRemove([BIOMETRIC_ENABLED_KEY, 'latch_onboarding_complete']);
     router.replace('/onboarding');
+  };
+
+  // Escape hatch from the mandatory "create an account for this network" sheet:
+  // revert to the network the user came from, which does have an account.
+  const previousNetworkLabel = networkLabel === 'Testnet' ? 'Public Network' : 'Testnet';
+  const handleSwitchBackNetwork = () => {
+    setSwitcherVisible(false);
+    setSwitcherInitialStep('list');
+    // Read the live ACTIVE_NETWORK binding, not the networkLabel state — the
+    // binding is reliably current at call time, the state may still be catching up.
+    const target = ACTIVE_NETWORK.network === 'TESTNET' ? MAINNET_NETWORK : TESTNET_NETWORK;
+    void switchActiveNetwork(target).then(() => {
+      setNetworkLabel(ACTIVE_NETWORK.network === 'TESTNET' ? 'Testnet' : 'Public Network');
+    });
   };
 
   return (
@@ -123,8 +129,14 @@ const Profile = () => {
 
         <AccountSwitcherSheet
           visible={switcherVisible}
-          onClose={() => setSwitcherVisible(false)}
-          onNeedsBackup={() => setBackupVisible(true)}
+          initialStep={switcherInitialStep}
+          mandatory={switcherInitialStep === 'add-info'}
+          onSwitchBack={handleSwitchBackNetwork}
+          switchBackLabel={`Switch back to ${previousNetworkLabel}`}
+          onClose={() => {
+            setSwitcherVisible(false);
+            setSwitcherInitialStep('list');
+          }}
         />
         <AccountInfoSheet
           visible={accountInfoVisible}
@@ -152,6 +164,16 @@ const Profile = () => {
           onNetworkChanged={() =>
             setNetworkLabel(ACTIVE_NETWORK.network === 'TESTNET' ? 'Testnet' : 'Public Network')
           }
+          onNeedsAccount={() => {
+            setNetworkVisible(false);
+            // Let the network sheet finish dismissing before the switcher slides
+            // up, so they don't cross-fade over each other. Set the step and
+            // visibility together so the sheet's open effect sees 'add-info'.
+            setTimeout(() => {
+              setSwitcherInitialStep('add-info');
+              setSwitcherVisible(true);
+            }, 250);
+          }}
         />
         <CurrencySheet visible={currencyVisible} onClose={() => setCurrencyVisible(false)} />
         <NotificationSheet
@@ -173,7 +195,6 @@ const Profile = () => {
         <SharedWalletWizardSheet
           visible={sharedWalletVisible}
           onClose={() => setSharedWalletVisible(false)}
-          onNeedsBackup={() => setBackupVisible(true)}
         />
 
         <Box paddingHorizontal="m">
