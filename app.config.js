@@ -98,42 +98,7 @@ export default {
         'android.permission.POST_NOTIFICATIONS',
         'android.permission.READ_EXTERNAL_STORAGE',
         'android.permission.WRITE_EXTERNAL_STORAGE',
-        'android.permission.RECORD_AUDIO',
-        'android.permission.READ_MEDIA_IMAGES',
-        'android.permission.READ_MEDIA_VIDEO',
       ],
-      // expo-image-picker adds the legacy storage permissions by default, which
-      // put the app under Google Play's Photo and Video Permissions policy —
-      // Play rejects the submission until you declare why a wallet needs the
-      // user's whole photo library. It doesn't: the only use is picking an
-      // account avatar (AccountInfoSheet, AddAccountInfo), and Android's system
-      // photo picker serves that with no permission at all.
-      //
-      // The cost is Android 12 and below, where there is no photo picker and
-      // library access needs READ_EXTERNAL_STORAGE. Avatar selection degrades
-      // there; nothing else in the app touches storage.
-      //
-      // RECORD_AUDIO comes from expo-camera, which requests it because the
-      // camera can record video. This app only scans barcodes — CameraView in
-      // ScannerFrame, ScanQRSheet and pair-show-qr, with no recordAsync and no
-      // video mode anywhere — so a microphone permission on a wallet is dead
-      // weight that reviewers and users both have to wonder about.
-      //
-      // READ_MEDIA_IMAGES comes from expo-screen-capture, not the image picker.
-      // Its manifest declares the screenshot-DETECTION permissions
-      // (READ_MEDIA_IMAGES on API 33, DETECT_SCREEN_CAPTURE on 34+), but
-      // use-secure-screen.ts only calls preventScreenCaptureAsync /
-      // allowScreenCaptureAsync, which need no permission. It is a photo
-      // permission, so leaving it merges it into the AAB from the AAR at Gradle
-      // time and Play rejects the submission — which is precisely what happened
-      // after the first pass here blocked only the storage permissions.
-      // blockedPermissions: [
-      //      'android.permission.READ_EXTERNAL_STORAGE',
-      //   'android.permission.WRITE_EXTERNAL_STORAGE',
-      //   'android.permission.RECORD_AUDIO',
-      //   'android.permission.READ_MEDIA_IMAGES',
-      //   'android.permission.READ_MEDIA_VIDEO',
-      // ],
     },
     web: {
       output: 'static',
